@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ job.company }}{% endblock %}
+{% block content %}
+<p><a href="/">&larr; All applications</a></p>
+<h1>{{ job.company }} · {{ job.role }}</h1>
+<p class="sub">{{ job.location }} · {{ job.source }} · found {{ job.created_at.replace("T", " ") }}
+  · <span class="badge {{ job.state }}">{{ job.state }}</span>
+  {% if job.date_applied %} · applied {{ job.date_applied }}{% endif %}</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>What next</h2>
+    {% if job.state == "Ready" and not human_apply %}
+      <p>The package is ready. Check the resume and cover letter, then let JobHunt fill in the application.
+        It stops and hands it to you if anything needs a human (unknown questions, verification codes, captchas).</p>
+      <form method="post" action="/jobs/{{ job.id }}/apply" class="inline"
+            data-confirm="Let JobHunt fill in and SUBMIT this application now?">
+        <button class="btn primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button>
+      </form>
+    {% elif job.state in ("Ready", "Needs you") %}
+      <p>Finish this application yourself in your browser{% if human_apply %} (this site needs Singpass){% endif %}.
+        Upload the resume and cover letter from this page, then mark it Applied.</p>
+    {% endif %}
+    <div class="actions">
+      <a class="btn" href="{{ (job.apply_url or job.url)|web_url }}" target="_blank" rel="noopener noreferrer">Open apply page ↗</a>
+      <a class="btn" href="{{ job.url|web_url }}" target="_blank" rel="noopener noreferrer">Open posting ↗</a>
+      <form method="post" action="/jobs/{{ job.id }}/open-folder" class="inline"><button class="btn">Open folder</button></form>
+    </div>
+    <form method="post" action="/jobs/{{ job.id }}/state" class="row" style="margin-top:14px">
+      <div><label for="jobState">Set state</label>
+        <select name="state" id="jobState">{% for s in user_states %}<option {{ 'selected' if s == job.state }}>{{ s }}</option>{% endfor %}</select></div>
+      <div style="flex:0 0 auto"><button class="btn">Save</button></div>
+    </form>
+  </div>
+  <div class="card">
+    <h2>Notes</h2>
+    <form method="post" action="/jobs/{{ job.id }}/notes">
+      <textarea name="notes" style="min-height:110px">{{ job.notes }}</textarea>
+      <div class="actions"><button class="btn small">Save notes</button></div>
+    </form>
+    <p class="muted" style="margin-bottom:0">AI use for this job: <b>{{ "{:,}".format(job.tokens_in + job.tokens_out) }}</b> tokens
+      ({{ "{:,}".format(job.tokens_in) }} in / {{ "{:,}".format(job.tokens_out) }} out){% if subscription %}, included in your subscription{% else %}, <b>${{ "%.4f"|format(job.cost_usd) }}</b>{% endif %}.
+      {% for c in calls %}<br><span class="mono">{{ c.stage }}: {{ "{:,}".format(c.tokens_in + c.tokens_out) }} tok, {{ "%.1f"|format(c.seconds) }}s</span>{% endfor %}</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Files <span class="muted" style="font-weight:400;font-size:13px">data/jobs/{{ job.folder }}</span></h2>
+  {% if files %}
+  <div class="tabs" id="tabs">
+    {% for f in files if f.name.endswith(".pdf") or f.name.endswith(".md") %}
+    <button type="button" data-src="/files/{{ job.id }}/{{ f.name }}" data-name="{{ f.name }}" class="{{ 'on' if loop.first }}">{{ f.name }}</button>
+    {% endfor %}
+  </div>
+  {# report_html is built by render.report_html: every "<" from the file is escaped first #}
+  <div id="reportView" class="report" style="display:none">{{ report_html|safe }}</div>
+  <iframe id="preview" class="preview" title="file preview"></iframe>
+  <p class="muted">Want to tweak the wording? Edit <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span>
+    in the folder (Notepad is fine), then
+    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small">Rebuild PDFs</button></form></p>
+  {% else %}
+  <p class="muted">No files yet.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Posting text <span class="muted" style="font-weight:400;font-size:13px">(what the AI read)</span></h2>
+  <div class="posting">{{ job.posting_text }}</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/job.js"></script>
+{% endblock %}

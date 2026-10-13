@@ -1,0 +1,35 @@
+{
+ "uuid": "40d9513bb45b14d29f4ef69b70344c8a",
+ "title": "Data Analyst (Databricks)",
+ "description": "<p><strong>Role Summary</strong></p><p>The Data Analyst is responsible for transforming data intoactionable insights that support business decision-making. The role requiresstrong business context understanding, stakeholder engagement, analyticalthinking, and data visualisation expertise to communicate insights effectively.</p><p><strong>Key Responsibilities</strong></p><p><strong>Business Analysis & Insights</strong></p><ul><li>Develop a deep understanding of business processes, operational challenges, and policy objectives.</li><li>Partner with stakeholders to understand business needs and translate them into analytical requirements.</li><li>Analyse datasets to identify trends, opportunities, risks, and performance indicators.</li><li>Provide recommendations and insights that support data-driven decision-making.</li></ul><p><strong>Analytics & Data Visualisation</strong></p><ul><li>Build, enhance, and maintain dashboards for performance reporting, operational monitoring, and user behaviour analytics.</li><li>Design intuitive and impactful visualisations that effectively communicate complex findings to business users.</li><li>Apply data storytelling techniques to present insights to both technical and non-technical audiences.</li><li>Define and track business metrics </li></ul><p><strong>Data Preparation & Analysis</strong></p><ul><li>Query, clean, and analyse data using SQL, Python, and Databricks.</li><li>Validate and interpret data to ensure analytical outputs are accurate and meaningful.</li><li>Collaborate with data engineers to improve data accessibility and usability for reporting purposes.</li></ul><p><strong>Documentation & Knowledge Management</strong></p><ul><li>Develop user guides and business documentation for dashboards, reports, and analytical products.</li><li>Maintain documentation on reporting methodologies, metric definitions, and analytical standards.</li></ul><ul><li>Support agile delivery activities such as requirements gathering, user story creation, and acceptance testing.</li><li>Explore automation opportunities to improve reporting and analytics workflows.</li></ul><p><strong>Competencies & Requirements</strong></p><p><strong>Technical Skills</strong></p><ul><li>Proficiency in SQL and Python for data analysis.</li><li>Hands-on experience with dashboard and visualisation tools (e.g. Databricks, Power BI).</li><li>Experience using Databricks or similar analytics platforms.</li><li>Ability to create compelling visualisations and data stories for diverse audiences.</li><li>Strong documentation and report-writing capabilities.</li></ul><p><strong>Preferred Skills</strong></p><ul><li>Understanding of business intelligence and KPI frameworks.</li><li>Familiarity with Jira, QA testing, and agile delivery practices.</li></ul>",
+ "minimumYearsExperience": 3,
+ "skills": [
+  {
+   "skill": "Dashboards"
+  },
+  {
+   "skill": "Data Analysis"
+  },
+  {
+   "skill": "Performance Reporting"
+  },
+  {
+   "skill": "Business Insights"
+  },
+  {
+   "skill": "Technical Skills"
+  }
+ ],
+ "salary": {
+  "maximum": 6900,
+  "minimum": 5000,
+  "type": {
+   "id": 4,
+   "salaryType": "Monthly"
+  }
+ },
+ "hiringCompany": null,
+ "postedCompany": {
+  "name": "ITCAN PTE. LIMITED"
+ }
+}

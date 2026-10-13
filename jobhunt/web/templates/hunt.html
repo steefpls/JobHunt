@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Hunt{% endblock %}
+{% block content %}
+<h1 id="huntPage" data-subscription="{{ 1 if subscription else 0 }}" data-key-saved="{{ 1 if key_saved else 0 }}"
+    data-max-apps="{{ settings.pacing.max_apps_per_hour_per_site }}" data-last-event="{{ events[-1].id if events else 0 }}"
+    data-busy="{{ 1 if status.busy else 0 }}">Hunt</h1>
+<p class="sub">Finds postings, judges each against your scope, and builds a tailored package for every match, one job at a time.</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>Start a hunt</h2>
+    <form method="post" action="/hunt/start" id="huntForm">
+      <div class="row">
+        <div style="flex:0 0 150px"><label for="jobsInput">How many jobs</label>
+          <input type="number" name="jobs" min="1" max="200" value="{{ settings.hunt.jobs }}" id="jobsInput"></div>
+        <div><label>Mode</label>
+          <label class="check"><input type="radio" name="mode" value="draft" checked>
+            Draft: build packages, I approve each one <span class="pill">recommended</span></label>
+          <label class="check"><input type="radio" name="mode" value="auto">
+            Auto-submit: also fill in and send applications</label>
+        </div>
+      </div>
+      <label>Sites</label>
+      <div class="sitelist">
+      {% for key, label in sites.items() %}
+        <label class="check"><input type="checkbox" name="sites" value="{{ key }}" {{ 'checked' if key in settings.hunt.sites }}>
+          <span>{{ label }}<br><span class="hint">{{ site_status[key] }}</span></span></label>
+      {% endfor %}
+      </div>
+      <div class="est" id="estimate">Working out an estimate…</div>
+      <div class="actions">
+        <button class="btn primary" id="startBtn" {{ 'disabled' if status.busy or not key_saved }}
+          data-confirm-auto="Auto-submit sends real applications without asking you first. Continue?">Start</button>
+        {% if not key_saved %}<span class="hint">Add your AI key on the <a href="/accounts">Accounts</a> page first.</span>{% endif %}
+      </div>
+    </form>
+    <form method="post" action="/hunt/stop" style="margin-top:8px">
+      <button class="btn danger" id="stopBtn" {{ 'disabled' if not status.busy }}>Stop</button>
+      <span class="hint">Stops cleanly after the current step.</span>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>This run</h2>
+    <div class="meter">
+      <div class="stat"><b id="mState">{{ status.kind if status.busy else "idle" }}</b><span>status</span></div>
+      <div class="stat"><b id="mTokens">0</b><span>tokens (run)</span></div>
+      <div class="stat"><b id="mCalls">0</b><span>AI calls</span></div>
+      <div class="stat"><b id="mCost">–</b><span>cost (run)</span></div>
+    </div>
+    <p class="muted" id="mJob" style="margin:10px 0 0">No job in progress.</p>
+    <p class="muted" id="mCaps" style="margin:6px 0 0"></p>
+    {% if ready %}
+    <h2 style="margin-top:18px">Waiting for your approval</h2>
+    <table>
+      {% for j in ready %}
+      <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a></td>
+        <td style="text-align:right">
+          {% if j.source in human_apply %}<a class="btn small" href="/jobs/{{ j.id }}">Apply yourself</a>
+          {% else %}<form method="post" action="/jobs/{{ j.id }}/apply" class="inline"
+                data-confirm="Let JobHunt fill in and SUBMIT this application now?">
+            <button class="btn small primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button></form>{% endif %}
+        </td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2>Progress log</h2>
+  <div class="log" id="log">{% for e in events %}<div class="{{ e.level }}"><span class="ts">{{ e.ts[11:19] }}</span> {{ e.message }}</div>{% endfor %}</div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="/static/hunt.js"></script>
+{% endblock %}

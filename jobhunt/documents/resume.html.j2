@@ -1,0 +1,91 @@
+<!--
+  Harvard-style resume (adapted from Hyde's JobHunt template).
+  Rules: single column, black on white, serif, no colours/graphics/icons/photo,
+  bullets start with strong past-tense action verbs and quantify impact,
+  reverse-chronological within each section.
+  Edit this file to change the look of every future resume.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ contact.name }} - Resume</title>
+<style>
+  @page { size: A4; margin: 16mm 17mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Times New Roman", Garamond, Georgia, serif; color: #000; font-size: 10.8pt; line-height: 1.28; margin: 0; }
+  header { text-align: center; margin-bottom: 10px; }
+  h1 { font-size: 17pt; font-weight: bold; margin: 0; letter-spacing: 1px; text-transform: uppercase; }
+  .contact { font-size: 10pt; margin-top: 4px; }
+  .contact span:not(:last-child)::after { content: " | "; }
+  .summary { margin: 6px 0 0; text-align: center; font-style: italic; }
+  h2 { font-size: 11pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
+       border-bottom: 1px solid #000; padding-bottom: 2px; margin: 12px 0 6px; }
+  .entry { margin-bottom: 8px; page-break-inside: avoid; }
+  .row { display: flex; justify-content: space-between; }
+  .row .left { font-weight: bold; }
+  .row .right { font-weight: bold; white-space: nowrap; padding-left: 12px; }
+  .row.sub .left, .row.sub .right { font-weight: normal; font-style: italic; }
+  ul { margin: 3px 0 0; padding-left: 18px; }
+  li { margin-bottom: 2px; }
+  p { margin: 0; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>{{ contact.name }}</h1>
+    <div class="contact">
+      {% if contact.location %}<span>{{ contact.location }}</span>{% endif %}
+      {% if contact.email %}<span>{{ contact.email }}</span>{% endif %}
+      {% if contact.phone %}<span>{{ contact.phone }}</span>{% endif %}
+      {% for link in contact.links %}<span>{{ link }}</span>{% endfor %}
+    </div>
+    {% if r.summary %}<p class="summary">{{ r.summary }}</p>{% endif %}
+  </header>
+
+  {% for section in r.section_order %}
+  {% if section == "education" and r.education %}
+  <section>
+    <h2>Education</h2>
+    {% for e in r.education %}
+    <div class="entry">
+      <div class="row"><span class="left">{{ e.school }}</span><span class="right">{{ e.location }}</span></div>
+      <div class="row sub"><span class="left">{{ e.degree }}</span><span class="right">{{ e.dates }}</span></div>
+      {% if e.details %}<ul>{% for d in e.details %}<li>{{ d }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% elif section == "experience" and r.experience %}
+  <section>
+    <h2>Experience</h2>
+    {% for e in r.experience %}
+    <div class="entry">
+      <div class="row"><span class="left">{{ e.company }}</span><span class="right">{{ e.location }}</span></div>
+      <div class="row sub"><span class="left">{{ e.title }}</span><span class="right">{{ e.dates }}</span></div>
+      {% if e.bullets %}<ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% elif section == "projects" and r.projects %}
+  <section>
+    <h2>Leadership &amp; Projects</h2>
+    {% for e in r.projects %}
+    <div class="entry">
+      <div class="row"><span class="left">{{ e.name }}</span><span class="right">{{ e.place }}</span></div>
+      {% if e.role or e.dates %}<div class="row sub"><span class="left">{{ e.role }}</span><span class="right">{{ e.dates }}</span></div>{% endif %}
+      {% if e.bullets %}<ul>{% for b in e.bullets %}<li>{{ b }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% elif section == "skills" and r.skills %}
+  <section>
+    <h2>Skills &amp; Interests</h2>
+    {% if r.skills.technical %}<p><strong>Technical:</strong> {{ r.skills.technical }}</p>{% endif %}
+    {% if r.skills.certifications %}<p><strong>Certifications:</strong> {{ r.skills.certifications }}</p>{% endif %}
+    {% if r.skills.languages %}<p><strong>Languages:</strong> {{ r.skills.languages }}</p>{% endif %}
+    {% if r.skills.interests %}<p><strong>Interests:</strong> {{ r.skills.interests }}</p>{% endif %}
+  </section>
+  {% endif %}
+  {% endfor %}
+</body>
+</html>

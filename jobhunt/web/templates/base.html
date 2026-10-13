@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}JobHunt{% endblock %} · JobHunt</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+  <nav class="side">
+    <div class="logo">Job<span>Hunt</span></div>
+    <a href="/" class="{{ 'on' if nav == 'dashboard' or nav == 'job' }}">Dashboard</a>
+    <a href="/hunt" class="{{ 'on' if nav == 'hunt' }}">Hunt</a>
+    <a href="/profile" class="{{ 'on' if nav == 'profile' }}">Profile</a>
+    <a href="/scope" class="{{ 'on' if nav == 'scope' }}">Scope</a>
+    <a href="/accounts" class="{{ 'on' if nav == 'accounts' }}">Accounts</a>
+    <a href="/settings" class="{{ 'on' if nav == 'settings' }}">Settings</a>
+    <div class="runstate" id="sideRun">
+      <span class="dot {{ 'live' if status.busy }}"></span>{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}
+    </div>
+  </nav>
+  <main>
+    {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
+    {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="/static/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

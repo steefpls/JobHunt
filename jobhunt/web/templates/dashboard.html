@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Applications</h1>
+<p class="sub">Every job JobHunt prepared for you. Click a row to see the resume, cover letter and match report.</p>
+
+{% if not checklist|selectattr(1)|list|length == checklist|length %}
+<div class="card checklist">
+  <h2>Get started</h2>
+  {% for label, done, href in checklist %}
+  <a href="{{ href }}"><span class="tick {{ 'done' if done }}">{{ '✓' if done else loop.index }}</span>{{ label }}</a>
+  {% endfor %}
+  <a href="/hunt"><span class="tick">{{ checklist|length + 1 }}</span>Start a hunt (try the practice board first)</a>
+</div>
+{% endif %}
+
+<div class="stats">
+  <a class="stat link" href="/"><b>{{ counts.values()|sum }}</b><span>All</span></a>
+  {% for s in states %}{% if counts.get(s) %}
+  <a class="stat link" href="/?state={{ s|urlencode }}"><b>{{ counts[s] }}</b><span>{{ s }}</span></a>
+  {% endif %}{% endfor %}
+  <div class="stat"><b id="spendTotal">{{ "{:,}".format((spend.tin + spend.tout)|int) }}</b><span>tokens used, all time{% if spend.cost > 0 %} · ${{ "%.3f"|format(spend.cost) }}{% endif %}</span></div>
+</div>
+
+<div class="card">
+  <div class="row" style="align-items:center;margin-bottom:8px">
+    <h2 style="margin:0">{{ state or "All applications" }}</h2>
+    <div style="text-align:right;flex:0 0 auto">
+      {% if state %}<a class="btn small" href="/">Show all</a>{% endif %}
+      <a class="btn small" href="/export.csv">Export CSV</a>
+    </div>
+  </div>
+  {% if jobs %}
+  <table>
+    <thead><tr><th>#</th><th>Found</th><th>Company · Role</th><th>Site</th><th>State</th><th>Tokens</th><th>Cost</th><th>Set state</th></tr></thead>
+    <tbody>
+    {% for j in jobs %}
+      <tr>
+        <td class="muted">{{ j.id }}</td>
+        <td class="muted">{{ j.created_at[:10] }}</td>
+        <td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b></a><br>{{ j.role }}{% if j.match_score is not none %}<span class="pill">fit {{ j.match_score|int }}/10</span>{% endif %}</td>
+        <td>{{ j.source }}</td>
+        <td><span class="badge {{ j.state }}">{{ j.state }}</span></td>
+        <td class="mono">{{ "{:,}".format(j.tokens_in + j.tokens_out) }}</td>
+        <td class="mono">{% if subscription %}incl.{% else %}${{ "%.4f"|format(j.cost_usd) }}{% endif %}</td>
+        <td>
+          <form class="inline" method="post" action="/jobs/{{ j.id }}/state">
+            <input type="hidden" name="next" value="/{{ '?state=' ~ state|urlencode if state }}">
+            <select name="state" data-autosubmit aria-label="Change state" style="width:auto;padding:4px 6px">
+              <option value="">change…</option>
+              {% for s in user_states %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+            </select>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">Nothing here yet. Run a hunt to fill this table.</p>
+  {% endif %}
+</div>
+
+{% if runs %}
+<div class="card">
+  <h2>Recent runs</h2>
+  <table>
+    <thead><tr><th>#</th><th>What</th><th>Started</th><th>Result</th><th>Tokens</th><th>Cost</th></tr></thead>
+    {% for r in runs %}
+    <tr><td class="muted">{{ r.id }}</td><td>{{ r.kind }}</td><td class="muted">{{ r.started_at.replace("T", " ") }}</td>
+      <td><span class="badge">{{ r.status }}</span> {{ r.summary }}</td>
+      <td class="mono">{{ "{:,}".format(r.tokens_in + r.tokens_out) }}</td>
+      <td class="mono">{% if subscription %}incl.{% else %}${{ "%.4f"|format(r.cost_usd) }}{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

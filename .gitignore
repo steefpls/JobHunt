@@ -1,0 +1,10 @@
+# personal data: profile, CVs, tracker, job folders, browser profile
+data/
+# installed by setup.bat
+.venv/
+.browsers/
+__pycache__/
+*.pyc
+.pytest_cache/
+# a bundled AI key: imported into Credential Manager on first start, then deleted
+opencode_key.txt

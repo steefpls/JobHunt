@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<h1>Your profile</h1>
+<p class="sub">Everything the AI knows about you. It tailors from this and nothing else, so make it complete and true.</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>1. Upload your CVs</h2>
+    <p class="muted">Old and new resumes, a LinkedIn export, notes with achievements and numbers. PDF, Word (.docx), .txt or .md.</p>
+    <form method="post" action="/profile/upload" enctype="multipart/form-data">
+      <input type="file" name="files" multiple accept=".pdf,.docx,.txt,.md,.html">
+      <div class="actions"><button class="btn">Upload</button></div>
+    </form>
+    {% if cvs %}
+    <table style="margin-top:10px">
+      {% for name in cvs %}<tr><td>{{ name }}</td><td style="text-align:right">
+        <form method="post" action="/profile/cv/delete" class="inline"><input type="hidden" name="name" value="{{ name }}">
+          <button class="btn small danger">Remove</button></form></td></tr>{% endfor %}
+    </table>
+    <form method="post" action="/profile/build" style="margin-top:12px"
+          data-confirm="Build your profile from these files? It replaces the profile text below (the old one is kept as profile.previous.md).">
+      <button class="btn primary" {{ 'disabled' if status.busy or not key_saved }}>2. Build my profile with AI</button>
+      {% if not key_saved %}<p class="hint">Add your AI key on the <a href="/accounts">Accounts</a> page first.</p>{% endif %}
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Contact details</h2>
+    <p class="muted">Used exactly as written on every resume, cover letter and form.</p>
+    <form method="post" action="/profile/contact">
+      <div class="row">
+        <div><label for="f_name">Full name</label><input type="text" id="f_name" name="name" value="{{ contact.name }}"></div>
+        <div><label for="f_email">Email</label><input type="email" id="f_email" name="email" value="{{ contact.email }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f_phone">Phone</label><input type="tel" id="f_phone" name="phone" value="{{ contact.phone }}"></div>
+        <div><label for="f_location">Location</label><input type="text" id="f_location" name="location" value="{{ contact.location }}"></div>
+      </div>
+      <label for="f_links">Links <span class="hint">one per line (LinkedIn, GitHub, portfolio)</span></label>
+      <textarea id="f_links" name="links" style="min-height:60px">{{ contact.links|join("\n") }}</textarea>
+      <div class="actions"><button class="btn primary">Save contact details</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card" id="screening">
+  <h2>Screening answers</h2>
+  <p class="muted">Application forms often ask these. JobHunt answers them <b>only</b> from here, exactly as you wrote them.
+    If a form asks one you left empty, it stops and marks the job <b>Needs you</b> instead of guessing.</p>
+  <form method="post" action="/profile/screening">
+    <div class="row wrap">
+      {% for key, (label, hint) in screening_fields.items() %}
+      <div class="field"><label for="s_{{ key }}">{{ label }}</label>
+        <input type="text" id="s_{{ key }}" name="{{ key }}" value="{{ screening[key] }}" placeholder="{{ hint }}"></div>
+      {% endfor %}
+    </div>
+    <div class="actions"><button class="btn primary">Save screening answers</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>3. Check and edit your profile</h2>
+  <p class="muted">{% if has_profile %}Read it through and fix anything wrong. The AI writes your resume and cover letter from this text
+    and nothing else.{% else %}No profile yet. Build it from your CVs above, or write it here using this outline.{% endif %}</p>
+  <form method="post" action="/profile/text">
+    <label for="f_profile_text" class="sr">Profile text</label>
+    <textarea id="f_profile_text" name="profile_text" class="tall">{{ profile_text }}</textarea>
+    <div class="actions"><button class="btn primary">Save profile</button></div>
+  </form>
+</div>
+{% endblock %}

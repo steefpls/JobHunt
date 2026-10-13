@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Scope{% endblock %}
+{% block content %}
+<h1>What you're looking for</h1>
+<p class="sub">The search words go to the job sites; the description is what the AI uses to say yes or no to each posting.</p>
+<form method="post" action="/scope">
+<div class="grid two">
+  <div class="card">
+    <h2>Search</h2>
+    <label for="f_keywords">Search keywords <span class="hint">one per line, e.g. "backend engineer"</span></label>
+    <textarea id="f_keywords" name="keywords" style="min-height:110px">{{ settings.scope.keywords|join("\n") }}</textarea>
+    <label for="f_location">Location</label>
+    <input type="text" id="f_location" name="location" value="{{ settings.scope.location }}">
+  </div>
+  <div class="card">
+    <h2>Never apply when the title or company contains</h2>
+    <p class="muted">Skipped instantly, without spending any AI tokens. One per line.</p>
+    <textarea name="avoid_words" style="min-height:150px">{{ settings.scope.avoid_words|join("\n") }}</textarea>
+  </div>
+</div>
+<div class="card">
+  <h2>Describe the jobs you want</h2>
+  <p class="muted">Target roles, seniority, locations, must-haves, salary floor and an <b>Avoid</b> list. Be specific: this is the filter.</p>
+  <textarea name="scope_text" class="tall">{{ scope_text }}</textarea>
+  <div class="actions"><button class="btn primary">Save scope</button></div>
+</div>
+</form>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<p class="sub">The defaults are sensible; you rarely need to change these.</p>
+<div class="card" id="aikey">
+  <h2>AI key</h2>
+  <p>{{ provider_short }} key: {% if key_saved %}<span class="badge Applied">set</span>{% else %}<span class="badge">not set</span>{% endif %}
+    <span class="hint">Kept in Windows Credential Manager; never shown here.</span></p>
+  <form method="post" action="/accounts/apikey" class="row" autocomplete="off">
+    <input type="hidden" name="provider" value="{{ settings.provider }}"><input type="hidden" name="next" value="/settings">
+    <div><input type="password" name="api_key" autocomplete="new-password" placeholder="paste a new {{ provider_short }} key"></div>
+    <div style="flex:0 0 auto"><button class="btn">{{ 'Replace' if key_saved else 'Save key' }}</button></div>
+  </form>
+</div>
+<form method="post" action="/settings">
+<div class="grid two">
+  <div class="card">
+    <h2>AI provider &amp; models</h2>
+    <label for="f_provider">Provider</label>
+    <select id="f_provider" name="provider">{% for p, label in providers.items() %}<option value="{{ p }}" {{ 'selected' if p == settings.provider }}>{{ label }}</option>{% endfor %}</select>
+    <label class="check"><input type="checkbox" name="reset_models" checked> When switching provider, use its default models</label>
+    <label for="f_base_url">Endpoint URL <span class="hint">only for "Other OpenAI-compatible endpoint", e.g. http://localhost:11434/v1</span></label>
+    <input type="text" id="f_base_url" name="base_url" value="{{ settings.base_url }}">
+    {% for stage, desc in [("filter", "Judging each posting (runs most often: keep it cheap)"), ("tailor", "Writing resume, cover letter, match report"), ("apply", "Filling in applications"), ("profile", "Building your profile from CVs")] %}
+    <label for="f_model_{{ stage }}">{{ desc }}</label>
+    <input type="text" id="f_model_{{ stage }}" name="model_{{ stage }}" value="{{ settings.models[stage] }}">
+    <div class="hint">{% if subscription %}Included in your subscription.{% else %}${{ "%.3f"|format(prices[stage][0]) }} in / ${{ "%.3f"|format(prices[stage][1]) }} out per million tokens{% endif %}</div>
+    {% endfor %}
+    <label class="check"><input type="checkbox" name="reasoning" {{ 'checked' if settings.reasoning }}> Let the model think before answering (slower, uses more tokens)</label>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Spending caps</h2>
+      <p class="muted">A run stops cleanly before any AI call that could go over a cap. 0 = no cap.
+        {% if subscription %}Your provider is a flat monthly plan: AI use is included in your plan, so only token caps apply.{% endif %}</p>
+      <div class="row">
+        <div><label for="f_per_job_tokens">Tokens per job</label><input type="number" id="f_per_job_tokens" name="per_job_tokens" min="0" step="1000" value="{{ settings.caps.per_job_tokens }}"></div>
+        <div><label for="f_per_run_tokens">Tokens per run</label><input type="number" id="f_per_run_tokens" name="per_run_tokens" min="0" step="10000" value="{{ settings.caps.per_run_tokens }}"></div>
+      </div>
+      {% if subscription %}
+      {# flat plan: dollar caps don't apply, so they are not shown (their values are kept for pay-per-use providers) #}
+      <input type="hidden" name="per_job_usd" value="{{ settings.caps.per_job_usd }}">
+      <input type="hidden" name="per_run_usd" value="{{ settings.caps.per_run_usd }}">
+      {% else %}
+      <div class="row">
+        <div><label for="per_job_usd">USD per job</label><input type="number" id="per_job_usd" name="per_job_usd" min="0" step="0.01" value="{{ settings.caps.per_job_usd }}"></div>
+        <div><label for="per_run_usd">USD per run</label><input type="number" id="per_run_usd" name="per_run_usd" min="0" step="0.1" value="{{ settings.caps.per_run_usd }}"></div>
+      </div>
+      {% endif %}
+    </div>
+    <div class="card">
+      <h2>Pacing (be kind to job sites)</h2>
+      <p class="muted">Sites like LinkedIn restrict accounts that move too fast.</p>
+      <div class="row">
+        <div><label for="f_min_delay_s">Wait between pages, min (s)</label><input type="number" id="f_min_delay_s" name="min_delay_s" min="0" step="0.5" value="{{ settings.pacing.min_delay_s }}"></div>
+        <div><label for="f_max_delay_s">max (s)</label><input type="number" id="f_max_delay_s" name="max_delay_s" min="0" step="0.5" value="{{ settings.pacing.max_delay_s }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f_max_apps_per_hour_per_site">Max applications per hour, per site</label><input type="number" id="f_max_apps_per_hour_per_site" name="max_apps_per_hour_per_site" min="0" value="{{ settings.pacing.max_apps_per_hour_per_site }}"></div>
+        <div><label for="f_action_delay_s">Pause between clicks while applying (s)</label><input type="number" id="f_action_delay_s" name="action_delay_s" min="0" step="0.1" value="{{ settings.pacing.action_delay_s }}"></div>
+      </div>
+      <label for="f_max_candidates">Most postings to read per hunt</label><input type="number" id="f_max_candidates" name="max_candidates" min="1" value="{{ settings.hunt.max_candidates }}">
+    </div>
+    <div class="card">
+      <h2>Applying</h2>
+      <label for="f_max_steps">Most steps per application</label><input type="number" id="f_max_steps" name="max_steps" min="3" max="200" value="{{ settings.apply.max_steps }}">
+      <label class="check"><input type="checkbox" name="show_browser" {{ 'checked' if settings.apply.show_browser }}> Show the browser while it applies</label>
+      <label class="check"><input type="checkbox" name="allow_register" {{ 'checked' if settings.apply.allow_register }}> Allow creating new accounts on application sites with a saved login</label>
+    </div>
+  </div>
+</div>
+<div class="actions"><button class="btn primary">Save settings</button></div>
+</form>
+
+<div class="card" style="margin-top:16px">
+  <h2>Maintenance</h2>
+  <div class="actions">
+    <form method="post" action="/settings/prices" class="inline"><button class="btn">Download current OpenRouter prices</button></form>
+    <form method="post" action="/settings/forget-seen" class="inline" data-confirm="Look at every posting again on the next hunt (costs tokens)?"><button class="btn">Forget postings already judged</button></form>
+  </div>
+  <p class="muted">Your data lives in the <span class="mono">data</span> folder next to the app. Back it up to keep your history.</p>
+</div>
+{% endblock %}

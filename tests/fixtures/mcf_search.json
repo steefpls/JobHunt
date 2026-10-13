@@ -1,0 +1,116 @@
+{
+ "results": [
+  {
+   "uuid": "40d9513bb45b14d29f4ef69b70344c8a",
+   "title": "Data Analyst (Databricks)",
+   "metadata": {
+    "jobPostId": "MCF-2026-1807134",
+    "updatedAt": "2026-10-13T03:15:11",
+    "newPostingDate": "2026-10-13",
+    "totalNumberJobApplication": 0,
+    "isPostedOnBehalf": false,
+    "isHideSalary": false,
+    "isHideHiringEmployerName": false,
+    "jobDetailsUrl": "https://www.mycareersfuture.gov.sg/job/professional-services/data-analyst-itcan-40d9513bb45b14d29f4ef69b70344c8a"
+   },
+   "hiringCompany": null,
+   "postedCompany": {
+    "name": "ITCAN PTE. LIMITED"
+   },
+   "address": {
+    "overseasCountry": null,
+    "foreignAddress1": null,
+    "foreignAddress2": null,
+    "block": null,
+    "street": null,
+    "floor": null,
+    "unit": null,
+    "building": null,
+    "postalCode": null,
+    "isOverseas": false,
+    "districts": [
+     {
+      "id": 998,
+      "location": "Islandwide",
+      "region": "Islandwide",
+      "sectors": [],
+      "regionId": "Islandwide"
+     }
+    ]
+   }
+  },
+  {
+   "uuid": "ee041c088427b3126f5d7f5db1dfe3bd",
+   "title": "Data Analyst",
+   "metadata": {
+    "jobPostId": "MCF-2026-1803721",
+    "updatedAt": "2026-10-12T10:40:40",
+    "newPostingDate": "2026-10-12",
+    "totalNumberJobApplication": 0,
+    "isPostedOnBehalf": true,
+    "isHideSalary": false,
+    "isHideHiringEmployerName": false,
+    "jobDetailsUrl": "https://www.mycareersfuture.gov.sg/job/information-technology/data-analyst-dadaconsultants-ee041c088427b3126f5d7f5db1dfe3bd"
+   },
+   "hiringCompany": {
+    "uen": "201735941W",
+    "description": "<p>Do you still think the boutique agency cannot advanced your own tech recruitment career?</p><p>Are you considering to change your career path from big agency to enjoy the best commission structure and working with best in class tech clients in Singapore?</p><p>Join US!</p><p>We are the Singapore based technology recruitment agency and specialised in providing talent solution for internet and technology industry. Our client portfolio are including the global internet technology giants, technology MNC and Tech startup. Whatever technology clients you are think of? Yes we do have!</p><p>Due to confidence and client demand in Singapore, we're looking for an experienced tech recruitment Consultant to join our team to service our clients across Asia Pacific.</p><p>In this role you'll help our clients identify & hire talent people not only with the right skills and experience, but also the right motivational and cultural fit - people who'll stay and perform.</p>",
+    "name": "DADACONSULTANTS PTE. LTD.",
+    "ssicCode": "78104",
+    "employeeCount": 20,
+    "companyUrl": "www.dadaconsultants.com",
+    "lastSyncDate": "2026-10-12T01:40:27.000Z",
+    "ssicCode2020": "78104",
+    "badges": [],
+    "_links": {
+     "self": {
+      "href": "https://api.mycareersfuture.gov.sg/v2/companies/201735941W"
+     },
+     "jobs": {
+      "href": "https://api.mycareersfuture.gov.sg/v2/companies/201735941W/jobs"
+     },
+     "addresses": {
+      "href": "https://api.mycareersfuture.gov.sg/v2/companies/201735941W/addresses"
+     },
+     "schemes": {
+      "href": "https://api.mycareersfuture.gov.sg/v2/companies/201735941W/schemes"
+     }
+    },
+    "ssicDescription2020": "EMPLOYMENT AGENCIES (EXCEPT DOMESTIC WORKER EMPLOYMENT PLACEMENT AGENCIES)",
+    "logoFileName": "a60b9b74376f40c43b70314bac552b2f/dadaconsultants.jpg",
+    "logoUploadPath": "https://static.mycareersfuture.gov.sg/images/company/logos/a60b9b74376f40c43b70314bac552b2f/dadaconsultants.jpg"
+   },
+   "postedCompany": {
+    "name": "DADACONSULTANTS PTE. LTD."
+   },
+   "address": {
+    "overseasCountry": null,
+    "foreignAddress1": null,
+    "foreignAddress2": null,
+    "block": "991C",
+    "street": "ALEXANDRA ROAD",
+    "floor": null,
+    "unit": null,
+    "building": "",
+    "postalCode": "119971",
+    "isOverseas": false,
+    "districts": [
+     {
+      "id": 5,
+      "location": "D05 Pasir Panjang, Hong Leong Garden, Clementi New Town",
+      "region": "West",
+      "sectors": [
+       "11",
+       "12",
+       "13"
+      ],
+      "regionId": "West"
+     }
+    ],
+    "lat": 1.27369271195846,
+    "lng": 103.804335939688
+   }
+  }
+ ],
+ "total": 84
+}
