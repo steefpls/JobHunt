@@ -1,5 +1,6 @@
 """Start JobHunt:  python -m jobhunt [--port 8765] [--no-browser]"""
 import argparse
+import socket
 import threading
 import webbrowser
 
@@ -10,11 +11,22 @@ from .first_run import import_bundled_key
 from .web.app import create_app
 
 
+def port_free(port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="jobhunt")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--no-browser", action="store_true")
     args = ap.parse_args()
+    if not port_free(args.port):  # before create_app: its start-up tidy-up would upset the JobHunt already running
+        raise SystemExit(f"\n  Port {args.port} is in use: JobHunt is probably already running. Check your browser.")
     app = create_app(args.port)
     note = import_bundled_key()  # opencode_key.txt next to run.bat -> Credential Manager
     if note:

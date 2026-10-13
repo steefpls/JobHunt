@@ -69,12 +69,24 @@ def salary_top_monthly(text: str) -> float:
     """Pay as a board shows it -> top of the range in SGD a month (0 = not stated or not comparable).
 
     '$5,500 – $8,000 per month' -> 8000, '$5500 - $8k p.m.' -> 8000, '$84,000 – $120,000 per year' -> 10000.
-    No period means monthly (how Singapore boards quote pay); hourly, daily, weekly and foreign pay give 0."""
+    No period means monthly (how Singapore boards quote pay); hourly, daily, weekly and foreign pay give 0.
+    A misread here skips a job unseen, so doubt reads high: '$6,000 – $8,000 + annual bonus' -> 8000, and
+    '$60,000 – $80,000 per annum + 13th month' (both periods named) -> 80000, which no floor rules out."""
     if not text or _FOREIGN_CURRENCY_RE.search(text):
         return 0.0
     amounts = [float(n.replace(",", "")) * (1000 if k else 1) for n, k in _AMOUNT_RE.findall(_spread_k(text))]
     amounts = [a for a in amounts if a >= 100]  # skip stray small numbers ("2 days WFH")
-    return monthly(max(amounts), text) if amounts else 0.0
+    if not amounts:
+        return 0.0
+    top = max(amounts)
+    if _PER_YEAR_RE.search(text):
+        if _PER_MONTH_RE.search(text):
+            return top  # a month and a year both named: can't tell which the figure is
+        return top / 12 if top >= _LOWEST_YEARLY_PAY else top  # "annual" may be about a bonus, not the pay
+    return monthly(top, text)
+
+
+_LOWEST_YEARLY_PAY = 20_000  # a year's pay below this is really a month's pay with "annual bonus" beside it
 
 
 _K_RANGE_RE = re.compile(r"(\d+(?:\.\d+)?)(\s*(?:-|–|to)\s*\d+(?:\.\d+)?\s*k\b)", re.I)

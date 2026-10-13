@@ -303,8 +303,9 @@ class JobStreetSite:
         if area and country and country.lower() not in area.lower():
             area = f"{area}, {country}"
         p.location = area or country
-        p.salary = select_text(soup, "[data-automation='job-detail-salary']")
-        p.salary_max_monthly = salary_top_monthly(p.salary)
+        salary = select_text(soup, "[data-automation='job-detail-salary']")
+        if salary:  # else keep a JSON-LD salary, should SEEK start sending one
+            p.salary, p.salary_max_monthly = salary, salary_top_monthly(salary)
         work_type = select_text(soup, "[data-automation='job-detail-work-type']")
         if p.text and work_type:
             p.text += f"\n\nWork type: {work_type}"

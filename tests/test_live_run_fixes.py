@@ -18,7 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from jobhunt import db, hunt, llm, render, secrets_store, settings, sites
-from jobhunt.extract import Listing, html_to_text, parse_salary_floor, salary_top_monthly
+from jobhunt.extract import Listing, Posting, html_to_text, parse_salary_floor, salary_top_monthly
 
 from conftest import FIXTURES, TAILOR_REPLY
 
@@ -35,6 +35,9 @@ def read(name):
     ("$5,500 – $8,000 per month", 8000), ("$5500 - $8k p.m.", 8000), ("$84,000 – $120,000 per year", 10000),
     ("$5-6k p.m.", 6000), ("SGD 10,000-15,000 Monthly", 15000), ("$25 – $30 per hour", 0), ("$300 per day", 0),
     ("RM 5,000 - 8,000", 0), ("US$ 9,000", 0), ("Competitive", 0), ("", 0),
+    # free text advertisers write: a misread here skips a good job unseen, so doubt reads high
+    ("$6,000 - $8,000 + annual bonus", 8000), ("$120,000 + annual bonus", 10000),
+    ("$60,000 – $80,000 per annum + 13th month", 80000), ("$7,000 - $9,000 (5 days work week) + yearly bonus", 9000),
 ])
 def test_board_salary_text_to_monthly_top(text, top):
     assert salary_top_monthly(text) == pytest.approx(top)
@@ -71,6 +74,15 @@ def test_listing_salary_carries_over_when_the_page_has_none():
                       salary="$4,500 – $6,000 per month", salary_max_monthly=6000)
     p = sites.JobStreetSite().parse_posting(read("jobstreet_posting.html"), listing)
     assert p.salary_max_monthly == 6000
+
+
+def test_a_jobstreet_page_without_a_salary_keeps_the_json_ld_one(monkeypatch):
+    def with_jsonld_salary(*a, **kw):
+        return Posting(source="jobstreet", url="u", title="t", company="c", location="Singapore",
+                       text="x" * 200, salary="SGD 7,000-9,000 MONTH", salary_max_monthly=9000)
+    monkeypatch.setattr(sites, "generic_posting", with_jsonld_salary)
+    p = sites.JobStreetSite().parse_posting("<html><body></body></html>", Listing("jobstreet", "u", "t"))
+    assert p.salary == "SGD 7,000-9,000 MONTH" and p.salary_max_monthly == 9000
 
 
 def test_mycareersfuture_search_result_has_salary():
@@ -352,3 +364,19 @@ def test_a_broken_settings_file_is_kept_aside_not_silently_lost(data_dir):
     settings.update({"reasoning": True})
     assert (paths.settings_path().parent / "settings.broken.json").read_text(encoding="utf-8").startswith('{"provider"')
     assert settings.load()["reasoning"] is True
+
+
+def test_a_second_launch_leaves_the_running_jobhunt_alone(monkeypatch):
+    """create_app tidies up 'interrupted' runs and jobs; a second run.bat must not do that to a live JobHunt."""
+    import socket
+    import sys
+    from jobhunt import __main__ as entry
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen()
+        port = busy.getsockname()[1]
+        monkeypatch.setattr(sys, "argv", ["jobhunt", "--port", str(port), "--no-browser"])
+        monkeypatch.setattr(entry, "create_app", lambda *a: pytest.fail("started up on a port in use"))
+        with pytest.raises(SystemExit, match="already running"):
+            entry.main()
+    assert entry.port_free(port)
