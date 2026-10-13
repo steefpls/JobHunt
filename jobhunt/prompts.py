@@ -73,7 +73,7 @@ def profile_prompt(cv_texts: list[tuple[str, str]]) -> tuple[str, str]:
 
 # ── 2. filter: does this posting fit the scope? ───────────────────────
 
-def filter_prompt(profile_text: str, scope_text: str, posting) -> tuple[str, str]:
+def filter_prompt(profile_text: str, scope_text: str, posting, expected_salary: str = "") -> tuple[str, str]:
     system = (
         "You screen job postings for one candidate against their written scope. Be quick and decisive.\n"
         "Skip anything matching the scope's Avoid list, clearly wrong seniority or role type, or a salary stated below "
@@ -81,9 +81,15 @@ def filter_prompt(profile_text: str, scope_text: str, posting) -> tuple[str, str
         + UNTRUSTED_RULES
         + "\nReply with one JSON object only."
     )
+    floor = ""
+    if expected_salary.strip():
+        floor = ("Candidate's expected salary (a hard floor, it overrides any salary in the scope): "
+                 + _cap(expected_salary, 200) + "\nIf the posting states a salary whose TOP end is below this floor "
+                 "(convert yearly figures to monthly), choose skip. A range that only starts below it is fine.\n\n")
     user = (
         "Candidate profile (short):\n" + _cap(profile_text, 3500) + "\n\n"
         "Candidate's scope (what they want and what to avoid):\n" + _cap(scope_text, CAPS["scope"]) + "\n\n"
+        + floor +
         "Posting:\n" + _posting_block(posting, CAPS["filter_posting"]) + "\n\n"
         'Return: {"decision": "apply" or "skip", "score": 0-10, "reasons": ["max 3 short reasons"], "doubts": ""}'
     )
@@ -120,6 +126,7 @@ def tailor_prompt(profile_text: str, contact: dict, posting) -> tuple[str, str]:
         "impact, no fluff. Put the bullets most relevant to this posting first. Classic order is Education first; for "
         "experienced candidates put Experience first. Keep the resume to one page (roughly 3-5 bullets per recent role).\n"
         "The cover letter is about 250-350 words, specific to this company, plain and confident, no clichés.\n"
+        "References and referees are never experience entries; leave them out of the resume.\n"
         + HONESTY_RULES + "\n" + UNTRUSTED_RULES
         + "\nReply with one JSON object only, no markdown."
     )

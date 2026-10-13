@@ -60,6 +60,7 @@ class BrowserSession:
         self._page = None
         self._pdf_browser = None
         self.last_url = ""  # where the last load_html ended up (after redirects)
+        self.last_status = 0  # its HTTP status (0 = unknown)
 
     # profile browser ---------------------------------------------------
     def _ensure(self):
@@ -98,12 +99,13 @@ class BrowserSession:
 
     def load_html(self, url: str) -> str:
         page = self.page
-        page.goto(url, wait_until="domcontentloaded", timeout=45000)
+        response = page.goto(url, wait_until="domcontentloaded", timeout=45000)
         try:
             page.wait_for_load_state("networkidle", timeout=8000)
         except PlaywrightError:
             pass  # busy pages never go idle; what we have is enough
         self.last_url = page.url
+        self.last_status = response.status if response else 0
         return page.content()
 
     # PDFs ----------------------------------------------------------------

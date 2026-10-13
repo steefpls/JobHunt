@@ -122,9 +122,15 @@ def price_for(model: str, settings: dict | None = None) -> tuple[float, float]:
     custom = (settings or {}).get("custom_prices", {}).get(model)
     if custom:
         return float(custom.get("in", 0)), float(custom.get("out", 0))
-    if model in _load_price_cache():
-        return tuple(_load_price_cache()[model])
-    return KNOWN_PRICES.get(model, FALLBACK_PRICE)
+    for table in (_load_price_cache(), KNOWN_PRICES):
+        if model in table:
+            return tuple(table[model])
+    # OpenCode Go and other endpoints drop OpenRouter's "vendor/" prefix (deepseek-v4.1-flash)
+    for table in (_load_price_cache(), KNOWN_PRICES):
+        for name, price in table.items():
+            if name.endswith("/" + model):
+                return tuple(price)
+    return FALLBACK_PRICE
 
 
 def cost_of(model: str, tokens_in: int, tokens_out: int, settings: dict | None = None) -> float:
@@ -306,9 +312,9 @@ class LLMClient:
             resp.estimated = True
             resp.tokens_in = est_in
             resp.tokens_out = estimate_tokens(resp.text + json.dumps([c.args for c in resp.tool_calls]))
-        if self.subscription:
-            resp.cost = 0.0  # included in the subscription
-        elif not resp.cost:
+        if self.subscription or not resp.cost:
+            # On a flat plan nothing is billed per call; this is what the same call would
+            # cost at the model's pay-per-use price, so you can see what the plan is worth.
             resp.cost = cost_of(model, resp.tokens_in, resp.tokens_out, self.settings)
         if self.meter:
             self.meter.add(job_id, resp.cost, resp.tokens_in, resp.tokens_out)

@@ -2,7 +2,6 @@
 // Page values come from data-* attributes on #huntPage (no inline scripts).
 (function () {
   const cfg = document.getElementById('huntPage').dataset;
-  const SUBSCRIPTION = cfg.subscription === '1';
   const KEY_SAVED = cfg.keySaved === '1';
   const MAX_APPS = cfg.maxApps;
   let lastEvent = parseInt(cfg.lastEvent || '0');
@@ -28,7 +27,7 @@
       if (m) {
         $('mTokens').textContent = fmt(m.tokens_in + m.tokens_out);
         $('mCalls').textContent = fmt(m.calls);
-        $('mCost').textContent = m.subscription ? 'included' : '$' + m.run_cost.toFixed(4);
+        $('mCost').textContent = '$' + m.run_cost.toFixed(4);
         const caps = [];
         if (!m.subscription && m.run_cap) caps.push('$' + m.run_cap.toFixed(2) + ' per run, $' + m.job_cap.toFixed(2) + ' per job');
         if (m.run_token_cap) caps.push(fmt(m.run_token_cap) + ' tokens per run');
@@ -37,7 +36,7 @@
       }
       const j = s.job;
       $('mJob').textContent = j ? `Now: ${j.company} · ${j.role} (${j.state}) · ${fmt(j.tokens_in + j.tokens_out)} tokens`
-        + (SUBSCRIPTION ? '' : ` · $${j.cost_usd.toFixed(4)}`) : 'No job in progress.';
+        + ` · $${j.cost_usd.toFixed(4)}` : 'No job in progress.';
       $('stopBtn').disabled = !s.busy;
       $('startBtn').disabled = s.busy || !KEY_SAVED;
       if (wasBusy && !s.busy) { setTimeout(() => location.reload(), 1200); }
@@ -52,9 +51,8 @@
     const jobs = parseInt($('jobsInput').value || '10');
     const e = await (await fetch(`/api/estimate?jobs=${jobs}&sites=${sites}&auto=${auto}`)).json();
     const box = $('estimate');
-    const cost = e.subscription
-      ? `about <b>${fmt(e.total_tokens)}</b> tokens (${fmt(e.per_job_tokens)} per job, ~${e.calls_per_job.toFixed(0)} AI calls each) — included in your plan`
-      : `about <b>$${e.total_usd.toFixed(3)}</b> ($${e.per_job_usd.toFixed(4)} per job, ${fmt(e.per_job_tokens)} tokens)`;
+    const cost = `about <b>$${e.total_usd.toFixed(3)}</b> ($${e.per_job_usd.toFixed(4)} per job, ${fmt(e.per_job_tokens)} tokens, `
+      + `~${e.calls_per_job.toFixed(0)} AI calls each)` + (e.subscription ? ' at API prices; your flat plan covers it' : '');
     let speed = `<b>~${e.drafts_per_hour.toFixed(0)}</b> drafts/hour`;
     if (e.applies_per_hour) speed += `, <b>~${e.applies_per_hour.toFixed(0)}</b> auto-applies/hour (capped at ${MAX_APPS}/hour per site)`;
     let html = `Estimate for ${jobs} job(s): ${cost}. Speed: ${speed}`

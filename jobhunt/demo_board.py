@@ -7,6 +7,7 @@ application site accepts any login and keeps submissions in memory only.
 import html
 import json
 import random
+import re
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Request, UploadFile
@@ -78,6 +79,10 @@ def demo_job(job_id: int):
     ld = {"@context": "https://schema.org", "@type": "JobPosting", "title": j["title"], "description": j["description"],
           "hiringOrganization": {"@type": "Organization", "name": j["company"]},
           "jobLocation": {"@type": "Place", "address": {"addressLocality": j["location"], "addressCountry": "SG"}}}
+    pay = [int(n.replace(",", "")) for n in re.findall(r"\d[\d,]*", j["salary"])]
+    if pay:  # like the real boards: the range as schema.org baseSalary
+        ld["baseSalary"] = {"@type": "MonetaryAmount", "currency": "SGD",
+                            "value": {"@type": "QuantitativeValue", "minValue": pay[0], "maxValue": pay[-1], "unitText": "MONTH"}}
     body = (f'<script type="application/ld+json">{json.dumps(ld)}</script>'
             f'<h1>{html.escape(j["title"])}</h1><p><b>{html.escape(j["company"])}</b> &middot; {html.escape(j["location"])}'
             f'{" &middot; " + html.escape(j["salary"]) if j["salary"] else ""}</p>'

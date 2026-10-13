@@ -52,8 +52,9 @@ def test_opencode_go_request_shape():
     # stable session id per job + stage
     sid = req.headers["x-opencode-session"]
     assert sid == c.session_id(3, "filter") and sid != c.session_id(3, "tailor") and sid != c.session_id(4, "filter")
-    # flat subscription: no dollar cost, tokens still counted
-    assert resp.cost == 0.0
+    # flat subscription: nothing is billed, but the cost is shown at the model's API price
+    # (OpenCode's "deepseek-v4.1-flash" is priced as OpenRouter's "deepseek/deepseek-v4.1-flash")
+    assert resp.cost == pytest.approx((100 * 0.0441 + 20 * 0.63) / 1e6)
     assert meter.snapshot()["tokens_in"] == 100
 
 

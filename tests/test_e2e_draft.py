@@ -110,5 +110,6 @@ def test_missing_profile_is_a_clear_error(demo_server, secrets, fake_llm):
 
 def test_estimate_shape(demo_server):
     est = hunt.estimate(settings.load(), 10, ["demo", "mycareersfuture"], auto_submit=True)
-    assert est["subscription"] is True and est["total_usd"] == 0
+    assert est["subscription"] is True and est["total_usd"] > 0  # API-price equivalent
+    assert not est["over_run_cap"] and not est["over_job_cap"]  # USD caps don't apply to a flat plan
     assert est["total_tokens"] > 0 and est["drafts_per_hour"] > 0 and est["applies_per_hour"] > 0

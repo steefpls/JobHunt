@@ -25,7 +25,7 @@
     {% for stage, desc in [("filter", "Judging each posting (runs most often: keep it cheap)"), ("tailor", "Writing resume, cover letter, match report"), ("apply", "Filling in applications"), ("profile", "Building your profile from CVs")] %}
     <label for="f_model_{{ stage }}">{{ desc }}</label>
     <input type="text" id="f_model_{{ stage }}" name="model_{{ stage }}" value="{{ settings.models[stage] }}">
-    <div class="hint">{% if subscription %}Included in your subscription.{% else %}${{ "%.3f"|format(prices[stage][0]) }} in / ${{ "%.3f"|format(prices[stage][1]) }} out per million tokens{% endif %}</div>
+    <div class="hint">${{ "%.3f"|format(prices[stage][0]) }} in / ${{ "%.3f"|format(prices[stage][1]) }} out per million tokens{% if subscription %} at API prices (your plan covers it){% endif %}</div>
     {% endfor %}
     <label class="check"><input type="checkbox" name="reasoning" {{ 'checked' if settings.reasoning }}> Let the model think before answering (slower, uses more tokens)</label>
   </div>

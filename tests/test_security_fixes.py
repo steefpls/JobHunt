@@ -390,9 +390,10 @@ def test_L1_state_form_only_redirects_inside_the_app(client):
 
 
 def test_L2_no_dollars_on_settings_under_a_flat_plan(client):
+    # no USD caps under a flat plan; prices are shown, but only as API-price equivalents
     settings.update({"provider": "opencode_go"})
     html = client.get("/settings").text
-    assert "USD per job" not in html and "included in your plan" in html
+    assert "USD per job" not in html and "included in your plan" in html and "at API prices" in html
     settings.update({"provider": "openrouter"})
     assert "USD per job" in client.get("/settings").text
 

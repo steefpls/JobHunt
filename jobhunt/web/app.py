@@ -60,6 +60,9 @@ def create_app(port: int = 8765) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     app.include_router(demo_board.router)
     db.init()
+    s = settings_mod.load()
+    if s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS:  # older flat-plan runs were recorded at $0
+        db.backfill_costs(lambda model, tin, tout: llm.cost_of(model, tin, tout, s))
     demo_url = f"http://127.0.0.1:{port}/demo"
     if settings_mod.load().get("demo_board_url") != demo_url:  # follow the port we run on
         settings_mod.update({"demo_board_url": demo_url})
@@ -115,7 +118,8 @@ def create_app(port: int = 8765) -> FastAPI:
         checklist = [
             ("Add your AI key", secrets_store.has_secret(secrets_store.api_key_name(s["provider"])), "/accounts"),
             ("Build your profile", profile.is_ready(), "/profile"),
-            ("Set your search scope", bool(s["scope"]["keywords"]) and bool(profile.load_scope_text().strip()), "/scope"),
+            ("Set your search scope", bool(s["scope"]["keywords"]) and bool(profile.load_scope_text().strip())
+             and not profile.scope_is_example(profile.load_scope_text()), "/scope"),
         ]
         return page(request, "dashboard.html", jobs=db.list_jobs(state or None), counts=db.state_counts(),
                     states=db.STATES, user_states=db.USER_STATES, state=state, checklist=checklist,
@@ -263,6 +267,9 @@ def create_app(port: int = 8765) -> FastAPI:
             "avoid_words": [w.strip() for w in avoid_words.replace(",", "\n").splitlines() if w.strip()],
         }})
         profile.save_scope_text(scope_text)
+        if profile.scope_is_example(scope_text):
+            return back("/scope", err="Saved, but this is still the example scope. Rewrite it for yourself and delete "
+                                      "the first line \"(example: replace with your own)\": hunts won't start until you do.")
         return back("/scope", msg="Scope saved.")
 
     # ── accounts: AI key, site logins, browser sessions ───────────────

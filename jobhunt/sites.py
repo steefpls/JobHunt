@@ -24,7 +24,7 @@ from urllib.parse import quote, quote_plus, urljoin, urlparse, parse_qs
 import httpx
 from bs4 import BeautifulSoup
 
-from .extract import Listing, Posting, clean_whitespace, generic_posting, html_to_text, select_text
+from .extract import Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, select_text
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/141.0.0.0 Safari/537.36")
@@ -32,6 +32,10 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like
 
 class SiteBlocked(Exception):
     """The site showed a captcha, a block page or a login wall; stop using it this run."""
+
+
+class PageUnavailable(Exception):
+    """The page answered with an HTTP error (404, 400, 500...): skip it, but keep using the site."""
 
 
 class SiteContext:
@@ -57,6 +61,11 @@ class SiteContext:
         self.wait_turn()
         html = self.browser.load_html(url)
         check_blocked(html, getattr(self.browser, "last_url", "") or url)
+        status = getattr(self.browser, "last_status", 0) or 0
+        if status in (403, 429):
+            raise SiteBlocked(f"HTTP {status}")
+        if status >= 400:
+            raise PageUnavailable(f"HTTP {status}")
         return html
 
     def get_json(self, url: str, method: str = "GET", body: dict | None = None) -> dict:
@@ -147,9 +156,11 @@ class MyCareersFutureSite:
 
     def posting_from_job(self, r: dict, listing: Listing) -> Posting:
         sal = r.get("salary") or {}
-        salary = ""
+        salary, salary_max = "", 0.0
         if sal.get("minimum"):
-            salary = f"SGD {sal['minimum']:,}-{sal.get('maximum') or sal['minimum']:,} {(sal.get('type') or {}).get('salaryType', '')}".strip()
+            period = (sal.get("type") or {}).get("salaryType", "")
+            salary = f"SGD {sal['minimum']:,}-{sal.get('maximum') or sal['minimum']:,} {period}".strip()
+            salary_max = monthly(float(sal.get("maximum") or sal["minimum"]), period)
         parts = [html_to_text(r.get("description", ""))]
         if r.get("minimumYearsExperience"):
             parts.append(f"Minimum years of experience: {r['minimumYearsExperience']}")
@@ -160,7 +171,8 @@ class MyCareersFutureSite:
             parts.append("Salary: " + salary)
         p = Posting(source=self.key, url=listing.url, title=r.get("title") or listing.title,
                     company=(r.get("hiringCompany") or {}).get("name") or (r.get("postedCompany") or {}).get("name") or listing.company,
-                    location=listing.location, text="\n\n".join(parts), apply_url=listing.url, salary=salary)
+                    location=listing.location, text="\n\n".join(parts), apply_url=listing.url, salary=salary,
+                    salary_max_monthly=salary_max)
         return p
 
 

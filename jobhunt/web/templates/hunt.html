@@ -46,7 +46,7 @@
       <div class="stat"><b id="mState">{{ status.kind if status.busy else "idle" }}</b><span>status</span></div>
       <div class="stat"><b id="mTokens">0</b><span>tokens (run)</span></div>
       <div class="stat"><b id="mCalls">0</b><span>AI calls</span></div>
-      <div class="stat"><b id="mCost">–</b><span>cost (run)</span></div>
+      <div class="stat"><b id="mCost">–</b><span>{{ 'cost at API prices' if subscription else 'cost (run)' }}</span></div>
     </div>
     <p class="muted" id="mJob" style="margin:10px 0 0">No job in progress.</p>
     <p class="muted" id="mCaps" style="margin:6px 0 0"></p>

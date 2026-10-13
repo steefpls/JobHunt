@@ -37,6 +37,51 @@ class Posting:
     text: str
     apply_url: str = ""
     salary: str = ""
+    salary_max_monthly: float = 0.0  # top of the stated range in SGD a month; 0 = not stated in a form code can read
+
+
+# ── salary ────────────────────────────────────────────────────────────
+
+_PER_YEAR_RE = re.compile(r"year|annum|annual|yearly|\bp\.?\s?a\b|\byr\b", re.I)
+_PER_HOUR_RE = re.compile(r"hour|\bhr\b", re.I)
+
+
+def monthly(amount: float, period: str) -> float:
+    """An amount per `period` (a free-text unit such as 'Monthly', 'YEAR', 'per annum') as a monthly figure."""
+    if _PER_YEAR_RE.search(period or ""):
+        return amount / 12
+    if _PER_HOUR_RE.search(period or ""):
+        return 0.0  # hourly pay can't be compared fairly with a monthly floor
+    return amount
+
+
+def parse_salary_floor(text: str) -> float:
+    """'15,000 per month', 'SGD 15k', '180k a year' -> monthly SGD figure (0 if no number)."""
+    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k\b)?", text or "", re.I)
+    if not m:
+        return 0.0
+    amount = float(m.group(1).replace(",", "")) * (1000 if m.group(2) else 1)
+    return monthly(amount, text)
+
+
+def _jsonld_salary(job: dict) -> tuple[str, float]:
+    """JSON-LD baseSalary -> (display text, top of range per month in SGD, or 0)."""
+    base = job.get("baseSalary")
+    if not isinstance(base, dict):
+        return "", 0.0
+    currency = str(base.get("currency") or "").upper()
+    value = base.get("value")
+    if isinstance(value, dict):
+        lo, hi, unit = value.get("minValue"), value.get("maxValue") or value.get("value"), str(value.get("unitText") or "")
+    else:
+        lo, hi, unit = None, value, str(base.get("unitText") or "")
+    try:
+        hi = float(hi)
+    except (TypeError, ValueError):
+        return "", 0.0
+    lo_txt = f"{float(lo):,.0f}-" if isinstance(lo, (int, float)) else ""
+    text = f"{currency or 'SGD'} {lo_txt}{hi:,.0f} {unit.lower()}".strip()
+    return text, (monthly(hi, unit) if currency in ("", "SGD") else 0.0)
 
 
 def clean_whitespace(text: str) -> str:
@@ -90,6 +135,7 @@ def _jsonld_location(job: dict) -> str:
 def posting_from_jsonld(job: dict, source: str, url: str) -> Posting:
     org = job.get("hiringOrganization") or {}
     company = org.get("name", "") if isinstance(org, dict) else str(org)
+    salary, salary_max = _jsonld_salary(job)
     return Posting(
         source=source, url=url,
         title=str(job.get("title", "")).strip(),
@@ -97,6 +143,7 @@ def posting_from_jsonld(job: dict, source: str, url: str) -> Posting:
         location=_jsonld_location(job),
         text=html_to_text(job.get("description", "")),
         apply_url=str(job.get("url") or job.get("directApplyUrl") or ""),
+        salary=salary, salary_max_monthly=salary_max,
     )
 
 

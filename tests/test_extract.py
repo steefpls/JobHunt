@@ -75,6 +75,7 @@ def test_mycareersfuture_api_fixtures():
     assert first.url.startswith("https://www.mycareersfuture.gov.sg/job/")
     p = site.fetch(ctx, first)
     assert p.salary.startswith("SGD 5,000-6,900")
+    assert p.salary_max_monthly == 6900
     assert "Skills listed:" in p.text and "Minimum years of experience: 3" in p.text
     assert "<p>" not in p.text
 

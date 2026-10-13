@@ -39,7 +39,7 @@
       <div class="actions"><button class="btn small">Save notes</button></div>
     </form>
     <p class="muted" style="margin-bottom:0">AI use for this job: <b>{{ "{:,}".format(job.tokens_in + job.tokens_out) }}</b> tokens
-      ({{ "{:,}".format(job.tokens_in) }} in / {{ "{:,}".format(job.tokens_out) }} out){% if subscription %}, included in your subscription{% else %}, <b>${{ "%.4f"|format(job.cost_usd) }}</b>{% endif %}.
+      ({{ "{:,}".format(job.tokens_in) }} in / {{ "{:,}".format(job.tokens_out) }} out), <b>${{ "%.4f"|format(job.cost_usd) }}</b>{% if subscription %} at API prices (covered by your flat plan){% endif %}.
       {% for c in calls %}<br><span class="mono">{{ c.stage }}: {{ "{:,}".format(c.tokens_in + c.tokens_out) }} tok, {{ "%.1f"|format(c.seconds) }}s</span>{% endfor %}</p>
   </div>
 </div>

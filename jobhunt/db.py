@@ -275,6 +275,19 @@ def assign_call_to_job(call_id: int, job_id: int) -> None:
         add_job_spend(job_id, rows[0]["tokens_in"], rows[0]["tokens_out"], rows[0]["cost_usd"])
 
 
+def backfill_costs(cost_fn) -> int:
+    """Price calls recorded at $0 (older flat-plan runs) with cost_fn(model, tokens_in, tokens_out),
+    then re-total the jobs and runs that showed $0. Returns how many calls were priced."""
+    rows = _query("SELECT id, model, tokens_in, tokens_out FROM llm_calls WHERE cost_usd = 0 AND tokens_in + tokens_out > 0")
+    for r in rows:
+        _exec("UPDATE llm_calls SET cost_usd = ? WHERE id = ?", (cost_fn(r["model"], r["tokens_in"], r["tokens_out"]), r["id"]))
+    if rows:
+        for table, col in (("jobs", "job_id"), ("runs", "run_id")):
+            _exec(f"UPDATE {table} SET cost_usd = (SELECT COALESCE(SUM(cost_usd), 0) FROM llm_calls"
+                  f" WHERE {col} = {table}.id) WHERE cost_usd = 0")
+    return len(rows)
+
+
 def job_calls(job_id: int) -> list[dict]:
     return _query("SELECT * FROM llm_calls WHERE job_id = ? ORDER BY id", (job_id,))
 

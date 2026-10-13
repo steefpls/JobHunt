@@ -109,6 +109,21 @@ def save_scope_text(text: str) -> None:
     paths.scope_path().write_text(text.replace("\r\n", "\n"), encoding="utf-8")
 
 
+# The first line of scope.example.md. While it is still in the scope, the scope is
+# somebody else's example (salary floor included), so the hunt refuses to run on it.
+SCOPE_EXAMPLE_MARKER = "(example: replace with your own)"
+
+
+def scope_is_example(text: str) -> bool:
+    return SCOPE_EXAMPLE_MARKER in (text or "")
+
+
+def salary_floor() -> float:
+    """The expected salary from the screening answers, as SGD a month (0 = none saved)."""
+    from .extract import parse_salary_floor
+    return parse_salary_floor(load_screening()["expected_salary"])
+
+
 def list_cvs() -> list[Path]:
     return sorted(p for p in paths.cv_dir().iterdir() if p.suffix.lower() in CV_SUFFIXES)
 

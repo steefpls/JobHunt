@@ -89,7 +89,9 @@ def candidate():
     from jobhunt import paths, profile
     profile.save_contact(json.loads((FIXTURES / "contact.json").read_text(encoding="utf-8")))
     profile.save_profile((FIXTURES / "profile.md").read_text(encoding="utf-8"))
-    profile.save_scope_text((APP_DIR / "scope.example.md").read_text(encoding="utf-8"))
+    # the example scope with its "replace with your own" line edited out, as a real user would
+    profile.save_scope_text((APP_DIR / "scope.example.md").read_text(encoding="utf-8")
+                            .replace(profile.SCOPE_EXAMPLE_MARKER, ""))
     profile.save_screening({"work_auth": "Singapore Citizen", "notice_period": "1 month",
                             "expected_salary": "SGD 8,500 per month"})
     return paths.data_dir()
@@ -202,6 +204,7 @@ class FakeLLM:
         self.headers: list[dict] = []
         self.apply_brain = apply_brain
         self.tailor_reply = tailor_reply or TAILOR_REPLY
+        self.filter_override = None  # callable(user prompt) -> raw reply text, or None for the normal verdict
         self.transport = httpx.MockTransport(self.handle)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -215,6 +218,8 @@ class FakeLLM:
             skip = any(w in posting.split("\n", 2)[1] for w in FILTER_SKIP_WORDS)
             message["content"] = json.dumps({"decision": "skip" if skip else "apply", "score": 3 if skip else 8,
                                              "reasons": ["fake reason"], "doubts": ""})
+            if self.filter_override and self.filter_override(user) is not None:
+                message["content"] = self.filter_override(user)
         elif "tailor a Harvard-style resume" in system:
             message["content"] = "```json\n" + json.dumps(self.tailor_reply) + "\n```"
         elif "fill in one job application" in system:

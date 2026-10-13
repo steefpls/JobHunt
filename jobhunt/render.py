@@ -97,6 +97,20 @@ def normalise_tailor(data: dict) -> dict:
     return data
 
 
+def package_problems(data: dict) -> list[str]:
+    """What's missing from a (normalised) tailor reply. Empty list = complete enough to send."""
+    problems = []
+    r = normalise_resume(data.get("resume"))
+    if not any(e.get("bullets") for e in r["experience"]):
+        problems.append("the resume has no experience bullets")
+    if not any(str(p).strip() for p in _as_list((data.get("cover_letter") or {}).get("paragraphs"))):
+        problems.append("the cover letter has no text")
+    mr = data.get("match_report") or {}
+    if not _as_list(mr.get("requirements")) and mr.get("score") == "?":
+        problems.append("the match report is empty")
+    return problems
+
+
 def resume_html(contact: dict, resume: dict) -> str:
     return _env.get_template("resume.html.j2").render(contact=contact, r=normalise_resume(resume))
 

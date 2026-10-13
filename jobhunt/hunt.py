@@ -22,7 +22,7 @@ from . import db, profile, prompts, render, secrets_store, settings as settings_
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
-from .llm import BudgetExceeded, LLMClient, LLMError, Meter, cost_of
+from .llm import BudgetExceeded, LLMClient, LLMError, Meter, RateLimited, cost_of
 from .sites import SiteBlocked, SiteContext, get_site
 
 # Sites where applying needs a government login (Singpass) the app must not touch.
@@ -89,8 +89,8 @@ class Task:
 
 # ── building one package ──────────────────────────────────────────────
 
-def judge(task: Task, posting: Posting, scope_text: str, profile_text: str) -> dict:
-    system, user = prompts.filter_prompt(profile_text, scope_text, posting)
+def judge(task: Task, posting: Posting, scope_text: str, profile_text: str, expected_salary: str = "") -> dict:
+    system, user = prompts.filter_prompt(profile_text, scope_text, posting, expected_salary)
     data, _ = task.get_llm().chat_json(stage="filter", system=system, user=user, max_tokens=400,
                                        job_id=f"listing:{posting.url}")
     decision = str(data.get("decision", "")).lower()
@@ -118,8 +118,19 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
     try:
         browser.render_pdf(render.posting_html(posting), folder / "posting.pdf")
         system, user = prompts.tailor_prompt(profile_text, contact, posting)
-        data, _ = task.get_llm().chat_json(stage="tailor", system=system, user=user, max_tokens=6000, job_id=job_id)
-        data = render.normalise_tailor(data)
+        for attempt in (1, 2):  # a reply in the wrong shape gets one more try, then the job is an Error
+            data, _ = task.get_llm().chat_json(stage="tailor", system=system, user=user, max_tokens=6000, job_id=job_id)
+            data = render.normalise_tailor(data)
+            problems = render.package_problems(data)
+            if not problems:
+                break
+            task.log(f"The AI's package was incomplete ({'; '.join(problems)})"
+                     + ("; asking again." if attempt == 1 else "."), "warn")
+        if problems:
+            db.update_job(job_id, state="Error")
+            db.append_note(job_id, f"The AI returned an incomplete package twice ({'; '.join(problems)}), "
+                                   "so nothing was built to send.")
+            return job_id
         resume = data["resume"]
         warnings = render.honesty_warnings(profile_text, resume)
         r_html = render.resume_html(contact, resume)
@@ -142,10 +153,18 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
         db.update_job(job_id, state="Error")
         db.append_note(job_id, f"Stopped while building: {e}")
         raise
+    except RateLimited:
+        db.update_job(job_id, state="Error")
+        db.append_note(job_id, "Stopped while building: the AI provider's rate limit was reached.")
+        raise
     except LLMError as e:
         db.update_job(job_id, state="Error")
         db.append_note(job_id, f"Model error while tailoring: {e}")
         task.log(f"Model error while tailoring: {e}", "error")
+    except Exception as e:  # a PDF or file problem with this job shouldn't end the whole hunt
+        db.update_job(job_id, state="Error")
+        db.append_note(job_id, f"Building the package failed ({type(e).__name__}).")
+        task.log(f"Building the package failed: {type(e).__name__}: {task.redact(str(e))[:200]}", "error")
     return job_id
 
 
@@ -210,20 +229,36 @@ def _avoid_hit(words: list[str], *texts: str) -> str | None:
     return None
 
 
-def candidates(task: Task, ctx: SiteContext, site_keys: list[str], keywords: list[str], location: str, max_pages: int = 5):
-    """Round-robin over sites, then keywords, page by page; yields (site, listing)."""
+def candidates(task: Task, ctx: SiteContext, site_keys: list[str], keywords: list[str], location: str,
+               max_pages: int = 5, blocked: set | None = None):
+    """Round-robin over sites, then keywords, page by page; yields (site, listing).
+
+    A site whose key lands in `blocked` (a posting page hit a wall) is dropped at
+    once, so its search pages stop loading too."""
+    blocked = blocked if blocked is not None else set()
     gens = []
     for key in site_keys:
         site = get_site(key, task.settings)
         gens.append((site, _site_listings(task, ctx, site, keywords, location, max_pages)))
     while gens:
         for site, gen in list(gens):
+            if site.key in blocked:
+                gens.remove((site, gen))
+                continue
             try:
                 yield site, next(gen)
             except StopIteration:
                 gens.remove((site, gen))
             except SiteBlocked as e:
                 task.log(f"{site.label}: blocked or needs login ({e}); skipping this site for this run.", "warn")
+                blocked.add(site.key)
+                gens.remove((site, gen))
+            except StopHunt:
+                raise
+            except Exception as e:  # one site's outage shouldn't end the hunt on the others
+                task.log(f"{site.label}: search failed ({type(e).__name__}: {str(e)[:120]}); "
+                         "skipping this site for this run.", "warn")
+                blocked.add(site.key)
                 gens.remove((site, gen))
 
 
@@ -266,8 +301,13 @@ def run_hunt(task: Task) -> str:
         raise LLMError("Add at least one search keyword on the Scope page first.")
     if not profile.is_ready():
         raise LLMError("Finish your Profile first (name, email and profile text).")
-    task.get_llm()  # fail early on a missing key
     scope_text = profile.load_scope_text()
+    if profile.scope_is_example(scope_text):
+        raise LLMError("Your Scope is still the example text (someone else's roles and salary floor). "
+                       "Rewrite it on the Scope page and delete its first line, then start again.")
+    task.get_llm()  # fail early on a missing key
+    expected_salary = profile.load_screening()["expected_salary"]
+    floor = profile.salary_floor()
     profile_text = profile.load_profile()
     avoid = s["scope"].get("avoid_words", [])
     task.log(f"Hunt started: up to {target} jobs from {', '.join(site_keys)}; "
@@ -278,11 +318,13 @@ def run_hunt(task: Task) -> str:
     companies, blocked = set(), set()
     max_candidates = int(s["hunt"].get("max_candidates") or 60)
     try:
-        for site, listing in candidates(task, ctx, site_keys, keywords, s["scope"].get("location", "")):
+        for site, listing in candidates(task, ctx, site_keys, keywords, s["scope"].get("location", ""), blocked=blocked):
             task.check_stop()
             task.current_job = None
             if matched >= target or examined >= max_candidates:
                 break
+            if site.key in blocked:
+                continue
             if db.was_seen(listing.url) or db.is_duplicate(listing.url, listing.company, listing.title):
                 skipped_known += 1
                 continue
@@ -294,8 +336,6 @@ def run_hunt(task: Task) -> str:
             if listing.company and listing.company.lower() in companies:
                 continue  # one application per company per run
             examined += 1
-            if site.key in blocked:
-                continue
             try:
                 posting = site.fetch(ctx, listing)
             except SiteBlocked as e:
@@ -310,7 +350,19 @@ def run_hunt(task: Task) -> str:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", "posting text too short")
                 task.log(f"Posting had no readable text, skipped: {listing.url}", "warn")
                 continue
-            verdict = judge(task, posting, scope_text, profile_text)
+            if floor and posting.salary_max_monthly and posting.salary_max_monthly < floor:
+                reason = f"salary tops out at SGD {posting.salary_max_monthly:,.0f}/month, below your SGD {floor:,.0f}"
+                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip", reason)
+                task.log(f"Skip ({reason}): {posting.company} - {posting.title}")
+                continue
+            try:
+                verdict = judge(task, posting, scope_text, profile_text, expected_salary)
+            except RateLimited:
+                raise
+            except LLMError as e:  # one unreadable answer costs one posting, not the whole run
+                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", f"filter: {e}"[:200])
+                task.log(f"Could not judge {posting.company} - {posting.title}: {e}", "warn")
+                continue
             if not verdict["apply"]:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip",
                              "; ".join(map(str, verdict["reasons"])))
@@ -490,12 +542,10 @@ def estimate(settings: dict, jobs: int, sites: list[str], auto_submit: bool) -> 
     apply_share = (len(apply_sites) / len(sites)) if sites else 0
     apply_steps = DEFAULT_APPLY_STEPS * apply_share if auto_submit else 0.0
     per_job_tokens = (f_in + f_out) * ratio + (t_in + t_out) + (a_in + a_out) * apply_steps
-    if subscription:
-        per_job = 0.0
-    else:
-        per_job = (cost_of(models["filter"], f_in, f_out, settings) * ratio
-                   + cost_of(models["tailor"], t_in, t_out, settings)
-                   + cost_of(models["apply"], a_in, a_out, settings) * apply_steps)
+    # on a flat plan this is the pay-per-use equivalent (nothing is billed per call)
+    per_job = (cost_of(models["filter"], f_in, f_out, settings) * ratio
+               + cost_of(models["tailor"], t_in, t_out, settings)
+               + cost_of(models["apply"], a_in, a_out, settings) * apply_steps)
     caps = settings["caps"]
 
     pacing = settings["pacing"]
