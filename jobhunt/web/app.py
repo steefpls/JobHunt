@@ -386,6 +386,25 @@ def create_app(port: int = 8765) -> FastAPI:
         _login_proc = subprocess.Popen([sys.executable, "-m", "jobhunt.login_browser", *urls], cwd=str(paths.APP_DIR))
         return back("/accounts", msg="A browser window opened. Log in, then close that window.")
 
+    @app.post("/accounts/browser/close")
+    def close_login_browser():
+        # For a window that's hidden or won't close (a Singpass pop-up left behind, say):
+        # ends the helper and every browser it started, so the profile is free again.
+        if login_browser_open():
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(_login_proc.pid)], capture_output=True)
+            else:
+                _login_proc.kill()
+            try:
+                _login_proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                return back("/accounts", err="The login browser didn't close. Restart JobHunt.")
+        return back("/accounts", msg="Login browser closed.")
+
+    @app.get("/api/login-browser")
+    def api_login_browser():
+        return JSONResponse({"open": login_browser_open()})
+
     # ── hunt ───────────────────────────────────────────────────────────
     @app.get("/hunt", response_class=HTMLResponse)
     def hunt_page(request: Request):

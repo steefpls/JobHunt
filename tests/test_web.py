@@ -110,3 +110,18 @@ def test_profile_upload_only_accepts_documents(client, data_dir):
 
 def test_auto_submit_is_off_by_default():
     assert settings.DEFAULTS["hunt"]["auto_submit"] is False
+
+
+def test_login_browser_status_and_close(client, monkeypatch):
+    import subprocess
+    import sys
+    from jobhunt.web import app as webapp
+    assert client.get("/api/login-browser").json() == {"open": False}
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    monkeypatch.setattr(webapp, "_login_proc", proc)
+    assert client.get("/api/login-browser").json() == {"open": True}
+    assert "Close it for me" in client.get("/accounts").text
+    r = client.post("/accounts/browser/close", headers=SAME_ORIGIN)
+    assert "Login browser closed" in r.text and proc.poll() is not None
+    assert client.get("/api/login-browser").json() == {"open": False}
+    assert "Close it for me" not in client.get("/accounts").text

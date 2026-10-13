@@ -18,6 +18,17 @@
   setInterval(tick, 4000);
 })();
 
+// Accounts page: once the login window is closed, reload so the buttons come back.
+(function () {
+  if (!document.getElementById('loginOpen')) return;
+  const timer = setInterval(async function () {
+    try {
+      const s = await (await fetch('/api/login-browser')).json();
+      if (!s.open) { clearInterval(timer); location.replace('/accounts?msg=' + encodeURIComponent('Login window closed. Session saved.')); }
+    } catch (e) { /* ignore */ }
+  }, 2000);
+})();
+
 // <form data-confirm="Question?">: ask before sending.
 document.addEventListener('submit', function (ev) {
   const q = ev.target.dataset && ev.target.dataset.confirm;

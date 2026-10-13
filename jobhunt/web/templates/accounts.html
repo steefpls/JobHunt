@@ -33,7 +33,9 @@
     JobHunt keeps that session for hunts. It never sees or stores these passwords.</p>
   <p class="hint">There is deliberately no Google button: the browser that fills in applications should not be signed in to
     your email. Jobs that need "Sign in with Google" are handed to you as <b>Needs you</b>.</p>
-  {% if browser_open %}<p><span class="badge Ready">Login window is open</span> Close it when you're done.</p>{% endif %}
+  {% if browser_open %}<div id="loginOpen" style="margin:8px 0"><span class="badge Ready">Login window is open</span> Close it when you're done.
+    Can't find it?
+    <form method="post" action="/accounts/browser/close" class="inline"><button class="btn small">Close it for me</button></form></div>{% endif %}
   <div class="actions">
     {% for key, (label, url) in login_sites.items() %}
     <form method="post" action="/accounts/browser" class="inline"><input type="hidden" name="site" value="{{ key }}">
