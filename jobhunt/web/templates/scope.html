@@ -20,9 +20,13 @@
 </div>
 <div class="card">
   <h2>Describe the jobs you want</h2>
-  <p class="muted">Target roles, seniority, locations, must-haves, salary floor and an <b>Avoid</b> list. Be specific: this is the filter.</p>
+  <p class="muted">Target roles, seniority, skills, industries, way of working and an <b>Avoid</b> list. Be specific: this is
+    the filter. Your salary floor is the <a href="/profile#screening">Expected salary</a> on the Profile page.</p>
   <textarea name="scope_text" class="tall">{{ scope_text }}</textarea>
-  <div class="actions"><button class="btn primary">Save scope</button></div>
+  <div class="actions"><button class="btn primary">Save scope</button>
+    <button class="btn" formaction="/scope/draft" {{ 'disabled' if status.busy }}>Draft from my profile (AI)</button></div>
+  <p class="hint">Draft from my profile replaces the text above with a first version written from your Profile (the old
+    text is kept as scope.previous.md); search keywords and avoid words you've set are kept.</p>
 </div>
 </form>
 {% endblock %}

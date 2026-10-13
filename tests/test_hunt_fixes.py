@@ -81,12 +81,65 @@ def test_postings_below_the_floor_are_skipped_without_a_model_call(demo_server, 
 
 # ── the example scope ─────────────────────────────────────────────────
 
-def test_hunt_refuses_the_example_scope(demo_server, secrets, candidate, fake_llm):
+def test_hunt_refuses_the_template_scope(demo_server, secrets, candidate, fake_llm):
     _prepare(demo_server)
     profile.save_scope_text((APP_DIR / "scope.example.md").read_text(encoding="utf-8"))
     run = _hunt(1)
-    assert run["status"] == "error" and "example" in run["summary"]
+    assert run["status"] == "error" and "template" in run["summary"]
     assert fake_llm.requests == []
+
+
+def test_the_old_filled_in_example_is_refused_too():
+    # what earlier installs saved: Hyde's example with its SGD 8,000 floor
+    assert profile.scope_is_example("# What I am looking for (example: replace with your own)\n## Target roles\n- Backend")
+    assert not profile.scope_is_example("# What I'm looking for\n## Target roles\n- Unity developer")
+
+
+def test_template_has_no_one_elses_values():
+    template = (APP_DIR / "scope.example.md").read_text(encoding="utf-8")
+    assert "SGD" not in template and "8,000" not in template and ".NET" not in template
+    assert template.splitlines()[0].endswith(profile.SCOPE_EXAMPLE_MARKER)
+
+
+# ── drafting the scope from the profile ───────────────────────────────
+
+def _draft() -> dict:
+    runner = hunt.Runner()
+    run_id = runner.start("scope")
+    runner.wait(60)
+    return db.get_run(run_id)
+
+
+def test_scope_is_drafted_from_the_profile(secrets, candidate, fake_llm, data_dir):
+    from conftest import SCOPE_DRAFT
+    settings.update({"scope": {"keywords": []}})
+    run = _draft()
+    assert run["status"] == "done", run["summary"]
+    assert profile.load_scope_text().strip() == SCOPE_DRAFT.strip()
+    assert not profile.scope_is_example(profile.load_scope_text())
+    assert settings.load()["scope"]["keywords"] == ["backend engineer", "python developer"]  # were empty: filled
+    assert settings.load()["scope"]["avoid_words"] == ["intern", "internship"]  # were set: kept
+    sent = _calls(fake_llm, "draft a job-search scope")[0]["messages"][1]["content"]
+    assert "Shipwise" in sent and "notice_period: 1 month" in sent  # drafted from the profile + screening answers
+    assert (data_dir / "scope.previous.md").exists()  # the candidate's own scope was kept
+
+
+def test_drafting_keeps_your_keywords_and_skips_saving_a_template(secrets, candidate, fake_llm, data_dir):
+    settings.update({"scope": {"keywords": ["unity developer"]}})
+    profile.save_scope_text((APP_DIR / "scope.example.md").read_text(encoding="utf-8"))
+    run = _draft()
+    assert run["status"] == "done", run["summary"]
+    assert settings.load()["scope"]["keywords"] == ["unity developer"]
+    assert any("Suggested search keywords" in e["message"] for e in db.recent_events())
+    assert not (data_dir / "scope.previous.md").exists()  # an unfilled template isn't worth keeping
+
+
+def test_draft_button_needs_a_profile(data_dir):
+    from jobhunt.web.app import create_app
+    with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as c:
+        r = c.post("/scope/draft", headers=SAME_ORIGIN, follow_redirects=False)
+        assert "err=" in r.headers["location"] and "Profile" in r.headers["location"]
+        assert 'formaction="/scope/draft"' in c.get("/scope").text
 
 
 def test_saving_the_example_scope_warns_and_leaves_the_checklist_open(data_dir):

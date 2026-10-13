@@ -303,8 +303,8 @@ def run_hunt(task: Task) -> str:
         raise LLMError("Finish your Profile first (name, email and profile text).")
     scope_text = profile.load_scope_text()
     if profile.scope_is_example(scope_text):
-        raise LLMError("Your Scope is still the example text (someone else's roles and salary floor). "
-                       "Rewrite it on the Scope page and delete its first line, then start again.")
+        raise LLMError("Your Scope is still the template. Fill it in on the Scope page (or press Draft from "
+                       "my profile) and delete its first line, then start again.")
     task.get_llm()  # fail early on a missing key
     expected_salary = profile.load_screening()["expected_salary"]
     floor = profile.salary_floor()
@@ -428,6 +428,35 @@ def run_profile(task: Task) -> str:
             "including the screening answers.")
 
 
+def run_scope(task: Task) -> str:
+    """Draft the Scope from the profile. Keywords and avoid words you already set are kept."""
+    from . import paths
+    profile_text = profile.load_profile()
+    if not profile_text.strip():
+        raise LLMError("Build your Profile first: the scope is drafted from it.")
+    template = (paths.APP_DIR / "scope.example.md").read_text(encoding="utf-8")
+    task.log("Drafting your scope from your profile...")
+    system, user = prompts.scope_prompt(profile_text, template, profile.load_screening())
+    data, _ = task.get_llm().chat_json(stage="profile", system=system, user=user, max_tokens=3000)
+    md = str(data.get("scope_markdown") or "").strip()
+    if not md or profile.scope_is_example(md):
+        raise LLMError("The model returned an empty scope; try again.")
+    old = profile.load_scope_text()
+    if old.strip() and not profile.scope_is_example(old):
+        (paths.data_dir() / "scope.previous.md").write_text(old, encoding="utf-8")
+    profile.save_scope_text(md)
+    scope = task.settings["scope"]
+    suggested = {k: [str(w).strip() for w in data.get(k) or [] if str(w).strip()][:10] for k in ("keywords", "avoid_words")}
+    for key, label in (("keywords", "search keywords"), ("avoid_words", "avoid words")):
+        if not suggested[key]:
+            continue
+        if scope.get(key):
+            task.log(f"Suggested {label} (yours were kept): {', '.join(suggested[key])}")
+        else:
+            settings_mod.update({"scope": {key: suggested[key]}})
+    return "Scope drafted from your profile. Review it on the Scope page before you hunt."
+
+
 def run_rebuild_pdfs(task: Task) -> str:
     """Re-make resume/cover letter PDFs from their (hand-edited) HTML."""
     from .browser import render_pdfs
@@ -451,7 +480,8 @@ def caps_text(s: dict) -> str:
     return ", ".join(parts) or "none"
 
 
-TASKS = {"hunt": run_hunt, "apply": run_apply, "profile": run_profile, "rebuild": run_rebuild_pdfs}
+TASKS = {"hunt": run_hunt, "apply": run_apply, "profile": run_profile, "scope": run_scope,
+         "rebuild": run_rebuild_pdfs}
 
 
 # ── the background runner ─────────────────────────────────────────────

@@ -158,6 +158,9 @@ TAILOR_REPLY = {
     },
 }
 
+SCOPE_DRAFT = ("# What I'm looking for\n\n## Target roles\n- Backend Engineer (Python)\n\n"
+               "## Avoid (do NOT apply)\n- Sales roles\n\n## Notes for the filter\n- When unsure, skip.\n")
+
 ROW_RE = re.compile(r'\[(e\d+)\] (\S+) "([^"]*)"')
 
 
@@ -226,6 +229,9 @@ class FakeLLM:
             calls = self.apply_brain(user)
             message["tool_calls"] = [{"id": f"call{i}", "type": "function",
                                       "function": {"name": n, "arguments": json.dumps(a)}} for i, (n, a) in enumerate(calls)]
+        elif "draft a job-search scope" in system:
+            message["content"] = json.dumps({"scope_markdown": SCOPE_DRAFT, "keywords": ["backend engineer", "python developer"],
+                                             "avoid_words": ["intern", "sales"]})
         elif "turn a person's CVs" in system:
             message["content"] = json.dumps({"contact": {"name": "Alex Tan"}, "profile_markdown": "# CANDIDATE PROFILE\n## Summary\nTest",
                                              "gaps": ["salary expectation"]})

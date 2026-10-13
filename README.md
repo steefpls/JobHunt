@@ -57,10 +57,13 @@ never sent to the AI as text.
    profile with AI*, or type it in. Check it carefully: the AI uses only facts from here.
    Fill in the **Screening answers** too (work authorisation, notice period,
    expected salary...): forms are answered from these exactly, and a question you
-   left empty sends the job to you as *Needs you*.
+   left empty sends the job to you as *Needs you*. Your expected salary is also the
+   hunt's salary floor: postings that state a lower range are skipped.
 2. **Scope**: the search words to type into job sites, words to skip outright
    (for example *intern*), and a free-text description of what you want and what
-   to avoid.
+   to avoid. It starts as a template with a hint under each heading; press
+   *Draft from my profile* to have the AI write a first version from your Profile,
+   then check it. Hunts won't start until the template's first line is gone.
 3. **Accounts**: click a site to open JobHunt's browser and log in yourself
    (Singpass, 2FA and captchas are fine, because it is you doing it). Optionally
    save application-site logins (Workday and similar) with the sites each one may

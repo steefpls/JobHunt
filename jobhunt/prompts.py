@@ -71,6 +71,32 @@ def profile_prompt(cv_texts: list[tuple[str, str]]) -> tuple[str, str]:
     return system, user
 
 
+# ── 1b. draft a search scope from the profile ─────────────────────────
+
+def scope_prompt(profile_text: str, template: str, screening: dict) -> tuple[str, str]:
+    system = (
+        "You draft a job-search scope for one candidate from their profile. A job filter will later read it to say "
+        "yes or no to each posting, so it must be specific to this person.\n"
+        "Infer target roles, seniority, strongest skills, fitting industries and sensible things to avoid from their "
+        "actual experience. Mark anything you inferred rather than read (for example 'guess: ...') so they can check it.\n"
+        "Never invent facts about the person. Leave out salary figures: the salary floor lives elsewhere.\n"
+        + UNTRUSTED_RULES
+        + "\nReply with one JSON object only."
+    )
+    answers = "\n".join(f"- {k}: {v}" for k, v in (screening or {}).items() if v and k != "current_salary")
+    user = (
+        "Candidate profile:\n" + _cap(profile_text, CAPS["profile"]) + "\n\n"
+        "Their screening answers:\n" + (answers or "(none)") + "\n\n"
+        "Template to follow (keep its headings and the 'Notes for the filter' section; replace each hint with real "
+        "content; drop the first line and the intro lines):\n" + _cap(template, CAPS["scope"]) + "\n\n"
+        'Return: {"scope_markdown": "the filled-in scope", '
+        '"keywords": ["4-8 search phrases to type into job sites, most promising first"], '
+        '"avoid_words": ["a few words that, in a job title, always mean no (e.g. intern)"]}\n'
+        "In 'Notes for the filter', choose lean-towards-SKIPPING when unsure, unless the profile suggests otherwise."
+    )
+    return system, user
+
+
 # ── 2. filter: does this posting fit the scope? ───────────────────────
 
 def filter_prompt(profile_text: str, scope_text: str, posting, expected_salary: str = "") -> tuple[str, str]:

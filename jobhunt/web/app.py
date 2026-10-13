@@ -268,9 +268,19 @@ def create_app(port: int = 8765) -> FastAPI:
         }})
         profile.save_scope_text(scope_text)
         if profile.scope_is_example(scope_text):
-            return back("/scope", err="Saved, but this is still the example scope. Rewrite it for yourself and delete "
-                                      "the first line \"(example: replace with your own)\": hunts won't start until you do.")
+            return back("/scope", err="Saved, but this is still the template. Fill it in (or press Draft from my "
+                                      "profile) and delete its first line: hunts won't start until you do.")
         return back("/scope", msg="Scope saved.")
+
+    @app.post("/scope/draft")
+    def draft_scope():
+        if not profile.load_profile().strip():
+            return back("/scope", err="Build your Profile first: the scope is drafted from it.")
+        try:
+            hunt.runner.start("scope")
+        except RuntimeError as e:
+            return back("/scope", err=str(e))
+        return back("/hunt", msg="Drafting your scope - this takes under a minute. Then review it on the Scope page.")
 
     # ── accounts: AI key, site logins, browser sessions ───────────────
     @app.get("/accounts", response_class=HTMLResponse)

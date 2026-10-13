@@ -109,13 +109,15 @@ def save_scope_text(text: str) -> None:
     paths.scope_path().write_text(text.replace("\r\n", "\n"), encoding="utf-8")
 
 
-# The first line of scope.example.md. While it is still in the scope, the scope is
-# somebody else's example (salary floor included), so the hunt refuses to run on it.
-SCOPE_EXAMPLE_MARKER = "(example: replace with your own)"
+# The first line of scope.example.md. While it is still in the scope, the scope is an
+# unfilled template, so the hunt refuses to run on it. The older marker is the first
+# line of the previous default: Hyde's filled-in example (SGD 8,000 floor and all).
+SCOPE_EXAMPLE_MARKER = "(template: fill this in, then delete this line)"
+_OLD_SCOPE_MARKERS = ("(example: replace with your own)",)
 
 
 def scope_is_example(text: str) -> bool:
-    return SCOPE_EXAMPLE_MARKER in (text or "")
+    return any(m in (text or "") for m in (SCOPE_EXAMPLE_MARKER, *_OLD_SCOPE_MARKERS))
 
 
 def salary_floor() -> float:

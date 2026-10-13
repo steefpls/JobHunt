@@ -1,32 +1,38 @@
-# What I am looking for (example: replace with your own)
+# What I'm looking for (template: fill this in, then delete this line)
+
+The AI reads this whole page to decide yes or no on every posting, so be specific.
+Short answers under each heading are enough; delete headings you don't care about.
+Tip: "Draft from my profile" on the Scope page writes a first version for you.
 
 ## Target roles
-Job titles / kinds of work you want.
-- Backend Software Engineer
-- Platform / Infrastructure Engineer
-- Full-stack Engineer (backend-leaning)
+Job titles or kinds of work you want, most wanted first. Name specialisms too
+(e.g. "backend engineer - payments", "Unity developer - simulation, not mobile games").
+-
 
-## Seniority
-Mid-level to Senior (3–7 years experience). Not interested in management-only roles.
+## Seniority and experience
+Your level and years of experience. The most years a posting may ask for.
+Is people management OK, wanted, or a no?
 
-## Locations
-Singapore. Hybrid or remote preferred; on-site OK if central.
+## Skills and tech
+Your strongest languages, frameworks and tools: a posting built on these is a strong fit.
+Things you know a little (fine as a "nice to have"). Things you won't work in.
 
-## Must-have / strong preferences
-- Tech stack overlaps with: Python, Go, TypeScript, AWS/GCP, Kubernetes
-- Product companies or well-funded startups
-- Salary expectation: SGD 8,000+/month (don't apply below this if stated)
+## Industries and companies
+Domains you want, and ones you won't touch. Company size or stage you prefer.
+Product company, consultancy, agency, government: which are OK?
+
+## Location and way of working
+City / country. On-site, hybrid or remote. Travel or relocation limits.
+
+## Type of job
+Permanent, contract, part-time? Are recruiters and staffing agencies OK?
 
 ## Avoid (do NOT apply)
-- Pure frontend / pure design roles
-- Crypto/web3-only companies
-- Roles requiring a security clearance I don't have
-- Staffing agencies / recruiters reposting (apply only to the direct employer)
-- Anything explicitly requiring >8 years or a specific framework I don't know (e.g. .NET)
-- Internships / contract-only roles
+Hard no's: role types, tech, industries, requirements you can't meet.
+-
 
-## Notes
-- When unsure whether a role fits, lean toward INCLUDING it and note the doubt
-  in the notes rather than silently skipping.
-- One application per company per run unless they list multiple distinct roles.
-- (How many jobs per run is set on the Hunt page.)
+## Notes for the filter
+- My minimum salary is the "Expected salary" on the Profile page; postings that state a lower range are skipped.
+- When unsure whether a role fits: lean towards INCLUDING it (more packages, more misses) or SKIPPING it
+  (fewer, closer matches)? Pick one.
+- One application per company per run unless they list clearly different roles.
