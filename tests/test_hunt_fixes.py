@@ -243,10 +243,10 @@ class _Site:
 def test_a_blocked_site_stops_being_searched(monkeypatch):
     a, b = _Site("a"), _Site("b")
     monkeypatch.setattr(hunt, "get_site", lambda key, s: {"a": a, "b": b}[key])
-    blocked = set()
+    blocked = {}
     gen = hunt.candidates(_Task(), None, ["a", "b"], ["kw"], "", max_pages=5, blocked=blocked)
     assert next(gen)[0] is a
-    blocked.add("a")  # opening a posting on site a hit a sign-in wall
+    blocked["a"] = "a (blocked)"  # opening a posting on site a hit a sign-in wall
     rest = list(gen)
     assert len(rest) == 15 and all(site is b for site, _ in rest)
     assert a.searches == 1  # no more search pages loaded on a
@@ -255,7 +255,7 @@ def test_a_blocked_site_stops_being_searched(monkeypatch):
 def test_one_broken_site_does_not_end_the_hunt(monkeypatch):
     a, b = _Site("a", fail=RuntimeError("HTTP 500")), _Site("b")
     monkeypatch.setattr(hunt, "get_site", lambda key, s: {"a": a, "b": b}[key])
-    task, blocked = _Task(), set()
+    task, blocked = _Task(), {}
     got = list(hunt.candidates(task, None, ["a", "b"], ["kw"], "", max_pages=1, blocked=blocked))
     assert len(got) == 3 and all(site is b for site, _ in got)
     assert "a" in blocked and any("search failed" in line for line in task.lines)

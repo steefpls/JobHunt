@@ -24,6 +24,8 @@ class Listing:
     title: str
     company: str = ""
     location: str = ""
+    salary: str = ""  # as the search card shows it, if it does
+    salary_max_monthly: float = 0.0  # top of that range in SGD a month; 0 = not stated or not comparable
     extra: dict = field(default_factory=dict)
 
 
@@ -43,25 +45,56 @@ class Posting:
 # ── salary ────────────────────────────────────────────────────────────
 
 _PER_YEAR_RE = re.compile(r"year|annum|annual|yearly|\bp\.?\s?a\b|\byr\b", re.I)
+_PER_MONTH_RE = re.compile(r"month|\bmth|\bp\.?\s?m\b", re.I)
 _PER_HOUR_RE = re.compile(r"hour|\bhr\b", re.I)
+_PER_DAY_OR_WEEK_RE = re.compile(r"\bday\b|daily|\bweek|per diem", re.I)
+# Pay in another currency can't be compared with an SGD floor. A bare "$" on a Singapore board means SGD.
+_FOREIGN_CURRENCY_RE = re.compile(r"\b(usd|eur|gbp|myr|rm|hkd|aud|inr|idr|php|thb|cny|rmb|jpy|vnd)\b|"
+                                  r"\b(us|hk|a)\$|[€£₹¥]", re.I)
+_AMOUNT_RE = re.compile(r"(\d[\d,]*(?:\.\d+)?)\s*(k\b)?", re.I)
 
 
 def monthly(amount: float, period: str) -> float:
     """An amount per `period` (a free-text unit such as 'Monthly', 'YEAR', 'per annum') as a monthly figure."""
+    if _PER_MONTH_RE.search(period or ""):  # first: "per month, 3 years' experience" is monthly
+        return amount
     if _PER_YEAR_RE.search(period or ""):
         return amount / 12
-    if _PER_HOUR_RE.search(period or ""):
-        return 0.0  # hourly pay can't be compared fairly with a monthly floor
+    if _PER_HOUR_RE.search(period or "") or _PER_DAY_OR_WEEK_RE.search(period or ""):
+        return 0.0  # hourly, daily or weekly pay can't be compared fairly with a monthly floor
     return amount
 
 
+def salary_top_monthly(text: str) -> float:
+    """Pay as a board shows it -> top of the range in SGD a month (0 = not stated or not comparable).
+
+    '$5,500 – $8,000 per month' -> 8000, '$5500 - $8k p.m.' -> 8000, '$84,000 – $120,000 per year' -> 10000.
+    No period means monthly (how Singapore boards quote pay); hourly, daily, weekly and foreign pay give 0."""
+    if not text or _FOREIGN_CURRENCY_RE.search(text):
+        return 0.0
+    amounts = [float(n.replace(",", "")) * (1000 if k else 1) for n, k in _AMOUNT_RE.findall(_spread_k(text))]
+    amounts = [a for a in amounts if a >= 100]  # skip stray small numbers ("2 days WFH")
+    return monthly(max(amounts), text) if amounts else 0.0
+
+
+_K_RANGE_RE = re.compile(r"(\d+(?:\.\d+)?)(\s*(?:-|–|to)\s*\d+(?:\.\d+)?\s*k\b)", re.I)
+
+
+def _spread_k(text: str) -> str:
+    """'5-6k' means 5k-6k."""
+    return _K_RANGE_RE.sub(r"\1k\2", text or "")
+
+
 def parse_salary_floor(text: str) -> float:
-    """'15,000 per month', 'SGD 15k', '180k a year' -> monthly SGD figure (0 if no number)."""
-    m = re.search(r"(\d[\d,]*(?:\.\d+)?)\s*(k\b)?", text or "", re.I)
+    """'15,000 per month', 'SGD 15k', '180k a year', '5-6k' -> monthly SGD figure (0 if no number).
+
+    The period is read next to the number, so 'SGD 6,000 per month, 3 years' experience' stays monthly."""
+    text = _spread_k(text)
+    m = _AMOUNT_RE.search(text)
     if not m:
         return 0.0
     amount = float(m.group(1).replace(",", "")) * (1000 if m.group(2) else 1)
-    return monthly(amount, text)
+    return monthly(amount, text[max(0, m.start() - 20):m.end() + 25])
 
 
 def _jsonld_salary(job: dict) -> tuple[str, float]:
@@ -103,7 +136,22 @@ def html_to_text(fragment: str) -> str:
     for tag in soup.find_all(BLOCK_TAGS):
         tag.insert_before("\n")
         tag.insert_after("\n")
-    return clean_whitespace(htmlmod.unescape(soup.get_text()))
+    return _join_bullets(clean_whitespace(htmlmod.unescape(soup.get_text())))
+
+
+def _join_bullets(text: str) -> str:
+    """A list item whose text sits in a <p> comes out as a '-' line followed by its text: join them.
+    A '-' with no text of its own (an empty item, or one holding only a nested list) is dropped."""
+    lines = text.split("\n")
+    out = []
+    for i, line in enumerate(lines):
+        if line != "-":
+            out.append(line)
+            continue
+        j = next((k for k in range(i + 1, len(lines)) if lines[k].strip()), None)
+        if j is not None and not lines[j].startswith("- "):
+            lines[j] = "- " + lines[j]
+    return clean_whitespace("\n".join(out))
 
 
 def find_jsonld_jobposting(page_html: str) -> dict | None:
@@ -157,8 +205,11 @@ def main_text(page_html: str, selectors: list[str] | None = None) -> str:
     return ""
 
 
-def select_text(page_html: str, selector: str) -> str:
-    node = BeautifulSoup(page_html or "", "html.parser").select_one(selector)
+def select_text(page, selector: str) -> str:
+    """Text of the first match of `selector` in an HTML string or an already parsed BeautifulSoup node."""
+    if not hasattr(page, "select_one"):
+        page = BeautifulSoup(page or "", "html.parser")
+    node = page.select_one(selector)
     return clean_whitespace(node.get_text(" ")) if node else ""
 
 

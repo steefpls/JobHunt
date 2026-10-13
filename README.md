@@ -107,8 +107,8 @@ Everything personal (profile, CVs, tracker, job folders, browser profile) is in
 |---|---|---|
 | Practice board | built in | fully tested |
 | MyCareersFuture | public job-search API | search tested live (Oct 2026). Applying needs Singpass, so these jobs are handed to you. |
-| JobStreet | reads pages in the browser | search and postings tested live (Oct 2026) |
-| LinkedIn | public guest job pages | built against LinkedIn's markup but not verifiable from the build machine (LinkedIn rate-limited it). If LinkedIn shows a sign-in wall, the hunt skips it for that run. |
+| JobStreet | reads pages in the browser | search, postings and salaries tested live (Oct 2026). A search card whose pay tops out below your expected salary is skipped without opening it. |
+| LinkedIn | public guest job pages | search and postings tested live without logging in (Oct 2026). LinkedIn often answers "too many requests" (HTTP 429): the hunt waits 45 seconds and tries once more. If LinkedIn shows a sign-in wall, the hunt skips it for that run. |
 | Indeed | reads pages in the browser | experimental: Indeed often blocks automated browsers |
 
 Pacing: 4–9 seconds between page loads and at most 15 applications per hour

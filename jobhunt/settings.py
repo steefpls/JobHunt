@@ -5,7 +5,9 @@ Credential Manager (see secrets_store.py). This file only holds names and knobs.
 """
 import copy
 import json
+import shutil
 import threading
+import time
 
 from . import paths
 
@@ -70,7 +72,7 @@ DEFAULTS = {
     "demo_board_url": "",  # set automatically to this server's /demo; tests override it
 }
 
-_lock = threading.Lock()
+_lock = threading.RLock()  # update() holds it while save() takes it again
 
 
 def _merge(base: dict, override: dict) -> dict:
@@ -83,14 +85,40 @@ def _merge(base: dict, override: dict) -> dict:
     return out
 
 
-def load() -> dict:
-    p = paths.settings_path()
-    raw = {}
-    if p.exists():
+def _retry(fn, tries: int = 10):
+    """On Windows a file being swapped in (or read) by another thread is briefly locked: try again."""
+    for attempt in range(tries):
         try:
-            raw = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            raw = {}
+            return fn()
+        except PermissionError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(0.05)
+
+
+def _read_saved() -> dict:
+    """What settings.json holds ({} if there is none). A file that isn't valid JSON is kept as
+    settings.broken.json, so the next save can't quietly throw away what it held."""
+    p = paths.settings_path()
+    if not p.exists():
+        return {}
+    text = _retry(lambda: p.read_text(encoding="utf-8"))
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            shutil.copyfile(p, p.with_name("settings.broken.json"))
+        except OSError:
+            pass
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def load() -> dict:
+    try:
+        raw = _read_saved()
+    except OSError:
+        raw = {}
     return _merge(DEFAULTS, raw)
 
 
@@ -99,10 +127,13 @@ def save(settings: dict) -> None:
         p = paths.settings_path()
         tmp = p.with_suffix(".tmp")
         tmp.write_text(json.dumps(settings, indent=2), encoding="utf-8")
-        tmp.replace(p)
+        _retry(lambda: tmp.replace(p))
 
 
 def update(patch: dict) -> dict:
-    s = _merge(load(), patch)
-    save(s)
+    # Read, change and write under one lock, and never from defaults just because the file
+    # couldn't be read this instant: that would wipe the provider, caps and logins.
+    with _lock:
+        s = _merge(_merge(DEFAULTS, _read_saved()), patch)
+        save(s)
     return s

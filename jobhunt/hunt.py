@@ -27,6 +27,8 @@ from .sites import SiteBlocked, SiteContext, get_site
 
 # Sites where applying needs a government login (Singpass) the app must not touch.
 HUMAN_APPLY_SITES = {"mycareersfuture"}
+# The apply agent only starts on a job in one of these states (never on one already Applied or Applying).
+APPLY_FROM_STATES = {"Ready", "Needs you"}
 
 # Starting guesses for the estimate; replaced by your own averages once you have history.
 DEFAULT_TOKENS = {"filter": (2600, 160), "tailor": (7500, 2600), "apply": (5200, 260)}
@@ -60,7 +62,7 @@ class Task:
         self.params = params
         self.stop_event = stop_event
         self.settings = settings_mod.load()
-        self.redact = secrets_store.Redactor.from_store(self.settings)
+        self.redact = secrets_store.Redactor.from_store(self.settings, profile.load_contact())
         self.meter = Meter.from_settings(self.settings)
         self.run_id = db.start_run(kind, json.dumps(params))
         self.current_job = None
@@ -118,8 +120,17 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
     try:
         browser.render_pdf(render.posting_html(posting), folder / "posting.pdf")
         system, user = prompts.tailor_prompt(profile_text, contact, posting)
-        for attempt in (1, 2):  # a reply in the wrong shape gets one more try, then the job is an Error
-            data, _ = task.get_llm().chat_json(stage="tailor", system=system, user=user, max_tokens=6000, job_id=job_id)
+        for attempt in (1, 2):  # an unreadable or incomplete reply gets one more try, then the job is an Error
+            try:
+                data, _ = task.get_llm().chat_json(stage="tailor", system=system, user=user, max_tokens=6000,
+                                                   job_id=job_id)
+            except RateLimited:
+                raise
+            except LLMError as e:
+                if attempt == 2:
+                    raise
+                task.log(f"The AI's package could not be read ({e}); asking again.", "warn")
+                continue
             data = render.normalise_tailor(data)
             problems = render.package_problems(data)
             if not problems:
@@ -171,6 +182,11 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
 def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
     """Run the apply agent on one prepared job. Returns the new state."""
     job = db.get_job(job_id)
+    if not job:
+        raise LLMError(f"There is no job {job_id}.")
+    if job["state"] not in APPLY_FROM_STATES:  # e.g. a second click or a stale tab: never apply twice
+        task.log(f"Not applying to {job['company']} - {job['role']}: it is {job['state']}.", "warn")
+        return job["state"]
     task.current_job = job_id
     if job["source"] in HUMAN_APPLY_SITES:
         db.update_job(job_id, state="Needs you")
@@ -220,6 +236,13 @@ def _num(v):
 
 # ── the hunt loop ─────────────────────────────────────────────────────
 
+def _below_floor(top_monthly: float, floor: float) -> str:
+    """Why a stated salary rules a job out ('' = it doesn't, or no salary was stated)."""
+    if floor and top_monthly and top_monthly < floor:
+        return f"salary tops out at SGD {top_monthly:,.0f}/month, below your SGD {floor:,.0f}"
+    return ""
+
+
 def _avoid_hit(words: list[str], *texts: str) -> str | None:
     hay = " ".join(t or "" for t in texts).lower()
     for w in words:
@@ -230,12 +253,13 @@ def _avoid_hit(words: list[str], *texts: str) -> str | None:
 
 
 def candidates(task: Task, ctx: SiteContext, site_keys: list[str], keywords: list[str], location: str,
-               max_pages: int = 5, blocked: set | None = None):
+               max_pages: int = 5, blocked: dict | None = None):
     """Round-robin over sites, then keywords, page by page; yields (site, listing).
 
-    A site whose key lands in `blocked` (a posting page hit a wall) is dropped at
-    once, so its search pages stop loading too."""
-    blocked = blocked if blocked is not None else set()
+    `blocked` maps a site's key to why it was dropped for this run. A site that
+    lands in it (a posting page hit a wall) is dropped at once, so its search
+    pages stop loading too."""
+    blocked = blocked if blocked is not None else {}
     gens = []
     for key in site_keys:
         site = get_site(key, task.settings)
@@ -251,26 +275,42 @@ def candidates(task: Task, ctx: SiteContext, site_keys: list[str], keywords: lis
                 gens.remove((site, gen))
             except SiteBlocked as e:
                 task.log(f"{site.label}: blocked or needs login ({e}); skipping this site for this run.", "warn")
-                blocked.add(site.key)
+                blocked[site.key] = f"{site.label} (blocked or needs login)"
                 gens.remove((site, gen))
             except StopHunt:
                 raise
             except Exception as e:  # one site's outage shouldn't end the hunt on the others
                 task.log(f"{site.label}: search failed ({type(e).__name__}: {str(e)[:120]}); "
                          "skipping this site for this run.", "warn")
-                blocked.add(site.key)
+                blocked[site.key] = f"{site.label} (search failed)"
                 gens.remove((site, gen))
 
 
 def _site_listings(task, ctx, site, keywords, location, max_pages):
+    """One failed search page skips to the next keyword. Two failures in a row, or no search page
+    working at all, give up on the site (the error goes up to `candidates`)."""
+    failures, worked, last_error = 0, False, None
     for kw in keywords:
         for page_no in range(max_pages):
             task.check_stop()
-            listings = site.search(ctx, kw, location, page_no)
+            try:
+                listings = site.search(ctx, kw, location, page_no)
+            except (SiteBlocked, StopHunt):
+                raise
+            except Exception as e:
+                failures, last_error = failures + 1, e
+                if failures >= 2:
+                    raise
+                task.log(f"{site.label}: '{kw}' page {page_no + 1} failed ({type(e).__name__}: {str(e)[:120]}); "
+                         "trying the next keyword.", "warn")
+                break
+            failures, worked = 0, True
             task.log(f"{site.label}: '{kw}' page {page_no + 1}: {len(listings)} results")
             if not listings:
                 break
             yield from listings
+    if last_error is not None and not worked:
+        raise last_error
 
 
 def wait_for_rate_limit(task: Task, source: str) -> None:
@@ -314,8 +354,8 @@ def run_hunt(task: Task) -> str:
              f"{'AUTO-SUBMIT' if auto_submit else 'draft mode (nothing is submitted)'}; caps: {caps_text(s)}.")
     browser = make_browser(headless=True)
     ctx = SiteContext(browser, s["pacing"], task.stop_event, lambda m: task.log(m))
-    matched, examined, skipped_known = 0, 0, 0
-    companies, blocked = set(), set()
+    matched, ready, examined, skipped_known = 0, 0, 0, 0
+    companies, tried, blocked = set(), set(), {}
     max_candidates = int(s["hunt"].get("max_candidates") or 60)
     try:
         for site, listing in candidates(task, ctx, site_keys, keywords, s["scope"].get("location", ""), blocked=blocked):
@@ -323,8 +363,9 @@ def run_hunt(task: Task) -> str:
             task.current_job = None
             if matched >= target or examined >= max_candidates:
                 break
-            if site.key in blocked:
-                continue
+            if site.key in blocked or listing.url in tried:
+                continue  # tried: the same posting can come up again under another keyword
+            tried.add(listing.url)
             if db.was_seen(listing.url) or db.is_duplicate(listing.url, listing.company, listing.title):
                 skipped_known += 1
                 continue
@@ -333,13 +374,18 @@ def run_hunt(task: Task) -> str:
                 db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", f"avoid word: {hit}")
                 task.log(f"Skip (avoid word '{hit}'): {listing.company} - {listing.title}")
                 continue
-            if listing.company and listing.company.lower() in companies:
+            if listing.company and db.company_key(listing.company) in companies:
                 continue  # one application per company per run
+            reason = _below_floor(listing.salary_max_monthly, floor)
+            if reason:  # the search card already shows the pay: no need to open the posting
+                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", reason)
+                task.log(f"Skip ({reason}): {listing.company} - {listing.title}")
+                continue
             examined += 1
             try:
                 posting = site.fetch(ctx, listing)
             except SiteBlocked as e:
-                blocked.add(site.key)
+                blocked[site.key] = f"{site.label} (blocked or needs login)"
                 task.log(f"{site.label}: blocked or needs login ({e}); skipping this site for this run.", "warn")
                 continue
             except Exception as e:
@@ -350,8 +396,8 @@ def run_hunt(task: Task) -> str:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", "posting text too short")
                 task.log(f"Posting had no readable text, skipped: {listing.url}", "warn")
                 continue
-            if floor and posting.salary_max_monthly and posting.salary_max_monthly < floor:
-                reason = f"salary tops out at SGD {posting.salary_max_monthly:,.0f}/month, below your SGD {floor:,.0f}"
+            reason = _below_floor(posting.salary_max_monthly, floor)
+            if reason:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip", reason)
                 task.log(f"Skip ({reason}): {posting.company} - {posting.title}")
                 continue
@@ -372,13 +418,19 @@ def run_hunt(task: Task) -> str:
                          "; ".join(map(str, verdict["reasons"])))
             task.log(f"Match ({verdict.get('score')}/10): {posting.company} - {posting.title}")
             job_id = build_package(task, browser, posting, verdict)
-            companies.add((posting.company or "").lower())
+            companies.add(db.company_key(posting.company))
             matched += 1
-            if auto_submit and db.get_job(job_id)["state"] == "Ready":
-                wait_for_rate_limit(task, posting.source)
-                apply_job(task, browser, job_id)
+            if db.get_job(job_id)["state"] == "Ready":
+                ready += 1
+                if auto_submit:
+                    wait_for_rate_limit(task, posting.source)
+                    apply_job(task, browser, job_id)
         task.current_job = None
-        summary = f"{matched} package(s) built from {examined} posting(s) examined ({skipped_known} already known)."
+        summary = f"{ready} package(s) built from {examined} posting(s) examined ({skipped_known} already known)."
+        if matched > ready:
+            summary += f" {matched - ready} match(es) failed while building: see Error on the Dashboard."
+        if blocked:
+            summary += " Skipped for this run: " + ", ".join(blocked.values()) + "."
         task.log("Hunt finished: " + summary)
         return summary
     finally:
@@ -528,7 +580,8 @@ class Runner:
             if task.current_job:
                 job = db.get_job(task.current_job)
                 if job and job["state"] in ("Found", "Applying"):
-                    db.update_job(task.current_job, state="Error" if job["state"] == "Found" else "Ready")
+                    # an interrupted apply may already have submitted: a person has to look, not a re-run
+                    db.update_job(task.current_job, state="Error" if job["state"] == "Found" else "Needs you")
                     db.append_note(task.current_job, f"Interrupted: {summary}")
             db.finish_run(task.run_id, status, summary)
             self.last_result = summary

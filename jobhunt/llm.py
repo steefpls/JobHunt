@@ -224,7 +224,8 @@ class Meter:
 # ── JSON helpers ──────────────────────────────────────────────────────
 
 def extract_json(text: str):
-    """Pull the first JSON object out of a model reply (tolerates ``` fences and chatter)."""
+    """Pull the first JSON object out of a model reply (tolerates ``` fences, chatter before it, and raw
+    line breaks inside strings, which models often put in long paragraphs)."""
     if not text:
         raise ValueError("empty reply")
     text = text.strip()
@@ -234,6 +235,24 @@ def extract_json(text: str):
     start = text.find("{")
     if start < 0:
         raise ValueError("no JSON object in reply")
+    problem = "unterminated JSON object in reply"
+    while start >= 0:  # "here is {the result}: {...}": if one candidate isn't JSON, try the next '{'
+        end = _object_end(text, start)
+        if end < 0:
+            break
+        try:
+            data = json.loads(text[start:end + 1], strict=False)
+        except json.JSONDecodeError as e:
+            problem = f"invalid JSON in reply ({e.msg})"
+        else:
+            if isinstance(data, dict):
+                return data
+        start = text.find("{", end + 1)  # never an object nested inside the one that failed
+    raise ValueError(problem)
+
+
+def _object_end(text: str, start: int) -> int:
+    """Index of the '}' that closes the object opening at `start` (-1 if it never closes)."""
     depth, in_str, esc = 0, False, False
     for i in range(start, len(text)):
         c = text[i]
@@ -251,8 +270,8 @@ def extract_json(text: str):
         elif c == "}":
             depth -= 1
             if depth == 0:
-                return json.loads(text[start:i + 1])
-    raise ValueError("unterminated JSON object in reply")
+                return i
+    return -1
 
 
 # ── the client ────────────────────────────────────────────────────────
@@ -366,7 +385,8 @@ class LLMClient:
             body["thinking"] = {"type": "enabled" if self.settings.get("reasoning") else "disabled"}
         data = self._post_with_retry(f"{base}/chat/completions", headers, body)
         if data.get("error"):
-            raise LLMError(f"Model error: {str(data['error'].get('message', data['error']))[:300]}")
+            err = data["error"]
+            raise LLMError(f"Model error: {str(err.get('message', err) if isinstance(err, dict) else err)[:300]}")
         choice = (data.get("choices") or [{}])[0]
         msg = choice.get("message") or {}
         calls = []
@@ -415,7 +435,13 @@ class LLMClient:
                 raise LLMError("The provider says the account is out of credit.")
             if r.status_code >= 400:
                 raise LLMError(f"Model provider error {r.status_code}: {r.text[:300]}")
-            return r.json()
+            try:
+                data = r.json()
+            except ValueError:
+                data = None
+            if not isinstance(data, dict):  # an HTML error page or an empty body with a 200
+                raise LLMError(f"The model provider sent an unreadable answer: {r.text[:120]!r}")
+            return data
         raise LLMError("The model provider kept failing; try again later.")
 
     # Anthropic, through the official SDK

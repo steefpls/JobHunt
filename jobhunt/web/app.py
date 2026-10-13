@@ -60,6 +60,8 @@ def create_app(port: int = 8765) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     app.include_router(demo_board.router)
     db.init()
+    if not hunt.runner.busy:
+        db.recover_interrupted()
     s = settings_mod.load()
     if s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS:  # older flat-plan runs were recorded at $0
         db.backfill_costs(lambda model, tin, tout: llm.cost_of(model, tin, tout, s))
@@ -104,12 +106,13 @@ def create_app(port: int = 8765) -> FastAPI:
         return templates.TemplateResponse(request, name, ctx)
 
     def back(url: str, msg: str = "", err: str = "") -> RedirectResponse:
+        url, hash_, fragment = url.partition("#")  # the message goes before any #fragment, or it never shows
         sep = "&" if "?" in url else "?"
         if msg:
             url += f"{sep}msg={quote(msg)}"
         elif err:
             url += f"{sep}err={quote(err)}"
-        return RedirectResponse(url, status_code=303)
+        return RedirectResponse(url + hash_ + fragment, status_code=303)
 
     # ── dashboard & jobs ───────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse)
@@ -156,6 +159,10 @@ def create_app(port: int = 8765) -> FastAPI:
 
     @app.post("/jobs/{job_id}/apply")
     def approve_apply(job_id: int):
+        job = db.get_job(job_id)
+        if not job or job["state"] not in hunt.APPLY_FROM_STATES:
+            return back(f"/jobs/{job_id}" if job else "/", err="This job can't be applied to now"
+                        + (f" (it is {job['state']})." if job else ": it doesn't exist."))
         try:
             if login_browser_open():
                 raise RuntimeError("Close the login browser window first.")

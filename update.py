@@ -27,8 +27,9 @@ BRANCH = "main"
 APP_DIR = Path(__file__).resolve().parent
 VERSION_FILE = ".jobhunt-version"  # the commit this copy was updated to
 MANIFEST_FILE = ".jobhunt-files"  # the files that update put here
+STALE_FILE = ".jobhunt-packages-stale"  # requirements.txt changed and the packages aren't refreshed yet
 # never written or deleted by an update, even if the download had them
-PROTECTED = {"data", ".venv", ".browsers", ".git", "opencode_key.txt", VERSION_FILE, MANIFEST_FILE}
+PROTECTED = {"data", ".venv", ".browsers", ".git", "opencode_key.txt", VERSION_FILE, MANIFEST_FILE, STALE_FILE}
 # run.bat is running while this runs; cmd reads it as it goes, so it is swapped in by run.bat itself
 RUN_BAT = "run.bat"
 
@@ -51,6 +52,15 @@ def download(sha: str, timeout: float = 60) -> bytes:
 
 def _digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+
+
+def _archive_digest(archive: bytes, rel: str) -> str:
+    """sha256 of one file in GitHub's zip ("" if it isn't there)."""
+    with zipfile.ZipFile(io.BytesIO(archive)) as z:
+        for info in z.infolist():
+            if "/".join(info.filename.split("/")[1:]) == rel:
+                return hashlib.sha256(z.read(info)).hexdigest()
+    return ""
 
 
 def apply_archive(archive: bytes, app_dir: Path) -> list[str]:
@@ -111,24 +121,30 @@ def main(app_dir: Path = APP_DIR) -> int:
         print(f"  Couldn't reach GitHub ({e.__class__.__name__}). Starting the version you have.")
         return 0
     version = app_dir / VERSION_FILE
+    stale = app_dir / STALE_FILE
     if version.exists() and version.read_text(encoding="utf-8").strip() == sha:
         print("  Up to date.")
-        return 0
-    try:
-        archive = download(sha)
-        reqs_before = _digest(app_dir / "requirements.txt")
-        apply_archive(archive, app_dir)
-        version.write_text(sha, encoding="utf-8")
-    except Exception as e:
-        print(f"  Update failed ({e}). Starting the version you have.")
-        return 0
-    print(f"  Updated to {sha[:7]}.")
-    if _digest(app_dir / "requirements.txt") != reqs_before:
+    else:
+        try:
+            archive = download(sha)
+            if _archive_digest(archive, "requirements.txt") not in ("", _digest(app_dir / "requirements.txt")):
+                # noted before copying, so an update that stops half-way still refreshes the packages next time
+                stale.write_text(sha, encoding="utf-8")
+            apply_archive(archive, app_dir)
+            version.write_text(sha, encoding="utf-8")
+        except Exception as e:
+            print(f"  Update failed ({e}). Starting the version you have.")
+            return 0
+        print(f"  Updated to {sha[:7]}.")
+    if stale.exists():  # also retries a package refresh that failed at an earlier start
         print("  Updating packages (this can take a few minutes)...")
         try:
             refresh_packages(app_dir)
         except Exception as e:
-            print(f"  Updating packages failed ({e}). If JobHunt won't start, run setup.bat.")
+            print(f"  Updating packages failed ({e}). JobHunt will try again next time; "
+                  "if it won't start, run setup.bat.")
+        else:
+            stale.unlink(missing_ok=True)
     return 0
 
 

@@ -133,7 +133,7 @@ TAILOR_SHAPE = """{
   "projects": [{"name": "", "place": "", "role": "", "dates": "", "bullets": []}],
   "skills": {"technical": "comma list, most relevant first", "certifications": "", "languages": "", "interests": ""}
  },
- "cover_letter": {"greeting": "Dear Hiring Team,", "paragraphs": ["opening: why this company and role, citing something concrete from the posting", "body: strongest relevant achievements with numbers", "optional second body paragraph", "close"]},
+ "cover_letter": {"greeting": "Dear Hiring Team,", "paragraphs": ["opening: why this company and role, citing something concrete from the posting", "body: strongest relevant achievements with numbers", "optional second body paragraph", "close (no sign-off or name: the letter template adds 'Sincerely' and the name)"]},
  "match_report": {
   "requirements": [{"requirement": "from the posting", "addressed_by": "the resume bullet or skill that covers it", "strength": "strong|partial|gap"}],
   "emphasized": ["what was moved up or reworded for this role, and why"],

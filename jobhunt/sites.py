@@ -10,10 +10,10 @@ API) and waits a human-ish random delay before every page load.
 Status of each site (also shown in the UI):
   demo            the built-in practice board; fully tested
   mycareersfuture public JSON API; checked against the live API on 2026-10-13
-  linkedin        public "guest" job pages; written against known markup. Checked live on 2026-10-13
-                  from the build server: LinkedIn answered 429 and its sign-in wall (now detected)
-  jobstreet       SEEK data-automation markup; checked live on 2026-10-13 (search + postings,
-                  headless bundled Chromium and real Chrome both fine)
+  linkedin        public "guest" job pages; search and postings checked live on 2026-10-14 without a
+                  login. It answers 429 often: SiteContext waits and retries once before giving up
+  jobstreet       SEEK data-automation markup; checked live on 2026-10-13 and 2026-10-14 (search,
+                  postings and salaries; headless bundled Chromium and real Chrome both fine)
   indeed          known markup; Indeed often blocks automated browsers (experimental)
 """
 import random
@@ -24,7 +24,8 @@ from urllib.parse import quote, quote_plus, urljoin, urlparse, parse_qs
 import httpx
 from bs4 import BeautifulSoup
 
-from .extract import Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, select_text
+from .extract import (Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, salary_top_monthly,
+                      select_text)
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/141.0.0.0 Safari/537.36")
@@ -47,35 +48,52 @@ class SiteContext:
         self._sleep = sleep
         self._last_load = 0.0
 
-    def wait_turn(self) -> None:
-        lo = float(self.pacing.get("min_delay_s", 4))
-        hi = max(lo, float(self.pacing.get("max_delay_s", 9)))
-        target = self._last_load + random.uniform(lo, hi)
+    def _pause_until(self, target: float) -> None:
         while (remaining := target - time.monotonic()) > 0:
             if self.stop_event is not None and self.stop_event.is_set():
                 break
             self._sleep(min(0.25, remaining))
+
+    def wait_turn(self) -> None:
+        lo = float(self.pacing.get("min_delay_s", 4))
+        hi = max(lo, float(self.pacing.get("max_delay_s", 9)))
+        self._pause_until(self._last_load + random.uniform(lo, hi))
         self._last_load = time.monotonic()
 
+    def _slow_down(self, url: str) -> None:
+        """The site answered 429 (too many requests): wait a while before the one retry."""
+        wait = float(self.pacing.get("rate_limit_wait_s", 45))
+        self.log(f"{urlparse(url).hostname} asked us to slow down (HTTP 429); waiting {wait:.0f}s before trying once more.")
+        self._pause_until(time.monotonic() + wait)
+
     def get_html(self, url: str) -> str:
-        self.wait_turn()
-        html = self.browser.load_html(url)
-        check_blocked(html, getattr(self.browser, "last_url", "") or url)
-        status = getattr(self.browser, "last_status", 0) or 0
-        if status in (403, 429):
-            raise SiteBlocked(f"HTTP {status}")
-        if status >= 400:
-            raise PageUnavailable(f"HTTP {status}")
-        return html
+        for attempt in (1, 2):
+            self.wait_turn()
+            html = self.browser.load_html(url)
+            status = getattr(self.browser, "last_status", 0) or 0
+            if status == 429 and attempt == 1:
+                self._slow_down(url)
+                continue
+            check_blocked(html, getattr(self.browser, "last_url", "") or url)
+            if status in (403, 429):
+                raise SiteBlocked(f"HTTP {status}")
+            if status >= 400:
+                raise PageUnavailable(f"HTTP {status}")
+            return html
 
     def get_json(self, url: str, method: str = "GET", body: dict | None = None) -> dict:
-        self.wait_turn()
-        with httpx.Client(headers={"User-Agent": UA, "Accept": "application/json"}, timeout=30) as c:
-            r = c.post(url, json=body) if method == "POST" else c.get(url)
-        if r.status_code in (403, 429):
-            raise SiteBlocked(f"HTTP {r.status_code}")
-        r.raise_for_status()
-        return r.json()
+        for attempt in (1, 2):
+            self.wait_turn()
+            with httpx.Client(headers={"User-Agent": UA, "Accept": "application/json"}, timeout=30) as c:
+                r = c.post(url, json=body) if method == "POST" else c.get(url)
+            if r.status_code == 429 and attempt == 1:
+                self._slow_down(url)
+                continue
+            if r.status_code in (403, 429):
+                raise SiteBlocked(f"HTTP {r.status_code}")
+            if r.status_code >= 400:
+                raise PageUnavailable(f"HTTP {r.status_code}")
+            return r.json()
 
 
 _BLOCK_MARKERS = ["just a moment...", "verify you are human", "captcha", "access denied", "unusual traffic",
@@ -118,7 +136,7 @@ class DemoSite:
             if not a:
                 continue
             out.append(Listing(source=self.key, url=_abs(url, a.get("href")), title=clean_whitespace(a.get_text(" ")),
-                               company=select_text(str(card), ".company"), location=select_text(str(card), ".location")))
+                               company=select_text(card, ".company"), location=select_text(card, ".location")))
         return out
 
     def fetch(self, ctx, listing):
@@ -145,25 +163,34 @@ class MyCareersFutureSite:
         meta = r.get("metadata") or {}
         company = (r.get("hiringCompany") or {}).get("name") or (r.get("postedCompany") or {}).get("name", "")
         districts = (r.get("address") or {}).get("districts") or []
+        salary, salary_max = self.salary(r)
         return Listing(source=self.key, url=meta.get("jobDetailsUrl") or f"https://www.mycareersfuture.gov.sg/job/{r['uuid']}",
                        title=r.get("title", ""), company=company,
                        location=", ".join(d.get("location", "") for d in districts) or "Singapore",
-                       extra={"uuid": r["uuid"]})
+                       salary=salary, salary_max_monthly=salary_max, extra={"uuid": r["uuid"]})
+
+    @staticmethod
+    def salary(r: dict) -> tuple[str, float]:
+        """The API's salary block -> (display text, top of the range in SGD a month)."""
+        sal = r.get("salary") or {}
+        if not sal.get("minimum"):
+            return "", 0.0
+        period = (sal.get("type") or {}).get("salaryType", "")
+        top = sal.get("maximum") or sal["minimum"]
+        return f"SGD {sal['minimum']:,}-{top:,} {period}".strip(), monthly(float(top), period)
 
     def fetch(self, ctx, listing):
         r = ctx.get_json(f"{self.API}/jobs/{listing.extra['uuid']}")
         return self.posting_from_job(r, listing)
 
     def posting_from_job(self, r: dict, listing: Listing) -> Posting:
-        sal = r.get("salary") or {}
-        salary, salary_max = "", 0.0
-        if sal.get("minimum"):
-            period = (sal.get("type") or {}).get("salaryType", "")
-            salary = f"SGD {sal['minimum']:,}-{sal.get('maximum') or sal['minimum']:,} {period}".strip()
-            salary_max = monthly(float(sal.get("maximum") or sal["minimum"]), period)
+        salary, salary_max = self.salary(r)
         parts = [html_to_text(r.get("description", ""))]
         if r.get("minimumYearsExperience"):
             parts.append(f"Minimum years of experience: {r['minimumYearsExperience']}")
+        kinds = [e.get("employmentType") for e in r.get("employmentTypes") or [] if isinstance(e, dict)]
+        if any(kinds):
+            parts.append("Employment type: " + ", ".join(k for k in kinds if k))
         skills = [s.get("skill") for s in r.get("skills") or [] if s.get("skill")]
         if skills:
             parts.append("Skills listed: " + ", ".join(skills))
@@ -198,10 +225,12 @@ class LinkedInSite:
             if not m:
                 continue
             job_id = m.group(1)
+            salary = select_text(card, ".job-search-card__salary-info")
             out.append(Listing(source=self.key, url=f"https://www.linkedin.com/jobs/view/{job_id}/",
-                               title=select_text(str(card), ".base-search-card__title"),
-                               company=select_text(str(card), ".base-search-card__subtitle"),
-                               location=select_text(str(card), ".job-search-card__location"),
+                               title=select_text(card, ".base-search-card__title"),
+                               company=select_text(card, ".base-search-card__subtitle"),
+                               location=select_text(card, ".job-search-card__location"),
+                               salary=salary, salary_max_monthly=salary_top_monthly(salary),
                                extra={"job_id": job_id}))
         return out
 
@@ -210,13 +239,22 @@ class LinkedInSite:
         return self.parse_posting(html, listing)
 
     def parse_posting(self, html: str, listing: Listing) -> Posting:
-        body = BeautifulSoup(html, "html.parser").select_one(".show-more-less-html__markup, .description__text")
+        soup = BeautifulSoup(html, "html.parser")
+        body = soup.select_one(".show-more-less-html__markup, .description__text")
+        text = html_to_text(str(body)) if body else ""
+        # "Seniority level: Associate", "Employment type: Full-time"...: useful to the filter
+        criteria = [f"{select_text(li, '.description__job-criteria-subheader')}: "
+                    f"{select_text(li, '.description__job-criteria-text')}"
+                    for li in soup.select(".description__job-criteria-item")]
+        if text and criteria:
+            text += "\n\n" + "\n".join(criteria)
+        salary = select_text(soup, ".compensation__salary")
         p = Posting(source=self.key, url=listing.url,
-                    title=select_text(html, ".top-card-layout__title") or listing.title,
-                    company=select_text(html, ".topcard__org-name-link") or listing.company,
-                    location=select_text(html, ".topcard__flavor--bullet") or listing.location,
-                    text=html_to_text(str(body)) if body else "", apply_url=listing.url)
-        return p
+                    title=select_text(soup, ".top-card-layout__title") or listing.title,
+                    company=select_text(soup, ".topcard__org-name-link") or listing.company,
+                    location=select_text(soup, ".topcard__flavor--bullet") or listing.location,
+                    text=text, apply_url=listing.url, salary=salary, salary_max_monthly=salary_top_monthly(salary))
+        return _fill_from_listing(p, listing)
 
 
 # ── JobStreet (SEEK markup) ───────────────────────────────────────────
@@ -243,9 +281,11 @@ class JobStreetSite:
             href = a.get("href", "")
             m = re.search(r"/job/(\d+)", href)
             url = f"{self.BASE}/job/{m.group(1)}" if m else _abs(self.BASE, href.split("?")[0])
+            salary = select_text(card, "[data-automation='jobSalary']")
             out.append(Listing(source=self.key, url=url, title=clean_whitespace(a.get_text(" ")),
-                               company=select_text(str(card), "[data-automation='jobCompany']"),
-                               location=select_text(str(card), "[data-automation='jobLocation']")))
+                               company=select_text(card, "[data-automation='jobCompany']"),
+                               location=select_text(card, "[data-automation='jobLocation']"),
+                               salary=salary, salary_max_monthly=salary_top_monthly(salary)))
         return out
 
     def fetch(self, ctx, listing):
@@ -256,6 +296,18 @@ class JobStreetSite:
                             title_sel="[data-automation='job-detail-title']",
                             company_sel="[data-automation='advertiser-name']",
                             location_sel="[data-automation='job-detail-location']")
+        # The JSON-LD has no salary or work type and only gives the country; the page header has the
+        # rest. Keep the country too: "Central Region" alone once read to the AI as Hong Kong.
+        soup = BeautifulSoup(html, "html.parser")
+        area, country = select_text(soup, "[data-automation='job-detail-location']"), p.location
+        if area and country and country.lower() not in area.lower():
+            area = f"{area}, {country}"
+        p.location = area or country
+        p.salary = select_text(soup, "[data-automation='job-detail-salary']")
+        p.salary_max_monthly = salary_top_monthly(p.salary)
+        work_type = select_text(soup, "[data-automation='job-detail-work-type']")
+        if p.text and work_type:
+            p.text += f"\n\nWork type: {work_type}"
         p.apply_url = listing.url
         return _fill_from_listing(p, listing)
 
@@ -279,8 +331,8 @@ class IndeedSite:
                 continue
             card = a.find_parent(class_=re.compile("job_seen_beacon|cardOutline|result")) or a.parent
             out.append(Listing(source=self.key, url=f"{self.BASE}/viewjob?jk={jk}", title=clean_whitespace(a.get_text(" ")),
-                               company=select_text(str(card), "[data-testid='company-name']"),
-                               location=select_text(str(card), "[data-testid='text-location']")))
+                               company=select_text(card, "[data-testid='company-name']"),
+                               location=select_text(card, "[data-testid='text-location']")))
         return out
 
     def fetch(self, ctx, listing):
@@ -296,6 +348,8 @@ def _fill_from_listing(p: Posting, listing: Listing) -> Posting:
     p.title = p.title or listing.title
     p.company = p.company or listing.company
     p.location = p.location or listing.location
+    if not p.salary and listing.salary:
+        p.salary, p.salary_max_monthly = listing.salary, listing.salary_max_monthly
     return p
 
 

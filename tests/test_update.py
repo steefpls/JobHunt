@@ -102,3 +102,22 @@ def test_bad_download_leaves_the_install_alone(install, monkeypatch):
     assert update.main(install) == 0
     assert not (install / ".jobhunt-version").exists()
     assert (install / "jobhunt" / "app.py").read_text(encoding="utf-8") == "old"
+
+
+def test_a_failed_package_refresh_is_tried_again_next_start(install, monkeypatch):
+    monkeypatch.delenv("JOBHUNT_NO_UPDATE", raising=False)
+    monkeypatch.setattr(update, "latest_commit", lambda: SHA)
+    monkeypatch.setattr(update, "download", lambda sha: make_zip({"requirements.txt": "fastapi==2"}))
+    calls = []
+
+    def flaky(d):
+        calls.append(d)
+        if len(calls) == 1:
+            raise OSError("offline")
+    monkeypatch.setattr(update, "refresh_packages", flaky)
+    update.main(install)
+    assert (install / update.STALE_FILE).exists()
+    update.main(install)  # already on SHA, but the packages are still stale
+    assert len(calls) == 2 and not (install / update.STALE_FILE).exists()
+    update.main(install)
+    assert len(calls) == 2

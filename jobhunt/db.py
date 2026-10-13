@@ -9,6 +9,7 @@ Tables
 """
 import csv
 import io
+import re
 import sqlite3
 import threading
 from datetime import datetime
@@ -184,13 +185,27 @@ def state_counts() -> dict:
     return {r["state"]: r["n"] for r in rows}
 
 
+_LEGAL_WORDS = {"pte", "ltd", "limited", "private", "inc", "llc", "llp", "plc", "co", "corp", "corporation",
+                "company", "singapore", "sg", "the"}
+
+
+def company_key(name: str) -> str:
+    """A company name the same way every board writes it: 'TECHCOM SOLUTIONS (SINGAPORE) PTE. LTD.' and
+    'TechCom Solutions Pte Ltd' are both 'techcom solutions'."""
+    words = re.findall(r"[a-z0-9]+", (name or "").lower())
+    kept = [w for w in words if w not in _LEGAL_WORDS]
+    return " ".join(kept or words)
+
+
 def is_duplicate(url: str, company: str, role: str) -> bool:
-    """Same URL, or same company + role, already tracked."""
-    rows = _query(
-        "SELECT 1 FROM jobs WHERE url = ? OR (lower(company) = lower(?) AND lower(role) = lower(?) AND company != '')",
-        (url, company, role),
-    )
-    return bool(rows)
+    """Same URL, or the same company + role already tracked (even from another job site)."""
+    if _query("SELECT 1 FROM jobs WHERE url = ?", (url,)):
+        return True
+    key = company_key(company)
+    if not key:
+        return False
+    rows = _query("SELECT company FROM jobs WHERE lower(trim(role)) = lower(trim(?)) AND company != ''", (role,))
+    return any(company_key(r["company"]) == key for r in rows)
 
 
 def applied_since(source: str, since_iso: str) -> int:
@@ -225,7 +240,8 @@ def export_csv() -> str:
 # ── seen postings ─────────────────────────────────────────────────────
 
 def was_seen(url: str) -> bool:
-    return bool(_query("SELECT 1 FROM seen WHERE url = ?", (url,)))
+    """Already judged (match or skip). A posting that failed to load or be judged is tried again next run."""
+    return bool(_query("SELECT 1 FROM seen WHERE url = ? AND decision != 'error'", (url,)))
 
 
 def mark_seen(url: str, source: str, company: str, role: str, decision: str, reason: str = "") -> None:
@@ -245,6 +261,21 @@ def start_run(kind: str, params: str = "") -> int:
 
 def finish_run(run_id: int, status: str, summary: str = "") -> None:
     _exec("UPDATE runs SET finished_at = ?, status = ?, summary = ? WHERE id = ?", (now(), status, summary, run_id))
+
+
+def recover_interrupted() -> None:
+    """At start-up: tidy up after JobHunt was closed mid-task (window closed, PC restarted).
+
+    Nothing can be running yet, so a run still marked running was cut off. A job left Applying may
+    already have been submitted, so it goes to you (Needs you), never back to Ready; a job left
+    Found never got its package."""
+    _exec("UPDATE runs SET status = 'interrupted', finished_at = ?, summary = 'JobHunt was closed while this ran.' "
+          "WHERE status = 'running'", (now(),))
+    for job in _query("SELECT id, state FROM jobs WHERE state IN ('Applying', 'Found')"):
+        applying = job["state"] == "Applying"
+        update_job(job["id"], state="Needs you" if applying else "Error")
+        append_note(job["id"], "JobHunt was closed while applying: check on the site whether it was submitted."
+                    if applying else "JobHunt was closed while building this package.")
 
 
 def get_run(run_id: int) -> dict | None:

@@ -50,7 +50,7 @@ def _as_list(v) -> list:
 
 
 def normalise_resume(r: dict) -> dict:
-    r = dict(r or {})
+    r = dict(r) if isinstance(r, dict) else {}
     order = [s for s in _as_list(r.get("section_order")) if s in ("experience", "education", "projects", "skills")]
     for s in ("experience", "education", "projects", "skills"):
         if s not in order:
@@ -68,6 +68,8 @@ def normalise_resume(r: dict) -> dict:
     skills = r.get("skills") or {}
     if isinstance(skills, list):
         skills = {"technical": ", ".join(map(str, skills))}
+    elif not isinstance(skills, dict):
+        skills = {"technical": str(skills)}
     r["skills"] = {k: (", ".join(map(str, v)) if isinstance(v, list) else v) for k, v in skills.items() if v}
     return r
 
@@ -79,7 +81,8 @@ def normalise_tailor(data: dict) -> dict:
     """Smooth over common model slips: match-report fields placed at the top
     level instead of inside match_report, and scores given out of 100."""
     data = dict(data or {})
-    mr = dict(data.get("match_report") or {})
+    mr = data.get("match_report")
+    mr = dict(mr) if isinstance(mr, dict) else {}
     for k in MATCH_KEYS:
         if k in data and not mr.get(k):
             mr[k] = data.pop(k)
@@ -92,8 +95,11 @@ def normalise_tailor(data: dict) -> dict:
     except (TypeError, ValueError):
         mr["score"] = "?"
     data["match_report"] = mr
-    data["resume"] = data.get("resume") or {}
-    data["cover_letter"] = data.get("cover_letter") or {}
+    data["resume"] = data["resume"] if isinstance(data.get("resume"), dict) else {}
+    cl = data.get("cover_letter") or {}
+    if isinstance(cl, (str, list)):  # just the paragraphs
+        cl = {"paragraphs": cl.split("\n\n") if isinstance(cl, str) else cl}
+    data["cover_letter"] = cl if isinstance(cl, dict) else {}
     return data
 
 
@@ -115,9 +121,25 @@ def resume_html(contact: dict, resume: dict) -> str:
     return _env.get_template("resume.html.j2").render(contact=contact, r=normalise_resume(resume))
 
 
+# A paragraph that is only a sign-off ("Sincerely, Alex Lim"): the template signs the letter itself.
+_SIGN_OFF_RE = re.compile(r"^(?i:(yours\s+)?(sincerely|faithfully|truly|respectfully|(best|kind|warm(est)?)\s+regards|"
+                          r"regards|best wishes))[\s,.!]*([A-Z(][\w.'()-]*\s*){0,5}$")
+
+
+def _letter_paragraphs(cl: dict) -> list[str]:
+    """The model's paragraphs without a repeated greeting or a sign-off the template already adds."""
+    paras = [str(p).strip() for p in _as_list(cl.get("paragraphs")) if str(p).strip()]
+    greeting = str(cl.get("greeting") or "").strip().lower()
+    if paras and greeting and paras[0].lower() == greeting:
+        paras = paras[1:]
+    while paras and len(paras[-1]) <= 80 and _SIGN_OFF_RE.match(paras[-1]):
+        paras.pop()
+    return paras
+
+
 def cover_letter_html(contact: dict, company: str, role: str, cl: dict) -> str:
     cl = dict(cl or {})
-    cl["paragraphs"] = _as_list(cl.get("paragraphs"))
+    cl["paragraphs"] = _letter_paragraphs(cl)
     return _env.get_template("cover_letter.html.j2").render(
         contact=contact, company=company, role=role, cl=cl, date=datetime.now().strftime("%d %B %Y"))
 

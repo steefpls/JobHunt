@@ -67,14 +67,22 @@ class Redactor:
                 self._values[name] = value
 
     @classmethod
-    def from_store(cls, settings: dict) -> "Redactor":
+    def from_store(cls, settings: dict, contact: dict | None = None) -> "Redactor":
+        """`contact`: the Profile's contact details. A saved login username that is also your contact email
+        (the usual case) is no secret from the AI, which fills forms with that email anyway; hiding it would
+        make a correctly filled Email box look wrong to the apply agent, which then keeps re-filling it."""
+        public = set()
+        for v in (contact or {}).values():
+            for item in (v if isinstance(v, list) else [v]):
+                if isinstance(item, str) and item.strip():
+                    public.add(item.strip().lower())
         values = {}
         for name in known_secret_names(settings):
             try:
                 v = get_secret(name)
             except Exception:  # a broken keyring backend must not stop redaction
                 v = None
-            if v:
+            if v and not (name.endswith(":username") and v.strip().lower() in public):
                 values[name] = v
         return cls(values)
 
