@@ -1,0 +1,2 @@
+# Windows batch files keep CRLF in the repo itself, so the GitHub download runs cleanly in cmd
+*.bat -text

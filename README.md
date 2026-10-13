@@ -40,6 +40,15 @@ rebuild publicly.
 3. Double-click **`run.bat`**. Your browser opens at http://127.0.0.1:8765.
    Keep the black window open while you use JobHunt and close it to stop.
 
+### Updates
+
+`run.bat` checks GitHub each time it starts and, when there is a newer version,
+copies it in before JobHunt opens. Your `data\` folder (profile, CVs, tracker,
+job folders, logins), `.venv\` and `.browsers\` are never touched. When the
+package list changes it reinstalls the packages too. Offline, it just starts the
+version you have. To turn updates off, set the environment variable
+`JOBHUNT_NO_UPDATE=1`. A git checkout is never auto-updated (use `git pull`).
+
 ### The AI key
 
 - If a file called `opencode_key.txt` sits next to `run.bat`, JobHunt moves the

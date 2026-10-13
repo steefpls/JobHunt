@@ -10,6 +10,15 @@ if not exist ".venv\Scripts\python.exe" (
     exit /b 1
 )
 set "PLAYWRIGHT_BROWSERS_PATH=%~dp0.browsers"
+rem Fetch the latest JobHunt from GitHub first (skipped when offline).
+".venv\Scripts\python.exe" update.py
+rem An update can't rewrite this file while it runs, so it leaves run.bat.new:
+rem swap it in and start again with the new one. (One block: cmd reads it whole.)
+if exist "run.bat.new" (
+    move /y "run.bat.new" "run.bat" >nul
+    call "%~f0" %*
+    exit /b
+)
 ".venv\Scripts\python.exe" -m jobhunt %*
 if errorlevel 1 (
     echo.
