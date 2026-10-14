@@ -324,7 +324,7 @@ def test_jobs_left_mid_task_are_tidied_at_start_up():
     found = db.add_job(source="demo", url="https://x.example/f", company="F", role="R", state="Found")
     run_id = db.start_run("hunt")
     db.recover_interrupted()
-    assert db.get_job(applying)["state"] == "Needs you" and "check on the site" in db.get_job(applying)["notes"]
+    assert db.get_job(applying)["state"] == "Needs you" and "check on the site" in db.get_job(applying)["reason"]
     assert db.get_job(found)["state"] == "Error"
     assert db.get_run(run_id)["status"] == "interrupted"
 

@@ -114,5 +114,5 @@ def test_singpass_sites_are_handed_over_without_tokens(secrets, fake_llm, data_d
                      apply_url="https://www.mycareersfuture.gov.sg/job/x", folder="f", state="Ready")
     task = hunt.Task("apply", {"job_id": jid}, threading.Event())
     assert hunt.apply_job(task, browser=None, job_id=jid) == "Needs you"
-    assert "Singpass" in db.get_job(jid)["notes"]
+    assert "Singpass" in db.get_job(jid)["reason"] and db.get_job(jid)["reason_kind"] == "singpass"
     assert fake_llm.requests == []

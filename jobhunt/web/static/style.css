@@ -108,3 +108,7 @@ textarea.plain { font: inherit; font-size: 14px; }
 .notice.lasthunt.good { background: #e3f6ee; border-color: #b7e4cf; }
 .notice.lasthunt.bad { background: #fdecea; border-color: #f5c2bd; }
 .notice.lasthunt.mid { background: #fff8eb; border-color: #f6d99b; }
+.why { background: #fff1e6; border: 1px solid #f9cfa8; border-radius: 8px; padding: 10px 12px; }
+details.history { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+details.history summary { cursor: pointer; }
+details.history ul { margin: 6px 0 0; padding-left: 18px; }

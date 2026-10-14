@@ -17,9 +17,20 @@
             data-confirm="Let JobHunt fill in and SUBMIT this application now?">
         <button class="btn primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button>
       </form>
-    {% elif job.state in ("Ready", "Needs you") %}
-      <p>Finish this application yourself in your browser{% if human_apply %} (this site needs Singpass){% endif %}.
-        Upload the resume and cover letter from this page, then mark it Applied.</p>
+    {% elif job.state == "Needs you" %}
+      <div class="why"><b>Why JobHunt stopped:</b> {{ why or "It needs you to finish it." }}</div>
+      {% if help.fix %}<p style="margin:10px 0 4px"><b>1.</b> <a class="btn small" href="{{ help.fix[1] }}">{{ help.fix[0] }}</a></p>{% endif %}
+      {% if can_retry %}
+      <form method="post" action="/jobs/{{ job.id }}/apply" class="inline"
+            data-confirm="Let JobHunt try this application again? It fills it in and SUBMITS it if everything is answered.">
+        <p style="margin:6px 0">{% if help.fix %}<b>2.</b> Then {% endif %}<button class="btn small primary" {{ 'disabled' if status.busy }}>Try again</button>
+          <span class="hint">JobHunt fills it in again from the start.</span></p>
+      </form>
+      {% endif %}
+      <p class="hint">{% if has_package %}{{ help.advice }}{% else %}Open the apply page and finish it there, then set the state to Applied.{% endif %}</p>
+    {% elif job.state == "Ready" %}
+      <p>Finish this application yourself in your browser (this site needs Singpass).
+        {% if has_package %}Attach the resume and cover letter from Files below, then set the state to Applied.{% else %}Then set the state to Applied.{% endif %}</p>
     {% endif %}
     <div class="actions">
       <a class="btn" href="{{ (job.apply_url or job.url)|web_url }}" target="_blank" rel="noopener noreferrer">Open apply page ↗</a>
@@ -34,10 +45,15 @@
   </div>
   <div class="card">
     <h2>Notes</h2>
-    <form method="post" action="/jobs/{{ job.id }}/notes">
-      <textarea name="notes" style="min-height:110px">{{ job.notes }}</textarea>
+    <form method="post" action="/jobs/{{ job.id }}/notes" data-guard>
+      <textarea name="notes" class="plain" style="min-height:110px" aria-label="Your notes"
+        placeholder="Your own notes: who you spoke to, follow-up dates...">{{ job.notes }}</textarea>
       <div class="actions"><button class="btn small">Save notes</button></div>
     </form>
+    {% if history %}
+    <details class="history"><summary>What JobHunt did ({{ history|length }})</summary>
+      <ul>{% for line in history %}<li>{{ line }}</li>{% endfor %}</ul></details>
+    {% endif %}
     <p class="muted" style="margin-bottom:0">AI use for this job: <b>{{ "{:,}".format(job.tokens_in + job.tokens_out) }}</b> tokens
       ({{ "{:,}".format(job.tokens_in) }} in / {{ "{:,}".format(job.tokens_out) }} out), <b>${{ "%.4f"|format(job.cost_usd) }}</b>{% if subscription %} at API prices (covered by your flat plan){% endif %}.
       {% for c in calls %}<br><span class="mono">{{ c.stage }}: {{ "{:,}".format(c.tokens_in + c.tokens_out) }} tok, {{ "%.1f"|format(c.seconds) }}s</span>{% endfor %}</p>

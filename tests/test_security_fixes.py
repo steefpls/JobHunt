@@ -276,7 +276,7 @@ def test_H2_job_cap_includes_earlier_spend(demo_server, secrets, candidate, fake
     job = db.get_job(jid)
     assert job["state"] == "Needs you"
     assert job["cost_usd"] <= 0.01
-    assert "cap" in job["notes"]
+    assert "cap" in job["reason"] and job["reason_kind"] == "budget"
 
 
 # ── H3: an Anthropic key only ever goes to Anthropic ──────────────────────────

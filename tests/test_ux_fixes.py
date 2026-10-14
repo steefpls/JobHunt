@@ -213,3 +213,77 @@ def test_dashboard_lists_packages_ready_to_approve(client):
     assert "Co0" in card and "GovTech" in card
     assert card.count("Approve &amp; apply") == 1 and card.count("Apply yourself") == 1  # MyCareersFuture needs you
     assert 'id="readyToApprove"' not in client.get("/?state=Applied").text
+
+
+# ── why a job needs you ──────────────────────────────────────────────
+
+def package(data_dir, jid_folder="2026-10-14_Grab"):
+    folder = data_dir / "jobs" / jid_folder
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "resume.pdf").write_bytes(b"%PDF-1.4")
+    return folder.name
+
+
+def test_a_missing_screening_answer_links_to_it_and_offers_try_again(client, data_dir):
+    jid = db.add_job(source="jobstreet", url="https://x/1", company="Grab", role="Platform Engineer",
+                     folder=package(data_dir), state="Ready")
+    db.needs_you(jid, "screening:notice_period", 'The form asks "When can you start?" (notice period), and your '
+                                                 "Profile page has no screening answer for that.")
+    page = client.get(f"/jobs/{jid}").text
+    assert "Why JobHunt stopped:" in page and "When can you start?" in page
+    assert '<a class="btn small" href="/profile#s_notice_period">Add your notice period / earliest start on the Profile page</a>' in page
+    assert "Try again" in page and f'action="/jobs/{jid}/apply"' in page
+    notes = re.search(r'<textarea name="notes"[^>]*>(.*?)</textarea>', page, re.S).group(1)
+    assert notes == ""  # the reason went to JobHunt's history, not your notes
+    assert "What JobHunt did (1)" in page
+
+
+def test_singpass_and_captcha_stops_have_no_try_again(client, data_dir):
+    a = db.add_job(source="mycareersfuture", url="https://x/2", company="GovTech", role="Engineer",
+                   folder=package(data_dir, "a"))
+    db.needs_you(a, "singpass", "This site needs Singpass to apply, so you apply yourself.")
+    b = db.add_job(source="jobstreet", url="https://x/3", company="Shopee", role="Engineer", folder=package(data_dir, "b"))
+    db.needs_you(b, hunt.needs_you_kind("The site shows a CAPTCHA I cannot solve."), "The site shows a CAPTCHA.")
+    for jid, words in ((a, "log in with Singpass"), (b, "a captcha or a code")):
+        page = client.get(f"/jobs/{jid}").text
+        assert "Try again" not in page and words in page
+
+
+def test_without_a_package_it_doesnt_mention_files(client):
+    jid = db.add_job(source="jobstreet", url="https://x/4", company="Grab", role="Engineer")
+    db.needs_you(jid, "broke", "The apply attempt broke (TimeoutError) before it finished.")
+    page = client.get(f"/jobs/{jid}").text
+    assert "Try again" not in page and "Files below" not in page and "No files yet." in page
+
+
+def test_kinds_from_the_agents_own_words():
+    assert hunt.needs_you_kind("Needs a one-time code sent by SMS") == "verify"
+    assert hunt.needs_you_kind("The site asks me to sign in first") == "login"
+    assert hunt.needs_you_kind("The page had no apply button") == "other"
+
+
+def test_leaving_needs_you_clears_the_reason():
+    jid = db.add_job(source="jobstreet", url="https://x/5", company="Grab", role="Engineer")
+    db.needs_you(jid, "login", "The site asks you to sign in.")
+    db.update_job(jid, state="Applied")
+    job = db.get_job(jid)
+    assert job["reason"] == "" and job["reason_kind"] == "" and "Needs you: The site asks" in job["history"]
+
+
+def test_an_older_tracker_gets_the_new_columns(data_dir):
+    import sqlite3
+    con = sqlite3.connect(data_dir / "jobhunt.db")
+    con.execute("DROP TABLE jobs")
+    con.execute("CREATE TABLE jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,"
+                " source TEXT NOT NULL, url TEXT NOT NULL UNIQUE, company TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT '',"
+                " location TEXT NOT NULL DEFAULT '', apply_url TEXT NOT NULL DEFAULT '', posting_text TEXT NOT NULL DEFAULT '',"
+                " state TEXT NOT NULL DEFAULT 'Found', date_applied TEXT NOT NULL DEFAULT '', folder TEXT NOT NULL DEFAULT '',"
+                " notes TEXT NOT NULL DEFAULT '', match_score REAL, cost_usd REAL NOT NULL DEFAULT 0,"
+                " tokens_in INTEGER NOT NULL DEFAULT 0, tokens_out INTEGER NOT NULL DEFAULT 0, run_id INTEGER)")
+    con.execute("INSERT INTO jobs (created_at, updated_at, source, url, state, notes) VALUES"
+                " ('2026-10-01', '2026-10-01', 'jobstreet', 'https://x/old', 'Needs you', 'Package ready.\nApply attempt broke')")
+    con.commit()
+    con.close()
+    db.init()
+    job = db.get_job(1)
+    assert job["reason"] == "" and db.why_needs_you(job) == "Apply attempt broke"  # older jobs: their last note

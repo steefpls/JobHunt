@@ -40,6 +40,7 @@ def local_path(url: str, default: str) -> str:
 
 
 templates.env.filters["web_url"] = web_url
+templates.env.globals["why_needs_you"] = db.why_needs_you
 
 # MyCareersFuture isn't here: its applications need Singpass, so you finish them in your own browser
 # and a login in JobHunt's browser would never be used.
@@ -169,9 +170,13 @@ def create_app(port: int = 8765) -> FastAPI:
         folder = paths.jobs_dir() / job["folder"]
         report = folder / "match_report.md"
         report_html = render.report_html(report.read_text(encoding="utf-8")) if report.exists() else ""
-        return page(request, "job.html", job=job, files=render.list_files(folder), report_html=report_html,
-                    calls=db.job_calls(job_id), user_states=db.USER_STATES,
-                    human_apply=job["source"] in hunt.HUMAN_APPLY_SITES)
+        has_package = (folder / "resume.pdf").is_file() if job["folder"] else False
+        help_ = hunt.needs_you_fix(job)
+        return page(request, "job.html", job=job, files=render.list_files(folder) if job["folder"] else [],
+                    report_html=report_html, calls=db.job_calls(job_id), user_states=db.USER_STATES,
+                    human_apply=job["source"] in hunt.HUMAN_APPLY_SITES, has_package=has_package,
+                    why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
+                    history=[l for l in (job.get("history") or "").splitlines() if l.strip()])
 
     @app.post("/jobs/{job_id}/state")
     def set_state(job_id: int, state: str = Form(...), next: str = Form("")):

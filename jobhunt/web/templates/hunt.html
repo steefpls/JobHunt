@@ -76,7 +76,7 @@
     <table>
       {% for j in needs_you %}
       <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a>
-        {% set why = (j.notes or "").strip().splitlines()|last %}{% if why %}<br><span class="hint">{{ why|truncate(140) }}</span>{% endif %}</td>
+        {% set why = why_needs_you(j) %}{% if why %}<br><span class="hint">{{ why|truncate(140) }}</span>{% endif %}</td>
         <td style="text-align:right"><a class="btn small" href="/jobs/{{ j.id }}">Open</a></td></tr>
       {% endfor %}
     </table>

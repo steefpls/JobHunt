@@ -212,6 +212,7 @@ class ApplyResult:
     steps: int = 0
     confirmation_pdf: Path | None = None
     log: list = field(default_factory=list)
+    kind: str = ""  # for needs_you: what kind of stop (hunt.needs_you_fix says what you can do about it)
 
 
 class ApplyAgent:
@@ -323,7 +324,7 @@ class ApplyAgent:
             question = el.get("group") or el.get("label") or el.get("name") or "a screening question"
             what = SCREENING_FIELDS[topic][0].split(" (")[0].lower()
             raise NeedsHuman(f"The form asks \"{question[:120]}\" ({what}), and your Profile page has no "
-                             "screening answer for that. Add it there, or finish this application yourself.")
+                             "screening answer for that. Add it there, or finish this application yourself.", topic)
 
     def run_tool(self, name: str, args: dict) -> str:
         """Do one action. Returns a short result line (goes into the action log)."""
@@ -434,7 +435,8 @@ class ApplyAgent:
                     pdf = None
                 return ApplyResult("submitted", summary, url, steps, pdf, self.action_log)
             return ApplyResult("needs_you", "The agent said it submitted, but no confirmation was found on the page. "
-                               "Please check this application yourself. " + summary, url, steps, None, self.action_log)
+                               "Please check this application yourself. " + summary, url, steps, None, self.action_log,
+                               kind="unconfirmed")
         if status == "failed":
             return ApplyResult("failed", summary, url, steps, None, self.action_log)
         return ApplyResult("needs_you", summary or "Needs you to finish.", url, steps, None, self.action_log)
@@ -463,7 +465,7 @@ class ApplyAgent:
                                      job_id=self.job.get("id"))
             except BudgetExceeded as e:
                 return ApplyResult("needs_you", f"Stopped: {e}. Finish this one yourself.", self._page().url, step - 1,
-                                   None, self.action_log)
+                                   None, self.action_log, kind="budget")
             except LLMError as e:
                 return ApplyResult("failed", f"Model error: {e}", self._page().url, step - 1, None, self.action_log)
             if not resp.tool_calls:
@@ -471,7 +473,7 @@ class ApplyAgent:
                 self.action_log.append(f"step {step}: (no action taken; you must call a tool)")
                 if no_tool_turns >= 2:
                     return ApplyResult("needs_you", "The agent stopped acting. " + self.redact(resp.text)[:300],
-                                       self._page().url, step, None, self.action_log)
+                                       self._page().url, step, None, self.action_log, kind="stuck")
                 continue
             no_tool_turns = 0
             sig = json.dumps([(c.name, c.args) for c in resp.tool_calls], sort_keys=True) + self._page().url
@@ -479,7 +481,7 @@ class ApplyAgent:
             last_sig = sig
             if repeats >= 2:
                 return ApplyResult("needs_you", "The agent kept repeating the same action, so it was stopped.",
-                                   self._page().url, step, None, self.action_log)
+                                   self._page().url, step, None, self.action_log, kind="stuck")
             for call in resp.tool_calls[:12]:
                 if call.name == "finish":
                     return self._finish(call.args, step)
@@ -491,7 +493,8 @@ class ApplyAgent:
                     self.action_log.append(f"step {step}: {call.name} {call.args.get('element', '')} -> "
                                            "STOPPED: screening question with no saved answer")
                     self.log(f"Stopped: {e}")
-                    return ApplyResult("needs_you", str(e), self._page().url, step, None, self.action_log)
+                    return ApplyResult("needs_you", str(e), self._page().url, step, None, self.action_log,
+                                       kind=f"screening:{e.topic}")
                 except ToolError as e:
                     line = f"step {step}: {call.name} {call.args.get('element', '')} -> REFUSED: {e}"
                 except PlaywrightError as e:
@@ -505,7 +508,7 @@ class ApplyAgent:
                     self.allowed_sites.add(site_of(urlparse(self._page().url).hostname or ""))
                     break  # page changed: look again before doing anything else
         return ApplyResult("needs_you", f"Gave up after {max_steps} steps without finishing.", self._page().url,
-                           max_steps, None, self.action_log)
+                           max_steps, None, self.action_log, kind="stuck")
 
 
     def _guard_network(self) -> None:
@@ -531,3 +534,7 @@ class ToolError(Exception):
 
 class NeedsHuman(Exception):
     """A form needs something only the candidate can answer: the run stops as Needs you."""
+
+    def __init__(self, message: str, topic: str = ""):
+        super().__init__(message)
+        self.topic = topic  # the screening answer it needs (a key of profile.SCREENING_FIELDS)

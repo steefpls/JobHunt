@@ -173,7 +173,7 @@ def test_incomplete_package_is_retried_then_marked_error(demo_server, secrets, c
     run = _hunt(1)
     assert run["status"] == "done", run["summary"]
     job = db.list_jobs()[0]
-    assert job["state"] == "Error" and "incomplete" in job["notes"]
+    assert job["state"] == "Error" and "incomplete" in job["history"]
     assert len(_calls(fake_llm, "tailor a Harvard")) == 2  # one retry, then give up
     folder = data_dir / "jobs" / job["folder"]
     assert not (folder / "cover_letter.pdf").exists() and not (folder / "resume.pdf").exists()

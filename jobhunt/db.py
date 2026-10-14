@@ -39,7 +39,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     cost_usd REAL NOT NULL DEFAULT 0,
     tokens_in INTEGER NOT NULL DEFAULT 0,
     tokens_out INTEGER NOT NULL DEFAULT 0,
-    run_id INTEGER
+    run_id INTEGER,
+    reason TEXT NOT NULL DEFAULT '',       -- why it is Needs you, in words
+    reason_kind TEXT NOT NULL DEFAULT '',  -- what kind of stop (see hunt.needs_you_fix)
+    history TEXT NOT NULL DEFAULT ''       -- what JobHunt did with it, one line each (notes are yours)
 );
 CREATE TABLE IF NOT EXISTS seen (
     url TEXT PRIMARY KEY,
@@ -105,9 +108,19 @@ def connect() -> sqlite3.Connection:
     return con
 
 
+# Columns added after the first release: a tracker made before them gets them on start-up.
+_ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": "TEXT NOT NULL DEFAULT ''",
+                           "history": "TEXT NOT NULL DEFAULT ''"}}
+
+
 def init() -> None:
     with _lock, connect() as con:
         con.executescript(SCHEMA)
+        for table, cols in _ADDED_COLUMNS.items():
+            have = {r["name"] for r in con.execute(f"PRAGMA table_info({table})")}
+            for name, decl in cols.items():
+                if name not in have:
+                    con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 def _exec(sql: str, args=()) -> sqlite3.Cursor:
@@ -133,19 +146,19 @@ def _query(sql: str, args=()) -> list[dict]:
 # ── jobs ──────────────────────────────────────────────────────────────
 
 def add_job(*, source, url, company, role, location="", apply_url="", posting_text="",
-            folder="", notes="", match_score=None, run_id=None, state="Found") -> int:
+            folder="", notes="", history="", match_score=None, run_id=None, state="Found") -> int:
     ts = now()
     cur = _exec(
         "INSERT INTO jobs (created_at, updated_at, source, url, company, role, location, apply_url,"
-        " posting_text, state, folder, notes, match_score, run_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " posting_text, state, folder, notes, history, match_score, run_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (ts, ts, source, url, company, role, location, apply_url, posting_text, state, folder, notes,
-         match_score, run_id),
+         _stamp(history) if history else "", match_score, run_id),
     )
     return cur.lastrowid
 
 
 _JOB_FIELDS = {"company", "role", "location", "apply_url", "posting_text", "state", "date_applied",
-               "folder", "notes", "match_score"}
+               "folder", "notes", "match_score", "reason", "reason_kind", "history"}
 
 
 def update_job(job_id: int, **fields) -> None:
@@ -156,17 +169,49 @@ def update_job(job_id: int, **fields) -> None:
         raise ValueError(f"unknown state {fields['state']!r}")
     if fields.get("state") == "Applied" and "date_applied" not in fields:
         fields["date_applied"] = datetime.now().date().isoformat()
+    if "state" in fields and fields["state"] != "Needs you":  # the reason only belongs to Needs you
+        fields.setdefault("reason", "")
+        fields.setdefault("reason_kind", "")
     fields["updated_at"] = now()
     cols = ", ".join(f"{k} = ?" for k in fields)
     _exec(f"UPDATE jobs SET {cols} WHERE id = ?", (*fields.values(), job_id))
 
 
 def append_note(job_id: int, note: str) -> None:
+    """Add a line to your own notes on a job."""
     job = get_job(job_id)
     if not job:
         return
     notes = (job["notes"] + "\n" if job["notes"] else "") + note
     update_job(job_id, notes=notes)
+
+
+def _stamp(line: str) -> str:
+    return f"{now()[:16].replace('T', ' ')}  {line}"
+
+
+def add_history(job_id: int, line: str) -> None:
+    """Record something JobHunt did with a job (shown read-only on the job page, kept out of your notes)."""
+    job = get_job(job_id)
+    if job:
+        update_job(job_id, history=(job["history"] + "\n" if job["history"] else "") + _stamp(line))
+
+
+def needs_you(job_id: int, kind: str, reason: str) -> None:
+    """Hand a job to you, saying why (shown on the job page with what to do about it)."""
+    update_job(job_id, state="Needs you", reason=reason, reason_kind=kind)
+    add_history(job_id, "Needs you: " + reason)
+
+
+def why_needs_you(job: dict) -> str:
+    """The reason, or for a job handed over before reasons were kept, its last note."""
+    if job.get("reason"):
+        return job["reason"]
+    for text in (job.get("history") or "", job.get("notes") or ""):
+        lines = [l for l in text.strip().splitlines() if l.strip()]
+        if lines:
+            return lines[-1]
+    return ""
 
 
 def get_job(job_id: int) -> dict | None:
@@ -225,7 +270,8 @@ def add_job_spend(job_id: int, tokens_in: int, tokens_out: int, cost: float) -> 
 
 
 EXPORT_COLUMNS = ["id", "created_at", "source", "company", "role", "location", "url", "apply_url", "state",
-                  "date_applied", "folder", "notes", "match_score", "cost_usd", "tokens_in", "tokens_out"]
+                  "date_applied", "folder", "notes", "reason", "history", "match_score", "cost_usd", "tokens_in",
+                  "tokens_out"]
 
 
 def export_csv() -> str:
@@ -273,9 +319,12 @@ def recover_interrupted() -> None:
           "WHERE status = 'running'", (now(),))
     for job in _query("SELECT id, state FROM jobs WHERE state IN ('Applying', 'Found')"):
         applying = job["state"] == "Applying"
-        update_job(job["id"], state="Needs you" if applying else "Error")
-        append_note(job["id"], "JobHunt was closed while applying: check on the site whether it was submitted."
-                    if applying else "JobHunt was closed while building this package.")
+        if applying:
+            needs_you(job["id"], "interrupted", "JobHunt was closed while applying: check on the site whether it "
+                                                "was submitted.")
+        else:
+            update_job(job["id"], state="Error")
+            add_history(job["id"], "JobHunt was closed while building this package.")
 
 
 def last_run(kind: str) -> dict | None:

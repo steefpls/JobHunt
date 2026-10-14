@@ -106,10 +106,10 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
     contact = profile.load_contact()
     profile_text = profile.load_profile()
     folder = render.make_job_folder(posting.company, posting.title)
-    notes = f"Doubts: {verdict['doubts']}" if verdict.get("doubts") else ""
+    doubts = f"Doubts: {verdict['doubts']}" if verdict.get("doubts") else ""
     job_id = db.add_job(source=posting.source, url=posting.url, company=posting.company, role=posting.title,
                         location=posting.location, apply_url=posting.apply_url or posting.url,
-                        posting_text=posting.text, folder=folder.name, notes=notes,
+                        posting_text=posting.text, folder=folder.name, history=doubts,
                         match_score=_num(verdict.get("score")), run_id=task.run_id)
     task.current_job = job_id
     listing_key = f"listing:{posting.url}"
@@ -139,7 +139,7 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
                      + ("; asking again." if attempt == 1 else "."), "warn")
         if problems:
             db.update_job(job_id, state="Error")
-            db.append_note(job_id, f"The AI returned an incomplete package twice ({'; '.join(problems)}), "
+            db.add_history(job_id, f"The AI returned an incomplete package twice ({'; '.join(problems)}), "
                                    "so nothing was built to send.")
             return job_id
         resume = data["resume"]
@@ -157,24 +157,24 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
             task.log(w, "warn")
         note = "Package ready, waiting for your approval." if not warnings else "Package ready - see warnings in the match report."
         db.update_job(job_id, state="Ready")
-        db.append_note(job_id, note)
+        db.add_history(job_id, note)
         db.record_timing(task.run_id, job_id, "draft", time.monotonic() - t0)
         task.log(f"Package ready: {folder.name}")
     except BudgetExceeded as e:
         db.update_job(job_id, state="Error")
-        db.append_note(job_id, f"Stopped while building: {e}")
+        db.add_history(job_id, f"Stopped while building: {e}")
         raise
     except RateLimited:
         db.update_job(job_id, state="Error")
-        db.append_note(job_id, "Stopped while building: the AI provider's rate limit was reached.")
+        db.add_history(job_id, "Stopped while building: the AI provider's rate limit was reached.")
         raise
     except LLMError as e:
         db.update_job(job_id, state="Error")
-        db.append_note(job_id, f"Model error while tailoring: {e}")
+        db.add_history(job_id, f"Model error while tailoring: {e}")
         task.log(f"Model error while tailoring: {e}", "error")
     except Exception as e:  # a PDF or file problem with this job shouldn't end the whole hunt
         db.update_job(job_id, state="Error")
-        db.append_note(job_id, f"Building the package failed ({type(e).__name__}).")
+        db.add_history(job_id, f"Building the package failed ({type(e).__name__}).")
         task.log(f"Building the package failed: {type(e).__name__}: {task.redact(str(e))[:200]}", "error")
     return job_id
 
@@ -189,8 +189,7 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
         return job["state"]
     task.current_job = job_id
     if job["source"] in HUMAN_APPLY_SITES:
-        db.update_job(job_id, state="Needs you")
-        db.append_note(job_id, f"Apply yourself (needs Singpass): {job['apply_url'] or job['url']}")
+        db.needs_you(job_id, "singpass", "This site needs Singpass to apply, so you apply yourself.")
         task.log("This site needs Singpass to apply, so it is handed to you (no tokens spent).")
         return "Needs you"
     t0 = time.monotonic()
@@ -208,18 +207,60 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
     try:
         result = agent.run(job["apply_url"] or job["url"])
     except Exception as e:  # browser trouble etc. — hand it to the person, never guess
-        db.update_job(job_id, state="Needs you")
-        db.append_note(job_id, f"Apply attempt broke ({type(e).__name__}); finish it here: {job['apply_url'] or job['url']}")
+        db.needs_you(job_id, "broke", f"The apply attempt broke ({type(e).__name__}) before it finished.")
         task.log(f"Apply attempt broke: {type(e).__name__}: {str(e)[:200]}", "error")
         return "Needs you"
     finally:
         browser.set_headless(True)
     state = {"submitted": "Applied", "failed": "Error", "stopped": "Ready"}.get(result.status, "Needs you")
-    db.update_job(job_id, state=state)
-    db.append_note(job_id, f"{result.summary} (at {result.url})" if state != "Applied" else f"Applied: {result.summary}")
+    if state == "Needs you":
+        db.needs_you(job_id, result.kind or needs_you_kind(result.summary), result.summary)
+        db.add_history(job_id, f"Stopped at {result.url}")
+    else:
+        db.update_job(job_id, state=state)
+        db.add_history(job_id, f"Applied: {result.summary}" if state == "Applied" else f"{result.summary} (at {result.url})")
     db.record_timing(task.run_id, job_id, "apply", time.monotonic() - t0)
     task.log(f"Apply result: {state} - {result.summary}", "info" if state == "Applied" else "warn")
     return state
+
+
+# ── why a job needs you, and what to do about it ─────────────────────
+
+def needs_you_kind(summary: str) -> str:
+    """Sort the apply agent's own words into a kind of stop."""
+    s = (summary or "").lower()
+    if re.search(r"captcha|robot|verification code|one[- ]time|\botp\b|2fa|two[- ]factor|verify (that )?you|human check", s):
+        return "verify"
+    if re.search(r"log ?in|sign ?in|password|create an account|an account|register", s):
+        return "login"
+    return "other"
+
+
+def needs_you_fix(job: dict) -> dict:
+    """For the job page: {"fix": (label, link) or None, "retry": may JobHunt try again, "advice": what else to do}."""
+    kind = job.get("reason_kind") or ""
+    yourself = "Or finish it yourself: open the apply page, attach the resume and cover letter from Files below, then set the state to Applied."
+    out = {"fix": None, "retry": True, "advice": yourself}
+    if kind.startswith("screening:"):
+        topic = kind.split(":", 1)[1]
+        label = profile.SCREENING_FIELDS.get(topic, ("that answer",))[0].split(" (")[0].lower()
+        out["fix"] = (f"Add your {label} on the Profile page", f"/profile#s_{topic}")
+    elif kind == "login":
+        out["fix"] = ("Save a login for this site on Accounts", "/accounts#logins")
+    elif kind == "budget":
+        out["fix"] = ("Raise the per-job cap in Settings", "/settings")
+    elif kind == "singpass":
+        out.update(retry=False, advice="Open the apply page, log in with Singpass, attach the resume and cover letter "
+                                       "from Files below, then set the state to Applied.")
+    elif kind == "verify":
+        out.update(retry=False, advice="It needs a human check (a captcha or a code). Open the apply page and finish "
+                                       "it yourself, then set the state to Applied.")
+    elif kind in ("interrupted", "unconfirmed"):
+        out.update(retry=False, advice="Open the apply page and check whether it went through. If it did, set the "
+                                       "state to Applied; if not, finish it there yourself.")
+    if job.get("source") in HUMAN_APPLY_SITES:
+        out["retry"] = False
+    return out
 
 
 def _folder(job):
@@ -617,8 +658,12 @@ class Runner:
                 job = db.get_job(task.current_job)
                 if job and job["state"] in ("Found", "Applying"):
                     # an interrupted apply may already have submitted: a person has to look, not a re-run
-                    db.update_job(task.current_job, state="Error" if job["state"] == "Found" else "Needs you")
-                    db.append_note(task.current_job, f"Interrupted: {summary}")
+                    if job["state"] == "Found":
+                        db.update_job(task.current_job, state="Error")
+                        db.add_history(task.current_job, f"Interrupted: {summary}")
+                    else:
+                        db.needs_you(task.current_job, "interrupted", f"Applying was interrupted ({summary}): check on "
+                                                                      "the site whether it was submitted.")
             db.finish_run(task.run_id, status, summary)
             self.last_result, self.last_kind, self.last_status = summary, task.kind, status
 

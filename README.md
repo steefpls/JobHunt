@@ -103,7 +103,9 @@ never sent to the AI as text.
    waiting for your approval (the browser tab shows that number too).
 5. **Dashboard**: every package, with the ones waiting for your approval at the top.
    Open one to preview the PDFs and match report, approve it, open its folder, or set
-   Interview / Offer / Rejected.
+   Interview / Offer / Rejected. A job marked **Needs you** says why JobHunt stopped,
+   links to the fix (a missing screening answer, a login, a cap) and, where it can,
+   offers *Try again*. The Notes box is yours; what JobHunt did is listed under it.
 
 ### Job folder layout
 
