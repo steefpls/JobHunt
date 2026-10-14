@@ -7,9 +7,11 @@
 <div class="card">
   <h2>1. Upload your CVs</h2>
   <p class="muted">Old and new resumes, a LinkedIn export, notes with achievements and numbers. PDF, Word (.docx), .txt or .md.</p>
-  <form method="post" action="/profile/upload" enctype="multipart/form-data" class="row" style="align-items:center">
-    <input type="file" name="files" multiple accept=".pdf,.docx,.txt,.md,.html" aria-label="CV files">
-    <div style="flex:0 0 auto"><button class="btn">Upload</button></div>
+  <form method="post" action="/profile/upload" enctype="multipart/form-data" class="dropzone" id="cvDrop">
+    <div class="drop-icon" aria-hidden="true">📄</div>
+    <div><b>Drag your CV here</b> <span class="muted">or choose the files:</span></div>
+    <div><input type="file" name="files" multiple accept=".pdf,.docx,.txt,.md,.html" aria-label="CV files"></div>
+    <div class="hint" style="margin:0">They upload as soon as you drop or choose them.</div>
   </form>
   {% if cvs %}
   <table style="margin-top:10px">

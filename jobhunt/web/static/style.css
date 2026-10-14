@@ -142,3 +142,9 @@ details.decoder td:first-child { font-style: italic; width: 55%; }
 .pip.t4.on { background: #e3ecff; color: #2f5bea; } .pip.t5.on { background: #f0e6ff; color: #6b3fd1; }
 .pip.t6.on { background: #ffe3ec; color: #b4235a; }
 .badge.tier { background: #fdf0c4; color: #8a6400; }
+
+/* Profile: drop your CVs here */
+.dropzone { border: 2px dashed var(--line); border-radius: var(--radius); padding: 18px; text-align: center; display: grid; gap: 8px; transition: border-color .15s, background .15s; }
+.dropzone .drop-icon { font-size: 28px; line-height: 1; }
+.dropzone.over { border-color: var(--brand); background: #eef2fe; }
+.dropzone.sending { opacity: .6; pointer-events: none; }

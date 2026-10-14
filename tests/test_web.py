@@ -108,6 +108,13 @@ def test_profile_upload_only_accepts_documents(client, data_dir):
     assert sorted(p.name for p in (data_dir / "cv").iterdir()) == ["cv.pdf"]
 
 
+def test_cvs_can_be_dropped_on_the_profile_page(client):
+    page = client.get("/profile").text
+    assert 'id="cvDrop"' in page and "Drag your CV here" in page
+    js = client.get("/static/app.js").text
+    assert "getElementById('cvDrop')" in js and "ev.dataTransfer.files" in js
+
+
 def test_auto_submit_is_off_by_default():
     assert settings.DEFAULTS["hunt"]["auto_submit"] is False
 

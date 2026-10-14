@@ -68,6 +68,43 @@ document.addEventListener('click', function (ev) {
   });
 })();
 
+// Profile page: drop CV files on the box (or anywhere on the page) to upload them.
+// Without this, a file dropped on the page just opens in the browser.
+(function () {
+  const zone = document.getElementById('cvDrop');
+  if (!zone) return;
+  const input = zone.querySelector('input[type=file]');
+  const hasFiles = ev => ev.dataTransfer && Array.from(ev.dataTransfer.types || []).includes('Files');
+  let depth = 0;
+  window.addEventListener('dragenter', function (ev) {
+    if (!hasFiles(ev)) return;
+    depth++;
+    zone.classList.add('over');
+  });
+  window.addEventListener('dragleave', function (ev) {
+    if (hasFiles(ev) && --depth <= 0) { depth = 0; zone.classList.remove('over'); }
+  });
+  window.addEventListener('dragover', function (ev) {
+    if (!hasFiles(ev)) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = 'copy';
+  });
+  window.addEventListener('drop', function (ev) {
+    if (!hasFiles(ev)) return;
+    ev.preventDefault();
+    depth = 0;
+    zone.classList.remove('over');
+    if (!ev.dataTransfer.files.length) return;
+    input.files = ev.dataTransfer.files;
+    zone.classList.add('sending');
+    zone.requestSubmit();
+  });
+  // Picking files with the button uploads them straight away too.
+  input.addEventListener('change', function () {
+    if (input.files.length) { zone.classList.add('sending'); zone.requestSubmit(); }
+  });
+})();
+
 // <select data-autosubmit>: send the form as soon as a value is picked.
 document.addEventListener('change', function (ev) {
   if (ev.target.matches && ev.target.matches('select[data-autosubmit]') && ev.target.value) ev.target.form.submit();
