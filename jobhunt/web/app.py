@@ -27,10 +27,7 @@ HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 
 
-def web_url(url) -> str:
-    """Only http(s) links from postings become clickable (no javascript: and friends)."""
-    url = str(url or "").strip()
-    return url if urlparse(url).scheme in ("http", "https") else "#"
+web_url = render.web_url
 
 
 def local_path(url: str, default: str) -> str:

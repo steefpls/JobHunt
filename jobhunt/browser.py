@@ -124,12 +124,16 @@ class BrowserSession:
 
     def page_to_pdf(self, out_path: Path, heading: str) -> Path:
         """Proof of what the browser shows right now (works headed or headless)."""
+        from .render import link_label, web_url
         page = self.page
         png = page.screenshot(full_page=True)
+        url = web_url(page.url)
+        link = (f"<a href='{htmlmod.escape(url, quote=True)}'>{htmlmod.escape(link_label(url))}</a>"
+                if url != "#" else htmlmod.escape(page.url))  # a real link, so a click opens the whole URL
         doc = (f"<html><head><meta charset='utf-8'><style>body{{font-family:Arial;margin:0}}"
                f"header{{padding:10px 14px;font-size:11px;color:#333;border-bottom:1px solid #ccc}}"
                f"img{{width:100%}}</style></head><body><header><b>{htmlmod.escape(heading)}</b><br>"
-               f"{htmlmod.escape(page.url)}<br>Captured {datetime.now():%Y-%m-%d %H:%M}</header>"
+               f"{link}<br>Captured {datetime.now():%Y-%m-%d %H:%M}</header>"
                f"<img src='data:image/png;base64,{base64.b64encode(png).decode()}'></body></html>")
         return self.render_pdf(doc, out_path)
 

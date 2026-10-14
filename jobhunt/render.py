@@ -15,12 +15,30 @@ Folder layout (data/jobs/<date>_<Company>_<Role>/):
 import re
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from . import paths
 
 _env = Environment(loader=FileSystemLoader(str(paths.TEMPLATES_DIR)), autoescape=select_autoescape(["j2", "html"]))
+
+
+def web_url(url) -> str:
+    """Only http(s) links from postings become clickable (no javascript: and friends)."""
+    url = str(url or "").strip()
+    return url if urlparse(url).scheme in ("http", "https") else "#"
+
+
+def link_label(url, max_len: int = 48) -> str:
+    """A short, one-line name for a link: 'sg.jobstreet.com/job/12345…'. The link itself keeps the full URL."""
+    u = urlparse(str(url or "").strip())
+    text = (u.netloc.removeprefix("www.") + u.path).rstrip("/") or str(url or "")
+    return text if len(text) <= max_len else text[:max_len - 1] + "…"
+
+
+_env.filters["web_url"] = web_url
+_env.filters["link_label"] = link_label
 
 PACKAGE_FILES = ["posting.pdf", "resume.pdf", "cover_letter.pdf", "match_report.md"]
 
