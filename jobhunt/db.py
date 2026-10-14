@@ -20,6 +20,9 @@ from . import paths
 # "Rejected" is the employer saying no (it counts toward achievements); "Not for me" is you turning a package down.
 STATES = ["Found", "Ready", "Applying", "Applied", "Needs you", "Error", "Interview", "Offer", "Rejected", "Not for me"]
 USER_STATES = ["Ready", "Applied", "Needs you", "Interview", "Offer", "Rejected", "Not for me"]  # settable from the UI
+# The quick picks when you reject a package (all optional). Saved on the job and read by the next hunts.
+REJECT_REASONS = ["Pay too low", "Wrong location", "Too senior", "Too junior", "Not my field", "Don't like the company",
+                  "Other"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -44,7 +47,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     run_id INTEGER,
     reason TEXT NOT NULL DEFAULT '',       -- why it is Needs you, in words
     reason_kind TEXT NOT NULL DEFAULT '',  -- what kind of stop (see hunt.needs_you_fix)
-    history TEXT NOT NULL DEFAULT ''       -- what JobHunt did with it, one line each (notes are yours)
+    history TEXT NOT NULL DEFAULT '',      -- what JobHunt did with it, one line each (notes are yours)
+    reject_reason TEXT NOT NULL DEFAULT '', -- why you rejected it: the quick picks, joined with '; '
+    reject_note TEXT NOT NULL DEFAULT ''    -- ... and anything you typed
 );
 CREATE TABLE IF NOT EXISTS seen (
     url TEXT PRIMARY KEY,
@@ -119,7 +124,8 @@ def connect() -> sqlite3.Connection:
 
 # Columns added after the first release: a tracker made before them gets them on start-up.
 _ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": "TEXT NOT NULL DEFAULT ''",
-                           "history": "TEXT NOT NULL DEFAULT ''"}}
+                           "history": "TEXT NOT NULL DEFAULT ''", "reject_reason": "TEXT NOT NULL DEFAULT ''",
+                           "reject_note": "TEXT NOT NULL DEFAULT ''"}}
 
 
 def init() -> None:
@@ -178,7 +184,7 @@ def add_job(*, source, url, company, role, location="", apply_url="", posting_te
 
 
 _JOB_FIELDS = {"company", "role", "location", "apply_url", "posting_text", "state", "date_applied",
-               "folder", "notes", "match_score", "reason", "reason_kind", "history"}
+               "folder", "notes", "match_score", "reason", "reason_kind", "history", "reject_reason", "reject_note"}
 
 
 def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:
@@ -193,6 +199,9 @@ def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:
     if "state" in fields and fields["state"] != "Needs you":  # the reason only belongs to Needs you
         fields.setdefault("reason", "")
         fields.setdefault("reason_kind", "")
+    if "state" in fields and fields["state"] != "Not for me":  # changed your mind: the reject reason goes too
+        fields.setdefault("reject_reason", "")
+        fields.setdefault("reject_note", "")
     fields["updated_at"] = now()
     cols = ", ".join(f"{k} = ?" for k in fields)
     with _lock:
@@ -227,6 +236,21 @@ def needs_you(job_id: int, kind: str, reason: str) -> None:
     """Hand a job to you, saying why (shown on the job page with what to do about it)."""
     update_job(job_id, state="Needs you", reason=reason, reason_kind=kind)
     add_history(job_id, "Needs you: " + reason)
+
+
+def reject(job_id: int, reasons: list[str], note: str = "") -> None:
+    """You turned a package down ('Not for me'), saying why if you like."""
+    reasons = [r for r in REJECT_REASONS if r in reasons]  # only the quick picks, in their usual order
+    note = " ".join((note or "").split())[:300]
+    update_job(job_id, state="Not for me", by="you", reject_reason="; ".join(reasons), reject_note=note)
+    add_history(job_id, "You rejected it" + (": " + reject_text(get_job(job_id) or {}) if reasons or note
+                                             else " (no reason given)."))
+
+
+def reject_text(job: dict) -> str:
+    """'Too senior; Wrong location. "Too far from home"' ('' when no reason was given)."""
+    reason, note = job.get("reject_reason") or "", job.get("reject_note") or ""
+    return (reason + ("." if reason else "") + (f' "{note}"' if note else "")).strip()
 
 
 def why_needs_you(job: dict) -> str:
@@ -296,8 +320,8 @@ def add_job_spend(job_id: int, tokens_in: int, tokens_out: int, cost: float) -> 
 
 
 EXPORT_COLUMNS = ["id", "created_at", "source", "company", "role", "location", "url", "apply_url", "state",
-                  "date_applied", "folder", "notes", "reason", "history", "match_score", "cost_usd", "tokens_in",
-                  "tokens_out"]
+                  "date_applied", "folder", "notes", "reason", "reject_reason", "reject_note", "history", "match_score",
+                  "cost_usd", "tokens_in", "tokens_out"]
 
 
 def export_csv() -> str:

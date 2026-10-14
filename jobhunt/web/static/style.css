@@ -149,3 +149,20 @@ details.decoder td:first-child { font-style: italic; width: 55%; }
 .dropzone .drop-icon { font-size: 28px; line-height: 1; }
 .dropzone.over { border-color: var(--brand); background: #eef2fe; }
 .dropzone.sending { opacity: .6; pointer-events: none; }
+
+/* Reject: a small panel asking why, over the row it belongs to */
+details.reject { display: inline-block; position: relative; }
+details.reject > summary { list-style: none; }
+details.reject > summary::-webkit-details-marker { display: none; }
+details.reject[open] > summary { background: #fdecea; border-color: #f5c2bd; }
+.rejectpanel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 340px; white-space: normal;
+  text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(16,24,40,.16); padding: 12px 14px; font-size: 13px; }
+.rejectpanel .actions { margin-top: 10px; }
+.actions details.reject .rejectpanel { left: 0; right: auto; }  /* the job page: opens to the right */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip { display: inline-flex; margin: 0; font-weight: 400; cursor: pointer; }
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.chip span { border: 1px solid #d0d5dd; border-radius: 999px; padding: 3px 10px; font-size: 12.5px; background: #fff; }
+.chip input:checked + span { background: #fdecea; border-color: var(--bad); color: var(--bad); font-weight: 600; }
+.chip input:focus-visible + span { outline: 2px solid #c7d6ff; }

@@ -210,7 +210,7 @@ def test_dashboard_lists_packages_ready_to_approve(client):
     finished_hunt("done", "1 package(s) built", ready_jobs=1)
     db.add_job(source="mycareersfuture", url="https://x/mcf", company="GovTech", role="Engineer", state="Ready")
     dash = client.get("/").text
-    card = dash.split('id="readyToApprove"', 1)[1].split("</div>", 1)[0]
+    card = dash.split('id="readyToApprove"', 1)[1].split("</table>", 1)[0]
     assert "Co0" in card and "GovTech" in card
     assert card.count("Approve &amp; apply") == 1 and card.count("Apply yourself") == 1  # MyCareersFuture needs you
     assert 'id="readyToApprove"' not in client.get("/?state=Applied").text
@@ -288,6 +288,7 @@ def test_an_older_tracker_gets_the_new_columns(data_dir):
     db.init()
     job = db.get_job(1)
     assert job["reason"] == "" and db.why_needs_you(job) == "Apply attempt broke"  # older jobs: their last note
+    assert job["reject_reason"] == "" and job["reject_note"] == ""
 
 
 def test_a_hunt_whose_packages_were_dealt_with_doesnt_say_it_found_nothing(client):

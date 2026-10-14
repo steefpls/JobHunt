@@ -105,6 +105,21 @@ document.addEventListener('click', function (ev) {
   });
 })();
 
+// Reject panels (<details class="reject">): Cancel or Esc closes one; opening one closes the others.
+document.addEventListener('click', function (ev) {
+  const btn = ev.target.closest && ev.target.closest('[data-close-details]');
+  if (!btn) return;
+  const box = btn.closest('details');
+  if (box) { box.open = false; const f = btn.closest('form'); if (f) f.reset(); }
+});
+document.addEventListener('toggle', function (ev) {
+  if (!ev.target.matches || !ev.target.matches('details.reject') || !ev.target.open) return;
+  document.querySelectorAll('details.reject[open]').forEach(d => { if (d !== ev.target) d.open = false; });
+}, true);
+document.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Escape') document.querySelectorAll('details.reject[open]').forEach(d => { d.open = false; });
+});
+
 // <select data-autosubmit>: send the form as soon as a value is picked.
 document.addEventListener('change', function (ev) {
   if (ev.target.matches && ev.target.matches('select[data-autosubmit]') && ev.target.value) ev.target.form.submit();

@@ -28,6 +28,9 @@
       </form>
       {% endif %}
       <p class="hint">{% if has_package %}{{ help.advice }}{% else %}Open the apply page and finish it there, then press I applied.{% endif %}</p>
+    {% elif job.state == "Not for me" %}
+      <div class="why"><b>You rejected this package.</b> {% if reject_why %}Why: {{ reject_why }}{% else %}No reason given.{% endif %}</div>
+      <p class="hint">JobHunt won't suggest it again. Changed your mind? Set the state below.</p>
     {% elif job.state == "Ready" %}
       <p>Finish this application yourself in your browser (this site needs Singpass).
         {% if has_package %}Attach the resume and cover letter from Files below, then press I applied.{% else %}Then press I applied.{% endif %}</p>
@@ -36,7 +39,8 @@
       <a class="btn" href="{{ (job.apply_url or job.url)|web_url }}" target="_blank" rel="noopener noreferrer">Open apply page ↗</a>
       <a class="btn" href="{{ job.url|web_url }}" target="_blank" rel="noopener noreferrer">Open posting ↗</a>
       <form method="post" action="/jobs/{{ job.id }}/open-folder" class="inline"><button class="btn">Open folder</button></form>
-      {% if job.state in ("Ready", "Needs you") %}{% with j = job, next = "/jobs/" ~ job.id, cls = "big" %}{% include "_applied.html" %}{% endwith %}{% endif %}
+      {% if job.state in ("Ready", "Needs you") %}{% with j = job, next = "/jobs/" ~ job.id, cls = "big" %}{% include "_applied.html" %}
+        {% include "_reject.html" %}{% endwith %}{% endif %}
     </div>
     <form method="post" action="/jobs/{{ job.id }}/state" class="row" style="margin-top:14px">
       <div><label for="jobState">Set state</label>

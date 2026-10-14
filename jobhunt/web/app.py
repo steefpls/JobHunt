@@ -38,6 +38,7 @@ def local_path(url: str, default: str) -> str:
 
 templates.env.filters["web_url"] = web_url
 templates.env.globals["why_needs_you"] = db.why_needs_you
+templates.env.globals["reject_reasons"] = db.REJECT_REASONS
 
 # MyCareersFuture isn't here: its applications need Singpass, so you finish them in your own browser
 # and a login in JobHunt's browser would never be used.
@@ -183,6 +184,7 @@ def create_app(port: int = 8765) -> FastAPI:
                     report_html=report_html, calls=db.job_calls(job_id), user_states=db.USER_STATES,
                     human_apply=job["source"] in hunt.HUMAN_APPLY_SITES, has_package=has_package,
                     why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
+                    reject_why=db.reject_text(job),
                     history=[l for l in (job.get("history") or "").splitlines() if l.strip()])
 
     @app.post("/jobs/{job_id}/state")
@@ -195,6 +197,14 @@ def create_app(port: int = 8765) -> FastAPI:
                 "Applied": "Marked as Applied today. Nice one, good luck! It's on your Dashboard under Applied."}
         return back(local_path(next, f"/jobs/{job_id}"), msg=done.get(state, f"Marked as {state}.{cheer}"),
                     party={"Offer": "offer", "Interview": "interview"}.get(state, ""))
+
+    @app.post("/jobs/{job_id}/reject")
+    def reject_job(job_id: int, reasons: list[str] = Form([]), note: str = Form(""), next: str = Form("")):
+        if not db.get_job(job_id):
+            return back("/", err="No such job.")
+        db.reject(job_id, reasons, note)
+        return back(local_path(next, f"/jobs/{job_id}"),
+                    msg="Rejected: JobHunt won't suggest this job again. Changed your mind? Open it from the Dashboard.")
 
     @app.post("/jobs/{job_id}/notes")
     def set_notes(job_id: int, notes: str = Form("")):
