@@ -76,9 +76,12 @@
   {# report_html is built by render.report_html: every "<" from the file is escaped first #}
   <div id="reportView" class="report" style="display:none">{{ report_html|safe }}</div>
   <iframe id="preview" class="preview" title="file preview"></iframe>
-  <p class="muted">Want to tweak the wording? Edit <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span>
-    in the folder (Notepad is fine), then
-    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small">Rebuild PDFs</button></form></p>
+  <div class="actions" style="align-items:center;flex-wrap:nowrap">
+    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small" style="white-space:nowrap">Rebuild PDFs</button></form>
+    <span class="hint">Changed your Profile? This re-makes the PDFs with your name, contact details,
+      employers, job titles and dates as your <a href="/profile">Profile</a> has them now. Other wording stays as it is: to change it, edit
+      <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder (Notepad is fine) first.</span>
+  </div>
   {% else %}
   <p class="muted">No files yet.</p>
   {% endif %}

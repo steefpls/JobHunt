@@ -247,6 +247,8 @@ def create_app(port: int = 8765) -> FastAPI:
             hunt.runner.wait(120)
         except RuntimeError as e:
             return back(f"/jobs/{job_id}", err=str(e))
+        if hunt.runner.last_kind == "rebuild" and hunt.runner.last_status not in ("", "done"):
+            return back(f"/jobs/{job_id}", err=f"Rebuild didn't finish: {hunt.runner.last_result}")
         return back(f"/jobs/{job_id}", msg=hunt.runner.last_result)
 
     @app.post("/jobs/{job_id}/open-folder")

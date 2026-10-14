@@ -588,14 +588,36 @@ def run_scope(task: Task) -> str:
 
 
 def run_rebuild_pdfs(task: Task) -> str:
-    """Re-make resume/cover letter PDFs from their (hand-edited) HTML."""
+    """Re-make resume/cover letter PDFs from their (hand-edited) HTML, with the facts from your Profile
+    as it is now: name, contact details, employers, titles and dates (see refresh.py). No AI call."""
+    from . import refresh
     from .browser import render_pdfs
     job = db.get_job(int(task.params["job_id"]))
     folder = _folder(job)
-    pairs = [((folder / f"{n}.html").read_text(encoding="utf-8"), folder / f"{n}.pdf")
-             for n in ("resume", "cover_letter") if (folder / f"{n}.html").exists()]
+    contact, changes, unmatched, pairs = profile.load_contact(), [], [], []
+    for name in ("resume", "cover_letter"):
+        path = folder / f"{name}.html"
+        if not path.exists():
+            continue
+        html = path.read_text(encoding="utf-8")
+        if name == "resume":
+            new, done, missed = refresh.refresh_resume(html, contact, profile.load_profile())
+            unmatched += missed
+        else:
+            new, done = refresh.refresh_cover_letter(html, contact, job["company"], job["role"])
+        changes += [c for c in done if c not in changes]
+        if new != html:
+            path.write_text(new, encoding="utf-8")  # the HTML stays the source you can edit
+        pairs.append((new, folder / f"{name}.pdf"))
     render_pdfs(pairs)
-    return f"Rebuilt {len(pairs)} PDF(s) for job {job['id']}."
+    if changes:
+        db.add_history(job["id"], "Rebuilt the PDFs with your Profile: " + "; ".join(changes))
+    msg = f"Rebuilt {len(pairs)} PDF(s). " + ("Updated from your Profile: " + "; ".join(changes) + "."
+                                             if changes else "They already matched your Profile.")
+    if unmatched:
+        msg += (f" Couldn't find {', '.join(dict.fromkeys(unmatched))} in your Profile's Experience or Education, "
+                "so check those by hand (edit resume.html, then Rebuild).")
+    return msg
 
 
 def caps_text(s: dict) -> str:
