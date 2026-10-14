@@ -509,7 +509,8 @@ def create_app(port: int = 8765) -> FastAPI:
         s = settings_mod.load()
         ready = db.list_jobs("Ready")
         return page(request, "hunt.html", sites=settings_mod.SITES, site_status=SITE_STATUS, ready=ready,
-                    needs_you=db.list_jobs("Needs you"), missing=hunt.readiness(s),
+                    needs_you=db.list_jobs("Needs you"), missing=hunt.readiness(s), ticked=hunt.suggested_sites(s),
+                    practice_first=not s["hunt"].get("sites_chosen") and not db.practice_hunt_done(),
                     events=db.recent_events(150), human_apply=hunt.HUMAN_APPLY_SITES)
 
     @app.post("/hunt/start")
@@ -524,7 +525,8 @@ def create_app(port: int = 8765) -> FastAPI:
         except ValueError:
             jobs = 10
         auto = form.get("mode") == "auto"
-        settings_mod.update({"hunt": {"jobs": jobs, "sites": sites}})  # the mode is never remembered: Draft each time
+        chosen = s["hunt"].get("sites_chosen") or any(k != "demo" for k in sites)
+        settings_mod.update({"hunt": {"jobs": jobs, "sites": sites, "sites_chosen": chosen}})  # the mode is never remembered
         if profile_busy_reason():
             return back("/hunt", err=profile_busy_reason())
         missing = hunt.readiness(s)
@@ -556,7 +558,7 @@ def create_app(port: int = 8765) -> FastAPI:
     @app.get("/api/estimate")
     def api_estimate(jobs: int = 10, sites: str = "", auto: int = 0):
         s = settings_mod.load()
-        keys = [k for k in sites.split(",") if k in settings_mod.SITES] or s["hunt"]["sites"]
+        keys = [k for k in sites.split(",") if k in settings_mod.SITES] or hunt.suggested_sites(s)
         return JSONResponse(hunt.estimate(s, max(1, jobs), keys, bool(auto)))
 
     # ── settings ───────────────────────────────────────────────────────

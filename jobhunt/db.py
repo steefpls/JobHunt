@@ -278,6 +278,11 @@ def recover_interrupted() -> None:
                     if applying else "JobHunt was closed while building this package.")
 
 
+def practice_hunt_done() -> bool:
+    """Has a hunt on the practice board finished?"""
+    return bool(_query("SELECT 1 FROM runs WHERE kind = 'hunt' AND status = 'done' AND params LIKE '%\"demo\"%' LIMIT 1"))
+
+
 def get_run(run_id: int) -> dict | None:
     rows = _query("SELECT * FROM runs WHERE id = ?", (run_id,))
     return rows[0] if rows else None

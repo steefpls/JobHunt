@@ -96,8 +96,9 @@ never sent to the AI as text.
    fills in forms should not be signed in to your email.
 4. **Hunt**: pick how many jobs and which sites, then *Start*. Until your AI key,
    Profile and Scope are done, Start is greyed out and the page lists what's missing.
-   Try the **Practice board** first: it is a fake job board and application site built
-   into the app. The estimate shows tokens, cost and expected speed before you start.
+   The first hunt has the **Practice board** ticked: it is a fake job board and application
+   site built into the app. After a practice hunt, JobStreet and LinkedIn are ticked;
+   once you pick sites yourself, your choice is kept. The estimate shows tokens, cost and expected speed before you start.
 5. **Dashboard**: every package. Open one to preview the PDFs and match report,
    approve it, open its folder, or set Interview / Offer / Rejected.
 

@@ -23,8 +23,8 @@
       <label>Sites</label>
       <div class="sitelist">
       {% for key, label in sites.items() %}
-        <label class="check"><input type="checkbox" name="sites" value="{{ key }}" {{ 'checked' if key in settings.hunt.sites }}>
-          <span>{{ label }}<br><span class="hint">{{ site_status[key] }}</span></span></label>
+        <label class="check"><input type="checkbox" name="sites" value="{{ key }}" {{ 'checked' if key in ticked }}>
+          <span>{{ label }}{% if key == "demo" and practice_first %} <span class="pill">start here</span>{% endif %}<br><span class="hint">{{ site_status[key] }}</span></span></label>
       {% endfor %}
       </div>
       <div class="est" id="estimate">Working out an estimate…</div>

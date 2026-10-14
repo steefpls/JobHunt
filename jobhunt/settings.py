@@ -59,7 +59,8 @@ DEFAULTS = {
         "action_delay_s": 0.8,  # pause between clicks/typing while applying
     },
     "apply": {"max_steps": 30, "show_browser": True, "allow_register": False},
-    "hunt": {"jobs": 10, "sites": ["mycareersfuture"], "auto_submit": False, "max_candidates": 60},
+    # sites_chosen: you picked sites that include a real one; until then the Hunt page suggests them (hunt.suggested_sites)
+    "hunt": {"jobs": 10, "sites": ["demo"], "sites_chosen": False, "auto_submit": False, "max_candidates": 60},
     "scope": {
         "keywords": [],  # search terms typed into each job site
         "location": "Singapore",

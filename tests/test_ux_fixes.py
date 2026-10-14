@@ -145,3 +145,31 @@ def test_editable_forms_warn_before_leaving_unsaved(client):
         assert "data-guard" in client.get(url).text, url
     js = client.get("/static/app.js").text
     assert "beforeunload" in js and "form[data-guard]" in js
+
+
+# ── a first hunt on sites JobHunt can apply on ───────────────────────
+
+def ticked(page: str) -> list[str]:
+    return re.findall(r'name="sites" value="(\w+)" checked', page)
+
+
+def test_first_hunt_is_the_practice_board_then_real_boards(client):
+    page = client.get("/hunt").text
+    assert ticked(page) == ["demo"] and "start here" in page
+    run = db.start_run("hunt", '{"jobs": 1, "sites": ["demo"]}')
+    db.finish_run(run, "done", "1 package(s) built")
+    page = client.get("/hunt").text
+    assert ticked(page) == ["jobstreet", "linkedin"] and "start here" not in page
+
+
+def test_the_old_default_counts_as_not_chosen(client):
+    settings.update({"hunt": {"sites": ["mycareersfuture"]}})  # what earlier versions saved without asking
+    assert ticked(client.get("/hunt").text) == ["demo"]
+
+
+def test_your_own_choice_sticks(client, ready, monkeypatch):
+    monkeypatch.setattr(hunt.runner, "start", lambda kind, params=None: 1)
+    client.post("/hunt/start", data={"sites": ["indeed", "mycareersfuture"], "jobs": "3"}, headers=SAME_ORIGIN)
+    assert ticked(client.get("/hunt").text) == ["mycareersfuture", "indeed"]
+    client.post("/hunt/start", data={"sites": "demo", "jobs": "3"}, headers=SAME_ORIGIN)  # a practice run later
+    assert ticked(client.get("/hunt").text) == ["demo"] and settings.load()["hunt"]["sites_chosen"] is True

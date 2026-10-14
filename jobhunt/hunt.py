@@ -350,6 +350,19 @@ def readiness(s: dict | None = None) -> list[tuple[str, str]]:
     return missing
 
 
+# Where a first real hunt looks: boards JobHunt can apply on (MyCareersFuture needs Singpass, so
+# every job from there comes back to you).
+FIRST_REAL_SITES = ["jobstreet", "linkedin"]
+
+
+def suggested_sites(s: dict) -> list[str]:
+    """The sites ticked on the Hunt page: yours once you've picked a real one; before that the
+    Practice board, and after a practice hunt JobStreet and LinkedIn."""
+    if s["hunt"].get("sites_chosen"):
+        return s["hunt"]["sites"]
+    return FIRST_REAL_SITES if db.practice_hunt_done() else ["demo"]
+
+
 def readiness_text(missing: list[tuple[str, str]]) -> str:
     """'Before a hunt can start: add your AI key; describe the jobs you want.'"""
     return "Before a hunt can start: " + "; ".join(what[0].lower() + what[1:] for what, _ in missing) + "."

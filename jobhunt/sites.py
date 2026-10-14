@@ -363,7 +363,8 @@ def get_site(key: str, settings: dict):
 
 SITE_STATUS = {
     "demo": "Built-in fake jobs for practice. Nothing leaves your PC.",
-    "mycareersfuture": "Uses MyCareersFuture's public job search. Applying needs Singpass, so these jobs are handed to you.",
+    "mycareersfuture": "Uses MyCareersFuture's public job search. Applying needs Singpass, so every job from here "
+                       "comes back to you as Apply yourself.",
     "linkedin": "Reads LinkedIn's public job pages. LinkedIn rate-limits hard; if it shows its sign-in wall the hunt skips it.",
     "jobstreet": "Reads JobStreet search pages in the browser. Checked against the live site in Oct 2026.",
     "indeed": "Experimental: Indeed often blocks automated browsers.",
