@@ -88,7 +88,7 @@ def test_changed_requirements_refresh_packages(install, monkeypatch):
     assert refreshed == [install]
 
 
-def test_offline_or_git_checkout_starts_as_is(install, monkeypatch):
+def test_offline_starts_as_is(install, monkeypatch):
     monkeypatch.delenv("JOBHUNT_NO_UPDATE", raising=False)
 
     def offline():
@@ -96,9 +96,44 @@ def test_offline_or_git_checkout_starts_as_is(install, monkeypatch):
     monkeypatch.setattr(update, "latest_commit", offline)
     assert update.main(install) == 0
     assert (install / "jobhunt" / "app.py").read_text(encoding="utf-8") == "old"
-    (install / ".git").mkdir()
-    monkeypatch.setattr(update, "latest_commit", lambda: pytest.fail("a git checkout is never updated"))
-    assert update.main(install) == 0
+
+
+def git_clone(d: Path, sha: str, packed: bool = False) -> None:
+    git = d / ".git"
+    (git / "refs" / "heads").mkdir(parents=True)
+    (git / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    if packed:
+        (git / "packed-refs").write_text(f"# pack-refs with: peeled\n{sha} refs/heads/main\n", encoding="utf-8")
+    else:
+        (git / "refs" / "heads" / "main").write_text(sha + "\n", encoding="utf-8")
+
+
+def test_a_git_clone_updates_too_and_its_git_folder_is_left_alone(tmp_path, monkeypatch):
+    clone = tmp_path / "JobHunt"
+    (clone / "jobhunt").mkdir(parents=True)
+    (clone / "jobhunt" / "app.py").write_text("old", encoding="utf-8")
+    old = "b" * 40
+    git_clone(clone, old)
+    assert update.git_head(clone) == old
+    monkeypatch.delenv("JOBHUNT_NO_UPDATE", raising=False)
+    monkeypatch.setattr(update, "latest_commit", lambda: SHA)
+    monkeypatch.setattr(update, "download", lambda sha: make_zip({"jobhunt/app.py": "new", ".git/HEAD": "evil"}))
+    asked = []
+    monkeypatch.setattr(update, "changes", lambda a, b: asked.append((a, b)) or ["Something new"])
+    update.main(clone)
+    assert (clone / "jobhunt" / "app.py").read_text(encoding="utf-8") == "new"
+    assert (clone / ".git" / "HEAD").read_text(encoding="utf-8") == "ref: refs/heads/main\n"
+    assert (clone / update.VERSION_FILE).read_text(encoding="utf-8") == SHA
+    assert asked == [(old, SHA)]  # "what's new" counts from the commit it was cloned at
+    assert update.read_status(clone)["updated"]["changes"] == ["Something new"]
+
+
+def test_git_head_reads_packed_refs_and_ignores_junk(tmp_path):
+    git_clone(tmp_path, "c" * 40, packed=True)
+    assert update.git_head(tmp_path) == "c" * 40
+    (tmp_path / ".git" / "HEAD").write_text("nonsense", encoding="utf-8")
+    assert update.git_head(tmp_path) == ""
+    assert update.git_head(tmp_path / "nowhere") == ""
 
 
 def test_bad_download_leaves_the_install_alone(install, monkeypatch):

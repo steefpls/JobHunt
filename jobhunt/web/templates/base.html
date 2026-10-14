@@ -20,7 +20,7 @@
       <span class="dot {{ 'live' if status.busy }}"></span>{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}
     </div>
     <div class="version" id="sideVersion">JobHunt version <b>{{ updates.version }}</b><br>
-      {% if not updates.on %}Updates are off (developer copy)
+      {% if not updates.on %}Updates are off (JOBHUNT_NO_UPDATE is set)
       {% elif not updates.checked_at %}Checks for updates each time it starts
       {% elif updates.check_ok %}Checked for updates {{ updates.checked_at }}
       {% else %}Couldn't check for updates ({{ updates.checked_at }}): offline?{% endif %}

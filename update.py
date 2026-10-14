@@ -7,10 +7,10 @@ the download, and only files an earlier update put here are ever deleted.
 When requirements.txt changes, the Python packages and Chromium are refreshed.
 
 Offline, GitHub down, or anything unexpected: it says so and JobHunt starts
-as it is. Skipped for a git checkout (developers update with git) and when
-the environment variable JOBHUNT_NO_UPDATE is set. Also skipped while JobHunt
-is already running: its files are never swapped under it (run.bat then just
-brings the running one up in the browser).
+as it is. A copy cloned with git updates the same way (its .git folder is left
+alone). Skipped when the environment variable JOBHUNT_NO_UPDATE is set, and
+while JobHunt is already running: its files are never swapped under it (run.bat
+then just brings the running one up in the browser).
 
 What happened is written to .jobhunt-update.json, so the app can say "JobHunt
 was updated: what's new", show its version and when it last checked, and
@@ -50,12 +50,36 @@ NOTES_BASELINE = "ff87949"
 RUN_BAT = "run.bat"
 
 
+def _is_sha(s: str) -> bool:
+    return len(s) == 40 and all(c in "0123456789abcdef" for c in s)
+
+
+def git_head(app_dir: Path) -> str:
+    """The commit a git clone was checked out at ('' if it isn't one). Read from the files: git needn't be installed."""
+    git = app_dir / ".git"
+    try:
+        head = (git / "HEAD").read_text(encoding="utf-8").strip()
+        if not head.startswith("ref: "):
+            return head if _is_sha(head) else ""
+        ref = head[5:].strip()
+        if (git / ref).is_file():
+            sha = (git / ref).read_text(encoding="utf-8").strip()
+            return sha if _is_sha(sha) else ""
+        for line in (git / "packed-refs").read_text(encoding="utf-8").splitlines():
+            sha, _, name = line.partition(" ")
+            if name.strip() == ref and _is_sha(sha):
+                return sha
+    except OSError:
+        pass
+    return ""
+
+
 def latest_commit(timeout: float = 8) -> str:
     req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/commits/{BRANCH}",
                                  headers={"Accept": "application/vnd.github.sha", "User-Agent": "JobHunt-updater"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         sha = r.read().decode().strip()
-    if len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
+    if not _is_sha(sha):
         raise ValueError(f"unexpected answer from GitHub: {sha[:60]!r}")
     return sha
 
@@ -192,7 +216,7 @@ def main(app_dir: Path = APP_DIR, argv: list[str] = ()) -> int:
     elif port_in_use(args.port):
         print("JobHunt is already running, so it is not updated now (it updates the next time it starts).")
         return 0
-    if os.environ.get("JOBHUNT_NO_UPDATE") or (app_dir / ".git").exists():
+    if os.environ.get("JOBHUNT_NO_UPDATE"):
         return 0
     print("Checking for JobHunt updates...")
     try:
@@ -204,7 +228,8 @@ def main(app_dir: Path = APP_DIR, argv: list[str] = ()) -> int:
     write_status(app_dir, checked_at=now(), check_ok=True, latest=sha)
     version = app_dir / VERSION_FILE
     stale = app_dir / STALE_FILE
-    old = version.read_text(encoding="utf-8").strip() if version.exists() else ""
+    # a git clone that was never updated this way is at the commit it was cloned (or last pulled) at
+    old = version.read_text(encoding="utf-8").strip() if version.exists() else git_head(app_dir)
     if old == sha:
         print("  Up to date.")
         if old and "updated" not in read_status(app_dir) and not old.startswith(NOTES_BASELINE):

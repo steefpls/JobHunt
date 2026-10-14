@@ -49,7 +49,7 @@ copies it in before JobHunt opens. Your `data\` folder (profile, CVs, tracker,
 job folders, logins), `.venv\` and `.browsers\` are never touched. When the
 package list changes it reinstalls the packages too. Offline, it just starts the
 version you have. To turn updates off, set the environment variable
-`JOBHUNT_NO_UPDATE=1`. A git checkout is never auto-updated (use `git pull`).
+`JOBHUNT_NO_UPDATE=1`. A copy cloned with git updates the same way.
 
 You can see it happen in the app:
 
@@ -164,6 +164,10 @@ per site by default (Settings).
 .venv\Scripts\python -m pip install -r requirements-dev.txt
 .venv\Scripts\python -m pytest
 ```
+
+Every copy updates itself from `main` when `run.bat` starts it, git clones too,
+so in a clone you're changing, set `JOBHUNT_NO_UPDATE=1` or an update will copy
+`main` over your work. Everything pushed to `main` reaches users at their next start.
 
 The tests swap Credential Manager for an in-memory keyring and the AI for a
 scripted fake, serve the practice board locally, and run a full draft hunt plus

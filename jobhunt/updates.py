@@ -35,16 +35,16 @@ def updater():
 
 
 def updates_on() -> bool:
-    """Off for a developer's git checkout and when JOBHUNT_NO_UPDATE is set (as in update.py)."""
-    return not os.environ.get("JOBHUNT_NO_UPDATE") and not (paths.APP_DIR / ".git").exists()
+    """Off only when JOBHUNT_NO_UPDATE is set (as in update.py). A git clone updates like any other copy."""
+    return not os.environ.get("JOBHUNT_NO_UPDATE")
 
 
 def current_version() -> str:
-    """The commit this copy was last updated to ('' for a git checkout or a copy never updated)."""
+    """The commit this copy was last updated to (for a git clone not updated yet, the commit it's at)."""
     try:
         return (paths.APP_DIR / updater().VERSION_FILE).read_text(encoding="utf-8").strip()
     except OSError:
-        return ""
+        return updater().git_head(paths.APP_DIR)
 
 
 def info() -> dict:
