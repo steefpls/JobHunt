@@ -278,6 +278,16 @@ def recover_interrupted() -> None:
                     if applying else "JobHunt was closed while building this package.")
 
 
+def last_run(kind: str) -> dict | None:
+    """The latest finished run of this kind (a running one is shown live instead)."""
+    rows = _query("SELECT * FROM runs WHERE kind = ? AND status != 'running' ORDER BY id DESC LIMIT 1", (kind,))
+    return rows[0] if rows else None
+
+
+def count_jobs(run_id: int, state: str) -> int:
+    return _query("SELECT COUNT(*) AS n FROM jobs WHERE run_id = ? AND state = ?", (run_id, state))[0]["n"]
+
+
 def practice_hunt_done() -> bool:
     """Has a hunt on the practice board finished?"""
     return bool(_query("SELECT 1 FROM runs WHERE kind = 'hunt' AND status = 'done' AND params LIKE '%\"demo\"%' LIMIT 1"))

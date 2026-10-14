@@ -105,3 +105,6 @@ textarea.plain { font: inherit; font-size: 14px; }
 .guide p { margin: 0; color: var(--muted); font-size: 13px; }
 .savebar { position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center; justify-content: space-between;
   background: var(--bg); padding: 8px 0 12px; color: var(--muted); }
+.notice.lasthunt.good { background: #e3f6ee; border-color: #b7e4cf; }
+.notice.lasthunt.bad { background: #fdecea; border-color: #f5c2bd; }
+.notice.lasthunt.mid { background: #fff8eb; border-color: #f6d99b; }

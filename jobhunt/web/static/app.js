@@ -13,6 +13,9 @@
       dot.className = 'dot' + (s.busy ? ' live' : '');
       box.appendChild(dot);
       box.appendChild(document.createTextNode(s.busy ? 'Working: ' + s.kind : 'Idle'));
+      // "(3) Hunt · JobHunt": packages waiting for your approval, visible from another tab
+      const n = (s.counts && s.counts.Ready) || 0;
+      document.title = (n ? '(' + n + ') ' : '') + document.title.replace(/^\(\d+\) /, '');
     } catch (e) { /* ignore */ }
   }
   setInterval(tick, 4000);

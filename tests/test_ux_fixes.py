@@ -173,3 +173,43 @@ def test_your_own_choice_sticks(client, ready, monkeypatch):
     assert ticked(client.get("/hunt").text) == ["mycareersfuture", "indeed"]
     client.post("/hunt/start", data={"sites": "demo", "jobs": "3"}, headers=SAME_ORIGIN)  # a practice run later
     assert ticked(client.get("/hunt").text) == ["demo"] and settings.load()["hunt"]["sites_chosen"] is True
+
+
+# ── what a finished hunt found ───────────────────────────────────────
+
+def finished_hunt(status: str, summary: str, ready_jobs: int = 0) -> int:
+    run = db.start_run("hunt", '{"jobs": 3, "sites": ["jobstreet"]}')
+    for i in range(ready_jobs):
+        db.add_job(source="jobstreet", url=f"https://x/{run}/{i}", company=f"Co{i}", role="Engineer",
+                   state="Ready", run_id=run, match_score=8)
+    db.finish_run(run, status, summary)
+    return run
+
+
+def test_a_finished_hunt_says_what_it_found_and_what_to_do(client):
+    finished_hunt("done", "2 package(s) built from 9 posting(s) examined (0 already known).", ready_jobs=2)
+    page = client.get("/hunt").text
+    assert "Last hunt finished" in page and "2 package(s) built from 9" in page
+    assert "2 packages are waiting for your approval: review them" in page and 'id="approve"' in page
+    assert "<title>(2) Hunt · JobHunt</title>" in page
+
+
+def test_a_hunt_that_found_nothing_suggests_what_to_try(client):
+    finished_hunt("done", "0 package(s) built from 12 posting(s) examined (0 already known).")
+    assert "No new packages this time" in client.get("/hunt").text
+
+
+def test_a_failed_hunt_is_shown_in_red(client):
+    finished_hunt("error", "Before a hunt can start: add at least one search keyword.")
+    page = client.get("/hunt").text
+    assert 'notice lasthunt bad' in page and "Last hunt stopped with a problem" in page
+
+
+def test_dashboard_lists_packages_ready_to_approve(client):
+    finished_hunt("done", "1 package(s) built", ready_jobs=1)
+    db.add_job(source="mycareersfuture", url="https://x/mcf", company="GovTech", role="Engineer", state="Ready")
+    dash = client.get("/").text
+    card = dash.split('id="readyToApprove"', 1)[1].split("</div>", 1)[0]
+    assert "Co0" in card and "GovTech" in card
+    assert card.count("Approve &amp; apply") == 1 and card.count("Apply yourself") == 1  # MyCareersFuture needs you
+    assert 'id="readyToApprove"' not in client.get("/?state=Applied").text

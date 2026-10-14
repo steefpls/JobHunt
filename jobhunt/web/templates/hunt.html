@@ -6,6 +6,18 @@
     data-busy="{{ 1 if status.busy else 0 }}">Hunt</h1>
 <p class="sub">Finds postings, judges each against your scope, and builds a tailored package for every match, one job at a time.</p>
 
+{% if last_hunt and not status.busy %}
+{% set lh = last_hunt %}
+<div class="notice lasthunt {{ 'good' if lh.status == 'done' else ('bad' if lh.status in ('error', 'interrupted') else 'mid') }}" id="lastHunt">
+  <b>{{ {"done": "Last hunt finished", "error": "Last hunt stopped with a problem", "stopped": "Last hunt stopped by you",
+         "capped": "Last hunt stopped at a cap", "interrupted": "Last hunt was cut off"}.get(lh.status, "Last hunt") }}</b>
+  <span class="muted">· {{ (lh.finished_at or lh.started_at).replace("T", " ")[:16] }}</span><br>
+  {{ lh.summary }}
+  {% if last_hunt_ready %}<div class="actions" style="margin-top:8px"><a class="btn small primary" href="#approve">{{ last_hunt_ready }} {{ "package is" if last_hunt_ready == 1 else "packages are" }} waiting for your approval: review {{ "it" if last_hunt_ready == 1 else "them" }}</a></div>
+  {% elif lh.status == "done" %}<br><span class="hint">No new packages this time. Widen your search keywords or Scope, or try more sites.</span>{% endif %}
+</div>
+{% endif %}
+
 <div class="grid two">
   <div class="card">
     <h2>Start a hunt</h2>
@@ -54,18 +66,9 @@
     <p class="muted" id="mJob" style="margin:10px 0 0">No job in progress.</p>
     <p class="muted" id="mCaps" style="margin:6px 0 0"></p>
     {% if ready %}
-    <h2 style="margin-top:18px">Waiting for your approval</h2>
-    <table>
-      {% for j in ready %}
-      <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a></td>
-        <td style="text-align:right">
-          {% if j.source in human_apply %}<a class="btn small" href="/jobs/{{ j.id }}">Apply yourself</a>
-          {% else %}<form method="post" action="/jobs/{{ j.id }}/apply" class="inline"
-                data-confirm="Let JobHunt fill in and SUBMIT this application now?">
-            <button class="btn small primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button></form>{% endif %}
-        </td></tr>
-      {% endfor %}
-    </table>
+    <h2 style="margin-top:18px" id="approve">Waiting for your approval <span class="badge Ready">{{ ready|length }}</span></h2>
+    <p class="hint" style="margin-top:0">Review each package, then approve it, or apply yourself where the site needs you.</p>
+    {% include "_approve.html" %}
     {% endif %}
     {% if needs_you %}
     <h2 style="margin-top:18px">Needs you <span class="badge Needs you">{{ needs_you|length }}</span></h2>

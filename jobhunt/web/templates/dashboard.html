@@ -21,6 +21,14 @@
   <a class="btn small" href="/?state=Needs%20you">Show</a></div>
 {% endif %}
 
+{% if ready %}
+<div class="card" id="readyToApprove">
+  <h2>Ready to approve <span class="badge Ready">{{ ready|length }}</span></h2>
+  <p class="hint" style="margin-top:0">JobHunt built these packages. Review each one, then approve it (or apply yourself where the site needs you).</p>
+  {% include "_approve.html" %}
+</div>
+{% endif %}
+
 <div class="stats">
   <a class="stat link" href="/"><b>{{ counts.values()|sum }}</b><span>All</span></a>
   {% for s in states %}{% if counts.get(s) %}

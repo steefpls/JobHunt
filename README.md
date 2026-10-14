@@ -99,8 +99,11 @@ never sent to the AI as text.
    The first hunt has the **Practice board** ticked: it is a fake job board and application
    site built into the app. After a practice hunt, JobStreet and LinkedIn are ticked;
    once you pick sites yourself, your choice is kept. The estimate shows tokens, cost and expected speed before you start.
-5. **Dashboard**: every package. Open one to preview the PDFs and match report,
-   approve it, open its folder, or set Interview / Offer / Rejected.
+   When a hunt finishes, the Hunt page says what it found and how many packages are
+   waiting for your approval (the browser tab shows that number too).
+5. **Dashboard**: every package, with the ones waiting for your approval at the top.
+   Open one to preview the PDFs and match report, approve it, open its folder, or set
+   Interview / Offer / Rejected.
 
 ### Job folder layout
 

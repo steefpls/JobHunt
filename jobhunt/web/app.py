@@ -131,7 +131,8 @@ def create_app(port: int = 8765) -> FastAPI:
                    msg=request.query_params.get("msg", ""), err=request.query_params.get("err", ""),
                    subscription=s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS,
                    key_saved=secrets_store.has_secret(secrets_store.api_key_name(s["provider"])),
-                   updates=updates.info(), here=request.url.path)
+                   updates=updates.info(), here=request.url.path, waiting=db.state_counts().get("Ready", 0),
+                   human_apply_sites=hunt.HUMAN_APPLY_SITES)
         return templates.TemplateResponse(request, name, ctx)
 
     def back(url: str, msg: str = "", err: str = "") -> RedirectResponse:
@@ -152,6 +153,7 @@ def create_app(port: int = 8765) -> FastAPI:
                      ("Set your search scope", "/scope" not in todo, "/scope")]
         return page(request, "dashboard.html", jobs=db.list_jobs(state or None), counts=db.state_counts(),
                     states=db.STATES, user_states=db.USER_STATES, state=state, checklist=checklist,
+                    ready=db.list_jobs("Ready") if not state else [],
                     spend=db.total_spend(), runs=db.list_runs(5))
 
     @app.get("/export.csv")
@@ -508,10 +510,12 @@ def create_app(port: int = 8765) -> FastAPI:
     def hunt_page(request: Request):
         s = settings_mod.load()
         ready = db.list_jobs("Ready")
+        last_hunt = db.last_run("hunt")
         return page(request, "hunt.html", sites=settings_mod.SITES, site_status=SITE_STATUS, ready=ready,
                     needs_you=db.list_jobs("Needs you"), missing=hunt.readiness(s), ticked=hunt.suggested_sites(s),
                     practice_first=not s["hunt"].get("sites_chosen") and not db.practice_hunt_done(),
-                    events=db.recent_events(150), human_apply=hunt.HUMAN_APPLY_SITES)
+                    events=db.recent_events(150), last_hunt=last_hunt,
+                    last_hunt_ready=db.count_jobs(last_hunt["id"], "Ready") if last_hunt else 0)
 
     @app.post("/hunt/start")
     async def hunt_start(request: Request):
