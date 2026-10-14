@@ -65,6 +65,13 @@
     </div>
     <p class="muted" id="mJob" style="margin:10px 0 0">No job in progress.</p>
     <p class="muted" id="mCaps" style="margin:6px 0 0"></p>
+    <h2 style="margin-top:18px">Progress log</h2>
+    <div class="log" id="log">{% if not events %}<div id="logArt" class="art">
+        __
+   (___()'`;     No hunts yet.
+   /,    /`      The dog is ready when you are.
+   \\"--\\
+</div>{% endif %}{% for e in events %}<div class="{{ e.level }}"><span class="ts">{{ e.ts[11:19] }}</span> {{ e.message }}</div>{% endfor %}</div>
     {% if ready %}
     <h2 style="margin-top:18px" id="approve">Waiting for your approval <span class="badge Ready">{{ ready|length }}</span></h2>
     <p class="hint" style="margin-top:0">Review each package, then approve it, or apply yourself where the site needs you.</p>
@@ -82,16 +89,6 @@
     </table>
     {% endif %}
   </div>
-</div>
-
-<div class="card">
-  <h2>Progress log</h2>
-  <div class="log" id="log">{% if not events %}<div id="logArt" class="art">
-        __
-   (___()'`;     No hunts yet.
-   /,    /`      The dog is ready when you are.
-   \\"--\\
-</div>{% endif %}{% for e in events %}<div class="{{ e.level }}"><span class="ts">{{ e.ts[11:19] }}</span> {{ e.message }}</div>{% endfor %}</div>
 </div>
 {% endblock %}
 {% block scripts %}
