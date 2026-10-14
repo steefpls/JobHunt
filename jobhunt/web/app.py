@@ -48,6 +48,9 @@ LOGIN_SITES = {
     "jobstreet": ("JobStreet", "https://sg.jobstreet.com/oauth/login"),
     "indeed": ("Indeed", "https://secure.indeed.com/account/login"),
 }
+# Indeed's human check ("Verify you are human") shows on its job pages, so its Log in opens one of
+# those too: you tick the check yourself, and later hunts can search again.
+LOGIN_EXTRA_TABS = {"indeed": ["https://sg.indeed.com/"]}
 
 _login_proc: subprocess.Popen | None = None
 _check_proc: subprocess.Popen | None = None  # jobhunt.login_check, after the login window closes
@@ -488,7 +491,8 @@ def create_app(port: int = 8765) -> FastAPI:
             return back("/accounts", err="The login browser is already open.")
         if login_check_running():
             return back("/accounts", err=profile_busy_reason())
-        urls = [LOGIN_SITES[site][1]] if site in LOGIN_SITES else [u for _, u in LOGIN_SITES.values()]
+        urls = ([LOGIN_SITES[site][1], *LOGIN_EXTRA_TABS.get(site, [])] if site in LOGIN_SITES
+                else [u for _, u in LOGIN_SITES.values()])
         _login_proc = subprocess.Popen([sys.executable, "-m", "jobhunt.login_browser", *urls], cwd=str(paths.APP_DIR))
         _check_pending = True  # checked as soon as the window is closed
         return back("/accounts", msg="A browser window opened. Log in, then close that window.")

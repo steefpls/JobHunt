@@ -27,8 +27,11 @@ CHECKS = {
     "jobstreet": {"url": "https://sg.jobstreet.com/my-activity/saved-jobs", "login_hosts": ["login.seek.com"],
                   "account_url": "https://sg.jobstreet.com/profile", "own_domains": ["jobstreet.com", "seek.com"]},
     "indeed": {"url": "https://profile.indeed.com/", "login_hosts": ["secure.indeed.com"],
-               "own_domains": ["indeed.com"]},
+               "own_domains": ["indeed.com"], "needs_window": True},
 }
+# needs_window: a browser without a window gets Indeed's robot flag on all of indeed.com, and the flag
+# stays in the profile, so later hunts would meet its human check (seen live 2026-10-15). With Indeed
+# to check, the browser opens as a minimized window for those few seconds.
 # Which account you're logged in as, shown next to "Logged in". LinkedIn: one call to its own "who am I"
 # endpoint (no page opened). The others: the email address on your profile page. Not checked while logged
 # in (no test account), so anything unexpected just leaves it blank.
@@ -166,11 +169,12 @@ def run(sites=None) -> dict:
     sites = [s for s in (sites or CHECKS) if s in CHECKS]
     results = load_status()
     stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
+    window = any(CHECKS[k].get("needs_window") for k in sites)
     prepare_profile(paths.browser_profile_dir())
     with sync_playwright() as pw:
         ctx = pw.chromium.launch_persistent_context(
-            str(paths.browser_profile_dir()), headless=True, user_agent=USER_AGENT,
-            args=["--disable-blink-features=AutomationControlled"])
+            str(paths.browser_profile_dir()), headless=not window, user_agent=USER_AGENT,
+            args=["--disable-blink-features=AutomationControlled", *(["--start-minimized"] if window else [])])
         try:
             for key in sites:
                 try:

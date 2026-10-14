@@ -109,6 +109,53 @@ def test_closing_the_login_window_starts_a_check(client, monkeypatch):
     webapp._check_proc.returncode = 0
 
 
+@pytest.mark.parametrize("sites, headless", [(None, False), (["indeed"], False), (["jobstreet", "linkedin"], True)])
+def test_the_login_check_opens_a_window_when_it_looks_at_indeed(sites, headless, data_dir, monkeypatch):
+    # without a window, Indeed flags the whole browser profile and later hunts meet its human check
+    launched = []
+
+    class Ctx:
+        def close(self):
+            pass
+
+    class PW:
+        class chromium:
+            @staticmethod
+            def launch_persistent_context(path, **kw):
+                launched.append(kw)
+                return Ctx()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+    import playwright.sync_api
+    monkeypatch.setattr(playwright.sync_api, "sync_playwright", lambda: PW())
+    monkeypatch.setattr(login_check, "check_site", lambda ctx, key: {"state": "out", "detail": ""})
+    login_check.run(sites)
+    assert launched[0]["headless"] is headless
+    assert ("--start-minimized" in launched[0]["args"]) is (not headless)
+
+
+def test_indeed_log_in_also_opens_an_indeed_jobs_tab(client, monkeypatch):
+    started = []
+
+    class FakeProc:
+        def __init__(self, args, **kw):
+            started.append(args)
+
+        def poll(self):
+            return None
+    monkeypatch.setattr(webapp.subprocess, "Popen", FakeProc)
+    monkeypatch.setattr(webapp, "_check_pending", False)
+    monkeypatch.setattr(webapp, "_check_proc", None)
+    monkeypatch.setattr(webapp, "_login_proc", None)
+    client.post("/accounts/browser", data={"site": "indeed"}, headers=SAME_ORIGIN)
+    # the human check shows on Indeed's job pages, so you can tick it there yourself
+    assert started[-1][-3:] == ["jobhunt.login_browser", "https://secure.indeed.com/account/login", "https://sg.indeed.com/"]
+
+
 # ── updates ───────────────────────────────────────────────────────────
 
 def test_an_update_records_whats_new(install, monkeypatch):
