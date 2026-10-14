@@ -39,6 +39,8 @@ rebuild publicly.
    You can run it again at any time; it only fixes what's missing.
 3. Double-click **`run.bat`**. Your browser opens at http://127.0.0.1:8765.
    Keep the black window open while you use JobHunt and close it to stop.
+   Closed the browser tab? Double-click `run.bat` again: it opens the JobHunt
+   that's already running.
 
 ### Updates
 
@@ -48,6 +50,16 @@ job folders, logins), `.venv\` and `.browsers\` are never touched. When the
 package list changes it reinstalls the packages too. Offline, it just starts the
 version you have. To turn updates off, set the environment variable
 `JOBHUNT_NO_UPDATE=1`. A git checkout is never auto-updated (use `git pull`).
+
+You can see it happen in the app:
+
+- After an update, a green **JobHunt was updated: what's new** box lists the
+  changes until you press *Got it*.
+- The sidebar shows the version you're on and when JobHunt last checked for updates
+  (or that it couldn't, when offline).
+- While JobHunt runs it checks again every few hours. When a newer version is out,
+  a **Restart & update** button closes JobHunt, installs it and opens it again.
+- A running JobHunt is never updated under itself: a second `run.bat` just opens it.
 
 ### The AI key
 
@@ -74,7 +86,9 @@ never sent to the AI as text.
    *Draft from my profile* to have the AI write a first version from your Profile,
    then check it. Hunts won't start until the template's first line is gone.
 3. **Accounts**: click a site to open JobHunt's browser and log in yourself
-   (Singpass, 2FA and captchas are fine, because it is you doing it). Optionally
+   (Singpass, 2FA and captchas are fine, because it is you doing it). When you close
+   the window, JobHunt checks each site and shows **Logged in** or **Not logged in**
+   next to it (*Check again* re-checks; the sign-in can expire). Optionally
    save application-site logins (Workday and similar) with the sites each one may
    be used on (required). There is no Google login on purpose: the browser that
    fills in forms should not be signed in to your email.
@@ -151,4 +165,6 @@ Code map (`jobhunt\`): `sites.py` and `extract.py` (crawling), `prompts.py` (eve
 prompt), `llm.py` (HTTP client and spending caps), `hunt.py` (the hunt loop and
 background runner), `applyagent.py` (form filling), `render.py` and `documents\`
 (templates), `db.py` (tracker), `secrets_store.py` and `first_run.py` (keys),
-`web\` (UI), `demo_board.py` (practice site).
+`login_browser.py` and `login_check.py` (job-site logins and whether they worked),
+`updates.py` (version, update notices and Restart & update; the updating itself is
+`update.py` next to `run.bat`), `web\` (UI), `demo_board.py` (practice site).

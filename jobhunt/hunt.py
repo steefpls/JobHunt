@@ -545,6 +545,8 @@ class Runner:
         self.task = None
         self.stop_event = threading.Event()
         self.last_result = ""
+        self.last_kind = ""  # what finished last ("profile", "hunt"...) and how ("done", "error"...)
+        self.last_status = ""
 
     @property
     def busy(self) -> bool:
@@ -584,7 +586,7 @@ class Runner:
                     db.update_job(task.current_job, state="Error" if job["state"] == "Found" else "Needs you")
                     db.append_note(task.current_job, f"Interrupted: {summary}")
             db.finish_run(task.run_id, status, summary)
-            self.last_result = summary
+            self.last_result, self.last_kind, self.last_status = summary, task.kind, status
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -597,7 +599,8 @@ class Runner:
         t = self.task
         meter = t.meter.snapshot() if t else None
         return {"busy": self.busy, "kind": t.kind if t else None, "run_id": t.run_id if t else None,
-                "current_job": t.current_job if t else None, "meter": meter, "last_result": self.last_result}
+                "current_job": t.current_job if t else None, "meter": meter, "last_result": self.last_result,
+                "last_kind": self.last_kind, "last_status": self.last_status}
 
 
 runner = Runner()

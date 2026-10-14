@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -18,7 +19,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import db, demo_board, hunt, llm, paths, profile, render, secrets_store
+from .. import db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store, updates
 from .. import settings as settings_mod
 from ..sites import SITE_STATUS
 
@@ -40,23 +41,50 @@ def local_path(url: str, default: str) -> str:
 
 templates.env.filters["web_url"] = web_url
 
+# MyCareersFuture isn't here: its applications need Singpass, so you finish them in your own browser
+# and a login in JobHunt's browser would never be used.
 LOGIN_SITES = {
     "linkedin": ("LinkedIn", "https://www.linkedin.com/login"),
     "jobstreet": ("JobStreet", "https://sg.jobstreet.com/oauth/login"),
-    "mycareersfuture": ("MyCareersFuture (Singpass)", "https://www.mycareersfuture.gov.sg/"),
     "indeed": ("Indeed", "https://secure.indeed.com/account/login"),
 }
 
 _login_proc: subprocess.Popen | None = None
+_check_proc: subprocess.Popen | None = None  # jobhunt.login_check, after the login window closes
+_check_pending = False  # the login window closed (or Check again was pressed) and no check has run since
 
 
 def login_browser_open() -> bool:
     return _login_proc is not None and _login_proc.poll() is None
 
 
+def login_check_running() -> bool:
+    return _check_proc is not None and _check_proc.poll() is None
+
+
+def profile_busy_reason() -> str:
+    """Why JobHunt's browser profile can't be used right now ('' = it can)."""
+    if login_browser_open():
+        return "Close the login browser window first."
+    if login_check_running():
+        return "JobHunt is checking your job-site logins (a few seconds). Try again in a moment."
+    return ""
+
+
+def start_pending_login_check() -> None:
+    """Checks the logins once the browser profile is free (the login window closed, nothing running)."""
+    global _check_proc, _check_pending
+    if not _check_pending or hunt.runner.busy or profile_busy_reason():
+        return
+    _check_pending = False
+    _check_proc = subprocess.Popen([sys.executable, "-m", "jobhunt.login_check", *LOGIN_SITES],
+                                   cwd=str(paths.APP_DIR))
+
+
 def create_app(port: int = 8765) -> FastAPI:
     app = FastAPI(title="JobHunt", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.port = port
+    app.state.started = str(time.time_ns())  # tells the Restarting page that a new JobHunt has taken over
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     app.include_router(demo_board.router)
     db.init()
@@ -102,7 +130,8 @@ def create_app(port: int = 8765) -> FastAPI:
         ctx.update(request=request, nav=name.split(".")[0], status=hunt.runner.status(), settings=s,
                    msg=request.query_params.get("msg", ""), err=request.query_params.get("err", ""),
                    subscription=s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS,
-                   key_saved=secrets_store.has_secret(secrets_store.api_key_name(s["provider"])))
+                   key_saved=secrets_store.has_secret(secrets_store.api_key_name(s["provider"])),
+                   updates=updates.info(), here=request.url.path)
         return templates.TemplateResponse(request, name, ctx)
 
     def back(url: str, msg: str = "", err: str = "") -> RedirectResponse:
@@ -164,8 +193,8 @@ def create_app(port: int = 8765) -> FastAPI:
             return back(f"/jobs/{job_id}" if job else "/", err="This job can't be applied to now"
                         + (f" (it is {job['state']})." if job else ": it doesn't exist."))
         try:
-            if login_browser_open():
-                raise RuntimeError("Close the login browser window first.")
+            if profile_busy_reason():
+                raise RuntimeError(profile_busy_reason())
             hunt.runner.start("apply", {"job_id": job_id})
         except RuntimeError as e:
             return back(f"/jobs/{job_id}", err=str(e))
@@ -255,7 +284,8 @@ def create_app(port: int = 8765) -> FastAPI:
             hunt.runner.start("profile")
         except RuntimeError as e:
             return back("/profile", err=str(e))
-        return back("/hunt", msg="Building your profile - this takes about a minute.")
+        return back("/hunt", msg="Building your profile - this takes about a minute. "
+                                 "You'll be taken back to the Profile page when it's done.")
 
     # ── scope ──────────────────────────────────────────────────────────
     @app.get("/scope", response_class=HTMLResponse)
@@ -266,32 +296,42 @@ def create_app(port: int = 8765) -> FastAPI:
             text = example.read_text(encoding="utf-8") if example.exists() else ""
         return page(request, "scope.html", scope_text=text)
 
-    @app.post("/scope")
-    def save_scope(keywords: str = Form(""), location: str = Form(""), avoid_words: str = Form(""), scope_text: str = Form("")):
+    def store_scope(keywords: str, location: str, avoid_words: str, scope_text: str) -> None:
         settings_mod.update({"scope": {
             "keywords": [k.strip() for k in keywords.splitlines() if k.strip()],
             "location": location.strip(),
             "avoid_words": [w.strip() for w in avoid_words.replace(",", "\n").splitlines() if w.strip()],
         }})
         profile.save_scope_text(scope_text)
+
+    @app.post("/scope")
+    def save_scope(keywords: str = Form(""), location: str = Form(""), avoid_words: str = Form(""), scope_text: str = Form("")):
+        store_scope(keywords, location, avoid_words, scope_text)
         if profile.scope_is_example(scope_text):
             return back("/scope", err="Saved, but this is still the template. Fill it in (or press Draft from my "
                                       "profile) and delete its first line: hunts won't start until you do.")
         return back("/scope", msg="Scope saved.")
 
     @app.post("/scope/draft")
-    def draft_scope():
+    def draft_scope(keywords: str | None = Form(None), location: str = Form(""), avoid_words: str = Form(""),
+                    scope_text: str = Form("")):
+        if keywords is not None:  # the button sits in the Scope form: keep what was typed there first
+            if hunt.runner.busy:
+                return back("/scope", err="Something is already running. Stop it or wait for it to finish.")
+            store_scope(keywords, location, avoid_words, scope_text)
         if not profile.load_profile().strip():
             return back("/scope", err="Build your Profile first: the scope is drafted from it.")
         try:
             hunt.runner.start("scope")
         except RuntimeError as e:
             return back("/scope", err=str(e))
-        return back("/hunt", msg="Drafting your scope - this takes under a minute. Then review it on the Scope page.")
+        return back("/hunt", msg="Drafting your scope - this takes under a minute. "
+                                 "You'll be taken back to the Scope page to review it when it's done.")
 
     # ── accounts: AI key, site logins, browser sessions ───────────────
     @app.get("/accounts", response_class=HTMLResponse)
     def accounts_page(request: Request):
+        start_pending_login_check()
         s = settings_mod.load()
         keys = {p: secrets_store.has_secret(secrets_store.api_key_name(p)) for p in settings_mod.PROVIDERS}
         logins = []
@@ -299,7 +339,8 @@ def create_app(port: int = 8765) -> FastAPI:
             logins.append({**l, "has_user": secrets_store.has_secret(secrets_store.login_secret_name(l["name"], "username")),
                            "has_pw": secrets_store.has_secret(secrets_store.login_secret_name(l["name"], "password"))})
         return page(request, "accounts.html", keys=keys, providers=settings_mod.PROVIDERS, logins=logins,
-                    login_sites=LOGIN_SITES, browser_open=login_browser_open())
+                    login_sites=LOGIN_SITES, browser_open=login_browser_open(), checking=login_check_running(),
+                    check_waiting=_check_pending, login_status=login_check.load_status())
 
     @app.post("/accounts/apikey")
     def save_api_key(provider: str = Form(...), api_key: str = Form(""), next: str = Form("")):
@@ -384,14 +425,28 @@ def create_app(port: int = 8765) -> FastAPI:
 
     @app.post("/accounts/browser")
     def open_login_browser(site: str = Form(...)):
-        global _login_proc
+        global _login_proc, _check_pending
         if hunt.runner.busy:
             return back("/accounts", err="Wait for the hunt to finish (or stop it) first.")
         if login_browser_open():
             return back("/accounts", err="The login browser is already open.")
+        if login_check_running():
+            return back("/accounts", err=profile_busy_reason())
         urls = [LOGIN_SITES[site][1]] if site in LOGIN_SITES else [u for _, u in LOGIN_SITES.values()]
         _login_proc = subprocess.Popen([sys.executable, "-m", "jobhunt.login_browser", *urls], cwd=str(paths.APP_DIR))
+        _check_pending = True  # checked as soon as the window is closed
         return back("/accounts", msg="A browser window opened. Log in, then close that window.")
+
+    @app.post("/accounts/check")
+    def check_logins():
+        global _check_pending
+        if login_browser_open() or login_check_running():
+            return back("/accounts", err=profile_busy_reason())
+        if hunt.runner.busy:
+            return back("/accounts", err="Wait for the current task to finish (or stop it), then check again.")
+        _check_pending = True
+        start_pending_login_check()
+        return back("/accounts")
 
     @app.post("/accounts/browser/close")
     def close_login_browser():
@@ -410,7 +465,32 @@ def create_app(port: int = 8765) -> FastAPI:
 
     @app.get("/api/login-browser")
     def api_login_browser():
-        return JSONResponse({"open": login_browser_open()})
+        start_pending_login_check()
+        return JSONResponse({"open": login_browser_open(), "checking": login_check_running() or _check_pending})
+
+    # ── version & updates ──────────────────────────────────────────────
+    @app.get("/api/version")
+    def api_version():  # also how a second run.bat tells that JobHunt is the one on this port
+        return JSONResponse({"app": "JobHunt", "version": updates.info()["version"], "started": app.state.started})
+
+    @app.post("/update/seen")
+    def update_seen(next: str = Form("/")):
+        updates.mark_news_seen()
+        return back(local_path(next, "/"))
+
+    @app.post("/update/restart")
+    def update_restart(request: Request, next: str = Form("/")):
+        if hunt.runner.busy:
+            return back(local_path(next, "/"), err="Wait for the current task to finish (or stop it), then restart.")
+        if profile_busy_reason():
+            return back(local_path(next, "/"), err=profile_busy_reason())
+        try:
+            updates.restart(app.state.port)
+        except OSError as e:
+            return back(local_path(next, "/"), err=f"Couldn't restart JobHunt ({type(e).__name__}). Close the black "
+                                                    "JobHunt window and double-click run.bat instead.")
+        updates.exit_soon()
+        return page(request, "restarting.html", started=app.state.started)
 
     # ── hunt ───────────────────────────────────────────────────────────
     @app.get("/hunt", response_class=HTMLResponse)
@@ -418,6 +498,7 @@ def create_app(port: int = 8765) -> FastAPI:
         s = settings_mod.load()
         ready = db.list_jobs("Ready")
         return page(request, "hunt.html", sites=settings_mod.SITES, site_status=SITE_STATUS, ready=ready,
+                    needs_you=db.list_jobs("Needs you"),
                     events=db.recent_events(150), human_apply=hunt.HUMAN_APPLY_SITES)
 
     @app.post("/hunt/start")
@@ -433,8 +514,8 @@ def create_app(port: int = 8765) -> FastAPI:
             jobs = 10
         auto = form.get("mode") == "auto"
         settings_mod.update({"hunt": {"jobs": jobs, "sites": sites}})  # the mode is never remembered: Draft each time
-        if login_browser_open():
-            return back("/hunt", err="Close the login browser window first.")
+        if profile_busy_reason():
+            return back("/hunt", err=profile_busy_reason())
         try:
             hunt.runner.start("hunt", {"jobs": jobs, "sites": sites, "auto_submit": auto})
         except RuntimeError as e:

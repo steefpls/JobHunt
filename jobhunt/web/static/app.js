@@ -18,13 +18,17 @@
   setInterval(tick, 4000);
 })();
 
-// Accounts page: once the login window is closed, reload so the buttons come back.
+// Accounts page: while the login window is open or the logins are being checked, wait,
+// then reload so the page shows whether each site is logged in.
 (function () {
-  if (!document.getElementById('loginOpen')) return;
+  const open = document.getElementById('loginOpen');
+  if (!open && !document.getElementById('loginChecking')) return;
+  let wasOpen = !!open;
   const timer = setInterval(async function () {
     try {
       const s = await (await fetch('/api/login-browser')).json();
-      if (!s.open) { clearInterval(timer); location.replace('/accounts?msg=' + encodeURIComponent('Login window closed. Session saved.')); }
+      if (wasOpen && !s.open) { wasOpen = false; location.replace('/accounts#sitelogins'); return; }  // now "Checking…"
+      if (!s.open && !s.checking) { clearInterval(timer); location.replace('/accounts#sitelogins'); }
     } catch (e) { /* ignore */ }
   }, 2000);
 })();

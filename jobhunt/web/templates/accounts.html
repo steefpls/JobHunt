@@ -27,21 +27,38 @@
   </form>
 </div>
 
-<div class="card">
+<div class="card" id="sitelogins">
   <h2>Job-site logins (in the JobHunt browser)</h2>
-  <p class="muted">Opens a browser window. Log in yourself (Singpass, 2-step codes and captchas are fine), then close the window.
-    JobHunt keeps that session for hunts. It never sees or stores these passwords.</p>
-  <p class="hint">There is deliberately no Google button: the browser that fills in applications should not be signed in to
-    your email. Jobs that need "Sign in with Google" are handed to you as <b>Needs you</b>.</p>
+  <p class="muted">Press <b>Log in</b> to open a browser window. Log in yourself (Singpass, 2-step codes and captchas are fine),
+    then close the window. JobHunt keeps that session for hunts and applications, and checks below that it worked.
+    It never sees or stores these passwords.</p>
   {% if browser_open %}<div id="loginOpen" style="margin:8px 0"><span class="badge Ready">Login window is open</span> Close it when you're done.
     Can't find it?
-    <form method="post" action="/accounts/browser/close" class="inline"><button class="btn small">Close it for me</button></form></div>{% endif %}
-  <div class="actions">
-    {% for key, (label, url) in login_sites.items() %}
-    <form method="post" action="/accounts/browser" class="inline"><input type="hidden" name="site" value="{{ key }}">
-      <button class="btn" {{ 'disabled' if browser_open or status.busy }}>Log in to {{ label }}</button></form>
+    <form method="post" action="/accounts/browser/close" class="inline"><button class="btn small">Close it for me</button></form></div>
+  {% elif checking or check_waiting %}<div id="loginChecking" style="margin:8px 0"><span class="badge Ready">Checking your logins…</span>
+    This page updates by itself in a few seconds.</div>{% endif %}
+  <table>
+    {% for key, (label, url) in login_sites.items() %}{% set st = login_status.get(key) %}
+    <tr><td><b>{{ label }}</b></td>
+      <td>{% if browser_open or checking or check_waiting %}<span class="badge">…</span>
+        {% elif not st %}<span class="badge">Not checked yet</span>
+        {% elif st.state == "in" %}<span class="badge LoggedIn">✓ Logged in</span>
+        {% elif st.state == "out" %}<span class="badge LoggedOut">Not logged in</span>
+        {% else %}<span class="badge">Couldn't tell</span>{% endif %}
+        {% if st and not (browser_open or checking or check_waiting) %}<span class="hint">
+          {{ st.detail ~ " · " if st.detail and st.state != "in" }}checked {{ (st.checked_at or "")[:16]|replace("T", " ") }}</span>{% endif %}</td>
+      <td style="text-align:right"><form method="post" action="/accounts/browser" class="inline"><input type="hidden" name="site" value="{{ key }}">
+        <button class="btn small {{ 'primary' if st and st.state == 'out' }}" {{ 'disabled' if browser_open or checking or status.busy }}>
+          {{ "Log in again" if st and st.state == "in" else "Log in" }}</button></form></td></tr>
     {% endfor %}
+  </table>
+  <div class="actions">
+    <form method="post" action="/accounts/check" class="inline"><button class="btn small" {{ 'disabled' if browser_open or checking or status.busy }}>Check again</button></form>
   </div>
+  <p class="hint">Not logged in to a site? Hunts still read its public job pages, but applications there come back to you as
+    <b>Needs you</b>. MyCareersFuture isn't listed: its applications need Singpass, so you finish those in your own browser.</p>
+  <p class="hint">There is deliberately no Google button: the browser that fills in applications should not be signed in to
+    your email. Jobs that need "Sign in with Google" are handed to you as <b>Needs you</b>.</p>
 </div>
 
 <div class="card">

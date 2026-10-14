@@ -14,6 +14,13 @@
 </div>
 {% endif %}
 
+{% if counts.get("Needs you") %}
+<div class="notice avail"><b>Needs you: {{ counts["Needs you"] }}</b> · JobHunt stopped on
+  {{ "these applications" if counts["Needs you"] > 1 else "this application" }} and handed
+  {{ "them" if counts["Needs you"] > 1 else "it" }} to you (a Singpass site, a question with no saved answer, a captcha...).
+  <a class="btn small" href="/?state=Needs%20you">Show</a></div>
+{% endif %}
+
 <div class="stats">
   <a class="stat link" href="/"><b>{{ counts.values()|sum }}</b><span>All</span></a>
   {% for s in states %}{% if counts.get(s) %}

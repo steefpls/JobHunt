@@ -21,6 +21,12 @@ def make_zip(files: dict[str, str]) -> bytes:
     return buf.getvalue()
 
 
+@pytest.fixture(autouse=True)
+def nothing_running(monkeypatch):
+    """No JobHunt is running on this PC during these tests (one that is, is covered in test_visibility)."""
+    monkeypatch.setattr(update, "port_in_use", lambda port: False)
+
+
 @pytest.fixture
 def install(tmp_path):
     tmp_path = tmp_path / "JobHunt"  # tmp_path itself already holds the test data folder

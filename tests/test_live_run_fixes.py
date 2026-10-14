@@ -377,6 +377,14 @@ def test_a_second_launch_leaves_the_running_jobhunt_alone(monkeypatch):
         port = busy.getsockname()[1]
         monkeypatch.setattr(sys, "argv", ["jobhunt", "--port", str(port), "--no-browser"])
         monkeypatch.setattr(entry, "create_app", lambda *a: pytest.fail("started up on a port in use"))
-        with pytest.raises(SystemExit, match="already running"):
+        opened = []
+        monkeypatch.setattr(entry.webbrowser, "open", opened.append)
+        # JobHunt is the one on the port (the tab was closed, say): bring it up in the browser instead
+        monkeypatch.setattr(entry, "jobhunt_running", lambda p: True)
+        entry.main()
+        assert opened == [f"http://127.0.0.1:{port}/"]
+        # some other program has the port: say so
+        monkeypatch.setattr(entry, "jobhunt_running", lambda p: False)
+        with pytest.raises(SystemExit, match="another program"):
             entry.main()
     assert entry.port_free(port)

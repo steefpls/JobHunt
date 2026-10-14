@@ -116,12 +116,13 @@ def test_login_browser_status_and_close(client, monkeypatch):
     import subprocess
     import sys
     from jobhunt.web import app as webapp
-    assert client.get("/api/login-browser").json() == {"open": False}
+    assert client.get("/api/login-browser").json() == {"open": False, "checking": False}
+    monkeypatch.setattr(webapp, "start_pending_login_check", lambda: None)  # no real browser check here
     proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     monkeypatch.setattr(webapp, "_login_proc", proc)
-    assert client.get("/api/login-browser").json() == {"open": True}
+    assert client.get("/api/login-browser").json()["open"] is True
     assert "Close it for me" in client.get("/accounts").text
     r = client.post("/accounts/browser/close", headers=SAME_ORIGIN)
     assert "Login browser closed" in r.text and proc.poll() is not None
-    assert client.get("/api/login-browser").json() == {"open": False}
+    assert client.get("/api/login-browser").json()["open"] is False
     assert "Close it for me" not in client.get("/accounts").text

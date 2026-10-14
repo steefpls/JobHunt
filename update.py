@@ -8,16 +8,25 @@ When requirements.txt changes, the Python packages and Chromium are refreshed.
 
 Offline, GitHub down, or anything unexpected: it says so and JobHunt starts
 as it is. Skipped for a git checkout (developers update with git) and when
-the environment variable JOBHUNT_NO_UPDATE is set.
+the environment variable JOBHUNT_NO_UPDATE is set. Also skipped while JobHunt
+is already running: its files are never swapped under it (run.bat then just
+brings the running one up in the browser).
+
+What happened is written to .jobhunt-update.json, so the app can say "JobHunt
+was updated: what's new", show its version and when it last checked, and
+offer a restart when a newer version comes out while it runs.
 Uses only the standard library, so it runs even when the packages are stale.
 """
+import argparse
 import hashlib
 import io
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -28,8 +37,15 @@ APP_DIR = Path(__file__).resolve().parent
 VERSION_FILE = ".jobhunt-version"  # the commit this copy was updated to
 MANIFEST_FILE = ".jobhunt-files"  # the files that update put here
 STALE_FILE = ".jobhunt-packages-stale"  # requirements.txt changed and the packages aren't refreshed yet
+STATUS_FILE = ".jobhunt-update.json"  # last check, newest version seen, and what the last update brought
 # never written or deleted by an update, even if the download had them
-PROTECTED = {"data", ".venv", ".browsers", ".git", "opencode_key.txt", VERSION_FILE, MANIFEST_FILE, STALE_FILE}
+PROTECTED = {"data", ".venv", ".browsers", ".git", "opencode_key.txt", VERSION_FILE, MANIFEST_FILE, STALE_FILE,
+             STATUS_FILE}
+DEFAULT_PORT = 8765
+MAX_NOTES = 15  # "what's new" lines kept from one update
+# The newest version before updates kept notes: a copy updated past it by an older update.py
+# (which wrote no status file) gets its "what's new" counted from here.
+NOTES_BASELINE = "ff87949"
 # run.bat is running while this runs; cmd reads it as it goes, so it is swapped in by run.bat itself
 RUN_BAT = "run.bat"
 
@@ -42,6 +58,58 @@ def latest_commit(timeout: float = 8) -> str:
     if len(sha) != 40 or any(c not in "0123456789abcdef" for c in sha):
         raise ValueError(f"unexpected answer from GitHub: {sha[:60]!r}")
     return sha
+
+
+def changes(old: str, new: str, timeout: float = 8) -> list[str]:
+    """The first line of every commit between two versions, oldest first (merges left out)."""
+    req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/compare/{old}...{new}",
+                                 headers={"Accept": "application/vnd.github+json", "User-Agent": "JobHunt-updater"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        commits = json.loads(r.read().decode()).get("commits") or []
+    lines = [str((c.get("commit") or {}).get("message") or "").strip().splitlines()[:1] for c in commits]
+    lines = [ln[0].strip() for ln in lines if ln]
+    return [ln for ln in lines if ln and not ln.startswith("Merge ")][-MAX_NOTES:]
+
+
+def read_status(app_dir: Path) -> dict:
+    try:
+        data = json.loads((app_dir / STATUS_FILE).read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def write_status(app_dir: Path, **changes) -> dict:
+    """Merges `changes` into the status file (read by the app) and returns the result."""
+    status = {**read_status(app_dir), **changes}
+    tmp = app_dir / (STATUS_FILE + ".tmp")
+    try:
+        tmp.write_text(json.dumps(status, indent=1), encoding="utf-8")
+        os.replace(tmp, app_dir / STATUS_FILE)
+    except OSError:  # only the notices are lost; JobHunt itself is fine
+        pass
+    return status
+
+
+def now() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def port_in_use(port: int) -> bool:
+    """Something (normally JobHunt itself) is answering on 127.0.0.1:port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
+def wait_for_port(port: int, timeout: float = 30) -> bool:
+    """For a restart from inside the app: wait until the old JobHunt has closed."""
+    deadline = time.monotonic() + timeout
+    while port_in_use(port):
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.5)
+    return True
 
 
 def download(sha: str, timeout: float = 60) -> bytes:
@@ -111,7 +179,19 @@ def refresh_packages(app_dir: Path) -> None:
     subprocess.run([py, "-m", "playwright", "install", "chromium"], cwd=str(app_dir), env=env, check=True)
 
 
-def main(app_dir: Path = APP_DIR) -> int:
+def main(app_dir: Path = APP_DIR, argv: list[str] = ()) -> int:
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--port", type=int, default=DEFAULT_PORT)
+    ap.add_argument("--restart", action="store_true")  # started by the app's "Restart to update" button
+    args, _ = ap.parse_known_args(list(argv))
+    if args.restart:
+        print("Waiting for the old JobHunt to close...")
+        if not wait_for_port(args.port):
+            print("  It is still running, so JobHunt was not updated.")
+            return 0
+    elif port_in_use(args.port):
+        print("JobHunt is already running, so it is not updated now (it updates the next time it starts).")
+        return 0
     if os.environ.get("JOBHUNT_NO_UPDATE") or (app_dir / ".git").exists():
         return 0
     print("Checking for JobHunt updates...")
@@ -119,11 +199,20 @@ def main(app_dir: Path = APP_DIR) -> int:
         sha = latest_commit()
     except Exception as e:
         print(f"  Couldn't reach GitHub ({e.__class__.__name__}). Starting the version you have.")
+        write_status(app_dir, checked_at=now(), check_ok=False)
         return 0
+    write_status(app_dir, checked_at=now(), check_ok=True, latest=sha)
     version = app_dir / VERSION_FILE
     stale = app_dir / STALE_FILE
-    if version.exists() and version.read_text(encoding="utf-8").strip() == sha:
+    old = version.read_text(encoding="utf-8").strip() if version.exists() else ""
+    if old == sha:
         print("  Up to date.")
+        if old and "updated" not in read_status(app_dir) and not old.startswith(NOTES_BASELINE):
+            try:  # an older update.py brought this version in: say what it brought
+                write_status(app_dir, updated={"from": NOTES_BASELINE, "to": sha, "at": now(),
+                                               "changes": changes(NOTES_BASELINE, sha), "seen": False})
+            except Exception:
+                pass
     else:
         try:
             archive = download(sha)
@@ -136,6 +225,11 @@ def main(app_dir: Path = APP_DIR) -> int:
             print(f"  Update failed ({e}). Starting the version you have.")
             return 0
         print(f"  Updated to {sha[:7]}.")
+        try:
+            notes = changes(old, sha) if old else []
+        except Exception:  # "what's new" is a nicety: the update itself already worked
+            notes = []
+        write_status(app_dir, updated={"from": old, "to": sha, "at": now(), "changes": notes, "seen": False})
     if stale.exists():  # also retries a package refresh that failed at an earlier start
         print("  Updating packages (this can take a few minutes)...")
         try:
@@ -149,4 +243,4 @@ def main(app_dir: Path = APP_DIR) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(APP_DIR, sys.argv[1:]))

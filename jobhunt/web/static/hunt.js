@@ -39,7 +39,16 @@
         + ` · $${j.cost_usd.toFixed(4)}` : 'No job in progress.';
       $('stopBtn').disabled = !s.busy;
       $('startBtn').disabled = s.busy || !KEY_SAVED;
-      if (wasBusy && !s.busy) { setTimeout(() => location.reload(), 1200); }
+      if (wasBusy && !s.busy) {
+        // Building the profile or drafting the scope: go back to that page with the result.
+        const back = {profile: '/profile', scope: '/scope'}[s.last_kind];
+        if (back) {
+          const key = s.last_status === 'done' ? 'msg' : 'err';
+          location.replace(back + '?' + key + '=' + encodeURIComponent(s.last_result || 'Finished.'));
+          return;
+        }
+        setTimeout(() => location.reload(), 1200);
+      }
       wasBusy = s.busy;
     } catch (err) { /* server restarting; try again */ }
   }

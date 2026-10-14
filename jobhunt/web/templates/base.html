@@ -19,10 +19,36 @@
     <div class="runstate" id="sideRun">
       <span class="dot {{ 'live' if status.busy }}"></span>{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}
     </div>
+    <div class="version" id="sideVersion">JobHunt version <b>{{ updates.version }}</b><br>
+      {% if not updates.on %}Updates are off (developer copy)
+      {% elif not updates.checked_at %}Checks for updates each time it starts
+      {% elif updates.check_ok %}Checked for updates {{ updates.checked_at }}
+      {% else %}Couldn't check for updates ({{ updates.checked_at }}): offline?{% endif %}
+    </div>
   </nav>
   <main>
     {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
     {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+    {% if updates.available %}
+    <div class="notice avail">
+      <b>A newer version of JobHunt is out</b> (you have {{ updates.version }}, the newest is {{ updates.latest }}).
+      Restart JobHunt to install it: about a minute, and everything of yours is kept.
+      <form method="post" action="/update/restart" class="inline"
+            data-confirm="Restart JobHunt now to install the new version? It closes and opens again by itself.">
+        <input type="hidden" name="next" value="{{ here }}">
+        <button class="btn small primary" {{ 'disabled' if status.busy }}>Restart &amp; update</button></form>
+      {% if status.busy %}<span class="hint">Once the current task has finished.</span>{% endif %}
+    </div>
+    {% endif %}
+    {% if updates.news %}
+    <div class="notice news">
+      <b>JobHunt was updated</b> to version {{ updates.news.to[:7] }}{% if updates.news["from"] %} (from {{ updates.news["from"][:7] }}){% endif %}.
+      {% if updates.news.changes %}What's new:
+      <ul>{% for c in updates.news.changes %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+      <form method="post" action="/update/seen" class="inline"><input type="hidden" name="next" value="{{ here }}">
+        <button class="btn small">Got it</button></form>
+    </div>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>
