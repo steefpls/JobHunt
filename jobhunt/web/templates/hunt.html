@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Hunt{% endblock %}
 {% block content %}
-<h1 id="huntPage" data-subscription="{{ 1 if subscription else 0 }}" data-key-saved="{{ 1 if key_saved else 0 }}"
+<h1 id="huntPage" data-subscription="{{ 1 if subscription else 0 }}" data-ready="{{ 0 if missing else 1 }}"
     data-max-apps="{{ settings.pacing.max_apps_per_hour_per_site }}" data-last-event="{{ events[-1].id if events else 0 }}"
     data-busy="{{ 1 if status.busy else 0 }}">Hunt</h1>
 <p class="sub">Finds postings, judges each against your scope, and builds a tailored package for every match, one job at a time.</p>
@@ -28,10 +28,13 @@
       {% endfor %}
       </div>
       <div class="est" id="estimate">Working out an estimate…</div>
+      {% if missing %}
+      <div class="notice todo" id="notReady"><b>Before you can start</b>
+        <ul>{% for what, href in missing %}<li><a href="{{ href }}">{{ what }}</a></li>{% endfor %}</ul></div>
+      {% endif %}
       <div class="actions">
-        <button class="btn primary" id="startBtn" {{ 'disabled' if status.busy or not key_saved }}
+        <button class="btn primary" id="startBtn" {{ 'disabled' if status.busy or missing }}
           data-confirm-auto="Auto-submit sends real applications without asking you first. Continue?">Start</button>
-        {% if not key_saved %}<span class="hint">Add your AI key on the <a href="/accounts">Accounts</a> page first.</span>{% endif %}
       </div>
     </form>
     <form method="post" action="/hunt/stop" style="margin-top:8px">

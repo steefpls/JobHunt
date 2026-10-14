@@ -2,7 +2,7 @@
 // Page values come from data-* attributes on #huntPage (no inline scripts).
 (function () {
   const cfg = document.getElementById('huntPage').dataset;
-  const KEY_SAVED = cfg.keySaved === '1';
+  const READY = cfg.ready === '1';  // AI key, Profile and Scope all done (else Start stays greyed out)
   const MAX_APPS = cfg.maxApps;
   let lastEvent = parseInt(cfg.lastEvent || '0');
   let wasBusy = cfg.busy === '1';
@@ -38,7 +38,7 @@
       $('mJob').textContent = j ? `Now: ${j.company} · ${j.role} (${j.state}) · ${fmt(j.tokens_in + j.tokens_out)} tokens`
         + ` · $${j.cost_usd.toFixed(4)}` : 'No job in progress.';
       $('stopBtn').disabled = !s.busy;
-      $('startBtn').disabled = s.busy || !KEY_SAVED;
+      $('startBtn').disabled = s.busy || !READY;
       if (wasBusy && !s.busy) {
         // Building the profile or drafting the scope: go back to that page with the result.
         const back = {profile: '/profile', scope: '/scope'}[s.last_kind];

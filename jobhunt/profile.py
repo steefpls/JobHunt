@@ -120,6 +120,11 @@ def scope_is_example(text: str) -> bool:
     return any(m in (text or "") for m in (SCOPE_EXAMPLE_MARKER, *_OLD_SCOPE_MARKERS))
 
 
+def scope_ready(text: str) -> bool:
+    """Is there a real description of the jobs wanted (not empty, not the template)?"""
+    return bool((text or "").strip()) and not scope_is_example(text)
+
+
 def salary_floor() -> float:
     """The expected salary from the screening answers, as SGD a month (0 = none saved)."""
     from .extract import parse_salary_floor

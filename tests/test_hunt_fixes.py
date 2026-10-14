@@ -85,7 +85,7 @@ def test_hunt_refuses_the_template_scope(demo_server, secrets, candidate, fake_l
     _prepare(demo_server)
     profile.save_scope_text((APP_DIR / "scope.example.md").read_text(encoding="utf-8"))
     run = _hunt(1)
-    assert run["status"] == "error" and "template" in run["summary"]
+    assert run["status"] == "error" and "describe the jobs you want" in run["summary"]
     assert fake_llm.requests == []
 
 

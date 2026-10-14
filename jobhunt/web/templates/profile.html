@@ -26,7 +26,7 @@
     {% endif %}
   </div>
 
-  <div class="card">
+  <div class="card" id="contact">
     <h2>Contact details</h2>
     <p class="muted">Used exactly as written on every resume, cover letter and form.</p>
     <form method="post" action="/profile/contact">
@@ -60,7 +60,7 @@
   </form>
 </div>
 
-<div class="card">
+<div class="card" id="profiletext">
   <h2>3. Check and edit your profile</h2>
   <p class="muted">{% if has_profile %}Read it through and fix anything wrong. The AI writes your resume and cover letter from this text
     and nothing else.{% else %}No profile yet. Build it from your CVs above, or write it here using this outline.{% endif %}</p>

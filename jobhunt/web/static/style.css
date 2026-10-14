@@ -97,3 +97,5 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #c7d6ff; border-c
 .notice.news { background: #e3f6ee; border-color: #b7e4cf; color: #0b5c41; }
 .badge.LoggedIn { background: #e3f6ee; color: var(--ok); }
 .badge.LoggedOut { background: #fff1e6; color: var(--warn); }
+.notice.todo { background: #fff8eb; border-color: #f6d99b; margin: 12px 0 0; }
+.notice.todo ul { margin-bottom: 0; }

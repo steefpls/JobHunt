@@ -105,7 +105,7 @@ def test_missing_profile_is_a_clear_error(demo_server, secrets, fake_llm):
     run_id = runner.start("hunt", {"jobs": 1, "sites": ["demo"]})
     runner.wait(60)
     run = db.get_run(run_id)
-    assert run["status"] == "error" and "Profile" in run["summary"]
+    assert run["status"] == "error" and "profile" in run["summary"]
 
 
 def test_estimate_shape(demo_server):

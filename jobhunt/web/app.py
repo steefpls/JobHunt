@@ -146,13 +146,10 @@ def create_app(port: int = 8765) -> FastAPI:
     # ── dashboard & jobs ───────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse)
     def dashboard(request: Request, state: str = ""):
-        s = settings_mod.load()
-        checklist = [
-            ("Add your AI key", secrets_store.has_secret(secrets_store.api_key_name(s["provider"])), "/accounts"),
-            ("Build your profile", profile.is_ready(), "/profile"),
-            ("Set your search scope", bool(s["scope"]["keywords"]) and bool(profile.load_scope_text().strip())
-             and not profile.scope_is_example(profile.load_scope_text()), "/scope"),
-        ]
+        todo = {href.split("#")[0] for _, href in hunt.readiness()}  # the same test the Hunt page's Start uses
+        checklist = [("Add your AI key", "/accounts" not in todo, "/accounts"),
+                     ("Build your profile", "/profile" not in todo, "/profile"),
+                     ("Set your search scope", "/scope" not in todo, "/scope")]
         return page(request, "dashboard.html", jobs=db.list_jobs(state or None), counts=db.state_counts(),
                     states=db.STATES, user_states=db.USER_STATES, state=state, checklist=checklist,
                     spend=db.total_spend(), runs=db.list_runs(5))
@@ -294,7 +291,7 @@ def create_app(port: int = 8765) -> FastAPI:
         if not text.strip():
             example = paths.APP_DIR / "scope.example.md"
             text = example.read_text(encoding="utf-8") if example.exists() else ""
-        return page(request, "scope.html", scope_text=text)
+        return page(request, "scope.html", scope_text=text, has_profile=bool(profile.load_profile().strip()))
 
     def store_scope(keywords: str, location: str, avoid_words: str, scope_text: str) -> None:
         settings_mod.update({"scope": {
@@ -498,7 +495,7 @@ def create_app(port: int = 8765) -> FastAPI:
         s = settings_mod.load()
         ready = db.list_jobs("Ready")
         return page(request, "hunt.html", sites=settings_mod.SITES, site_status=SITE_STATUS, ready=ready,
-                    needs_you=db.list_jobs("Needs you"),
+                    needs_you=db.list_jobs("Needs you"), missing=hunt.readiness(s),
                     events=db.recent_events(150), human_apply=hunt.HUMAN_APPLY_SITES)
 
     @app.post("/hunt/start")
@@ -516,6 +513,9 @@ def create_app(port: int = 8765) -> FastAPI:
         settings_mod.update({"hunt": {"jobs": jobs, "sites": sites}})  # the mode is never remembered: Draft each time
         if profile_busy_reason():
             return back("/hunt", err=profile_busy_reason())
+        missing = hunt.readiness(s)
+        if missing:
+            return back("/hunt", err=hunt.readiness_text(missing))
         try:
             hunt.runner.start("hunt", {"jobs": jobs, "sites": sites, "auto_submit": auto})
         except RuntimeError as e:

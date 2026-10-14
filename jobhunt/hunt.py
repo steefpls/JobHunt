@@ -330,6 +330,31 @@ def wait_for_rate_limit(task: Task, source: str) -> None:
             time.sleep(1)
 
 
+def readiness(s: dict | None = None) -> list[tuple[str, str]]:
+    """What still stops a hunt from running, as (what to do, the page to do it on). [] = ready.
+
+    The Hunt page greys out Start and lists these; the Dashboard's Get started ticks come from it too."""
+    s = s or settings_mod.load()
+    missing = []
+    if not secrets_store.has_secret(secrets_store.api_key_name(s["provider"])):
+        missing.append(("Add your AI key", "/accounts"))
+    contact = profile.load_contact()
+    if not (contact.get("name") and contact.get("email")):
+        missing.append(("Add your name and email", "/profile#contact"))
+    if not profile.load_profile().strip():
+        missing.append(("Build or write your profile", "/profile#profiletext"))
+    if not [k for k in s["scope"].get("keywords", []) if k.strip()]:
+        missing.append(("Add at least one search keyword", "/scope"))
+    if not profile.scope_ready(profile.load_scope_text()):
+        missing.append(("Describe the jobs you want", "/scope#describe"))
+    return missing
+
+
+def readiness_text(missing: list[tuple[str, str]]) -> str:
+    """'Before a hunt can start: add your AI key; describe the jobs you want.'"""
+    return "Before a hunt can start: " + "; ".join(what[0].lower() + what[1:] for what, _ in missing) + "."
+
+
 def run_hunt(task: Task) -> str:
     p = task.params
     s = task.settings
@@ -337,15 +362,11 @@ def run_hunt(task: Task) -> str:
     auto_submit = bool(p.get("auto_submit"))
     site_keys = [k for k in (p.get("sites") or s["hunt"]["sites"]) if k in settings_mod.SITES]
     keywords = [k for k in s["scope"].get("keywords", []) if k.strip()]
-    if not keywords:
-        raise LLMError("Add at least one search keyword on the Scope page first.")
-    if not profile.is_ready():
-        raise LLMError("Finish your Profile first (name, email and profile text).")
+    missing = readiness(s)
+    if missing:  # the Hunt page greys out Start until this is empty; this is the backstop
+        raise LLMError(readiness_text(missing))
     scope_text = profile.load_scope_text()
-    if profile.scope_is_example(scope_text):
-        raise LLMError("Your Scope is still the template. Fill it in on the Scope page (or press Draft from "
-                       "my profile) and delete its first line, then start again.")
-    task.get_llm()  # fail early on a missing key
+    task.get_llm()
     expected_salary = profile.load_screening()["expected_salary"]
     floor = profile.salary_floor()
     profile_text = profile.load_profile()
