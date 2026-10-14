@@ -30,6 +30,16 @@
   <main>
     {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
     {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+    {% if suggestion %}
+    <div class="notice tune" id="tune">
+      <b>{{ suggestion.question }}</b><br><span class="hint">{{ suggestion.detail }}</span>
+      <div class="actions" style="margin-top:8px">
+        {% if suggestion.kind == "link" %}<a class="btn small primary" href="{{ suggestion.href }}">{{ suggestion.button }}</a>
+        {% else %}<form method="post" action="/tune" class="inline"><input type="hidden" name="job_id" value="{{ suggestion.job_id }}">
+          <input type="hidden" name="next" value="{{ here }}"><button class="btn small primary">{{ suggestion.button }}</button></form>{% endif %}
+        <a class="btn small" href="{{ here }}">No thanks</a></div>
+    </div>
+    {% endif %}
     {% if updates.available %}
     <div class="notice avail">
       <b>A newer version of JobHunt is out</b> (you have {{ updates.version }}, the newest is {{ updates.latest }}).

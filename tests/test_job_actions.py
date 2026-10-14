@@ -88,7 +88,7 @@ def test_reject_with_reasons_saves_them_and_the_job_page_shows_them(client):
     r = client.post(f"/jobs/{jid}/reject", headers=SAME_ORIGIN, follow_redirects=False,
                     data={"reasons": ["Too senior", "Wrong location", "Made up"], "note": "  Too far   from home ",
                           "next": "/hunt"})
-    assert r.status_code == 303 and r.headers["location"].startswith("/hunt?msg=Rejected")
+    assert r.status_code == 303 and r.headers["location"].startswith("/hunt?") and "msg=Rejected" in r.headers["location"]
     job = db.get_job(jid)
     assert job["state"] == "Not for me"
     assert job["reject_reason"] == "Wrong location; Too senior"  # the quick picks only, in the usual order

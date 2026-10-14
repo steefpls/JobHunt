@@ -19,7 +19,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import achievements, db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store, updates
+from .. import (achievements, db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store, tuning,
+               updates)
 from .. import settings as settings_mod
 from ..sites import SITE_STATUS
 
@@ -131,6 +132,8 @@ def create_app(port: int = 8765) -> FastAPI:
         except Exception:  # a bit of fun must never break a page
             toasts = []
         name_ = (profile.load_contact().get("name") or "").split()
+        tune = request.query_params.get("tune", "")  # just rejected a job: offer one change to the Scope
+        ctx.update(suggestion=tuning.suggest(db.get_job(int(tune))) if tune.isdigit() else None)
         ctx.update(request=request, nav=name.split(".")[0], status=hunt.runner.status(), settings=s,
                    msg=request.query_params.get("msg", ""), err=request.query_params.get("err", ""),
                    subscription=s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS,
@@ -203,8 +206,20 @@ def create_app(port: int = 8765) -> FastAPI:
         if not db.get_job(job_id):
             return back("/", err="No such job.")
         db.reject(job_id, reasons, note)
-        return back(local_path(next, f"/jobs/{job_id}"),
+        url, hash_, fragment = local_path(next, f"/jobs/{job_id}").partition("#")
+        if tuning.suggest(db.get_job(job_id)):
+            url += f"{'&' if '?' in url else '?'}tune={job_id}"
+        return back(url + hash_ + fragment,
                     msg="Rejected: JobHunt won't suggest this job again. Changed your mind? Open it from the Dashboard.")
+
+    @app.post("/tune")
+    def tune_scope(job_id: int = Form(0), next: str = Form("")):
+        """Yes to the one Scope change offered after a reject (worked out again here, never taken from the form)."""
+        sug = tuning.suggest(db.get_job(job_id))
+        if not sug or sug["kind"] == "link":
+            return back(local_path(next, "/scope"), msg="Nothing to change: your Scope already covers that.")
+        tuning.apply(sug)
+        return back(local_path(next, "/scope"), msg=sug["done"])
 
     @app.post("/jobs/{job_id}/notes")
     def set_notes(job_id: int, notes: str = Form("")):

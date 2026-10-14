@@ -18,7 +18,7 @@ import time
 import traceback
 from datetime import datetime, timedelta
 
-from . import db, profile, prompts, render, secrets_store, settings as settings_mod
+from . import db, profile, prompts, render, secrets_store, settings as settings_mod, tuning
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
@@ -91,8 +91,9 @@ class Task:
 
 # ── building one package ──────────────────────────────────────────────
 
-def judge(task: Task, posting: Posting, scope_text: str, profile_text: str, expected_salary: str = "") -> dict:
-    system, user = prompts.filter_prompt(profile_text, scope_text, posting, expected_salary)
+def judge(task: Task, posting: Posting, scope_text: str, profile_text: str, expected_salary: str = "",
+          dislikes: str = "") -> dict:
+    system, user = prompts.filter_prompt(profile_text, scope_text, posting, expected_salary, dislikes)
     data, _ = task.get_llm().chat_json(stage="filter", system=system, user=user, max_tokens=400,
                                        job_id=f"listing:{posting.url}")
     decision = str(data.get("decision", "")).lower()
@@ -109,7 +110,7 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
     doubts = f"Doubts: {verdict['doubts']}" if verdict.get("doubts") else ""
     job_id = db.add_job(source=posting.source, url=posting.url, company=posting.company, role=posting.title,
                         location=posting.location, apply_url=posting.apply_url or posting.url,
-                        posting_text=posting.text, folder=folder.name, history=doubts,
+                        posting_text=posting.text, folder=folder.name, history=doubts, salary=posting.salary,
                         match_score=_num(verdict.get("score")), run_id=task.run_id)
     task.current_job = job_id
     listing_key = f"listing:{posting.url}"
@@ -426,6 +427,7 @@ def run_hunt(task: Task) -> str:
     floor = profile.salary_floor()
     profile_text = profile.load_profile()
     avoid = s["scope"].get("avoid_words", [])
+    dislikes = tuning.dislikes_text()  # why you turned recent packages down
     task.log(f"Hunt started: up to {target} jobs from {', '.join(site_keys)}; "
              f"{'AUTO-SUBMIT' if auto_submit else 'draft mode (nothing is submitted)'}; caps: {caps_text(s)}.")
     browser = make_browser(headless=True)
@@ -478,7 +480,7 @@ def run_hunt(task: Task) -> str:
                 task.log(f"Skip ({reason}): {posting.company} - {posting.title}")
                 continue
             try:
-                verdict = judge(task, posting, scope_text, profile_text, expected_salary)
+                verdict = judge(task, posting, scope_text, profile_text, expected_salary, dislikes)
             except RateLimited:
                 raise
             except LLMError as e:  # one unreadable answer costs one posting, not the whole run

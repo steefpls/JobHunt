@@ -99,7 +99,8 @@ def scope_prompt(profile_text: str, template: str, screening: dict) -> tuple[str
 
 # ── 2. filter: does this posting fit the scope? ───────────────────────
 
-def filter_prompt(profile_text: str, scope_text: str, posting, expected_salary: str = "") -> tuple[str, str]:
+def filter_prompt(profile_text: str, scope_text: str, posting, expected_salary: str = "",
+                  dislikes: str = "") -> tuple[str, str]:
     system = (
         "You screen job postings for one candidate against their written scope. Be quick and decisive.\n"
         "Skip anything matching the scope's Avoid list, clearly wrong seniority or role type, or a salary stated below "
@@ -112,10 +113,15 @@ def filter_prompt(profile_text: str, scope_text: str, posting, expected_salary: 
         floor = ("Candidate's expected salary (a hard floor, it overrides any salary in the scope): "
                  + _cap(expected_salary, 200) + "\nIf the posting states a salary whose TOP end is below this floor "
                  "(convert yearly figures to monthly), choose skip. A range that only starts below it is fine.\n\n")
+    past = ""
+    if dislikes.strip():  # the job titles and companies in it came from job sites, so it is fenced as data
+        past = ("Packages the candidate turned down recently, with their reasons. These are their stated dislikes: "
+                "skip a posting that clearly has the same problem.\n" + untrusted("rejected_jobs", dislikes, 1500)
+                + "\n\n")
     user = (
         "Candidate profile (short):\n" + _cap(profile_text, 3500) + "\n\n"
         "Candidate's scope (what they want and what to avoid):\n" + _cap(scope_text, CAPS["scope"]) + "\n\n"
-        + floor +
+        + floor + past +
         "Posting:\n" + _posting_block(posting, CAPS["filter_posting"]) + "\n\n"
         'Return: {"decision": "apply" or "skip", "score": 0-10, "reasons": ["max 3 short reasons"], "doubts": ""}'
     )

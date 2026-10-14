@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     reason_kind TEXT NOT NULL DEFAULT '',  -- what kind of stop (see hunt.needs_you_fix)
     history TEXT NOT NULL DEFAULT '',      -- what JobHunt did with it, one line each (notes are yours)
     reject_reason TEXT NOT NULL DEFAULT '', -- why you rejected it: the quick picks, joined with '; '
-    reject_note TEXT NOT NULL DEFAULT ''    -- ... and anything you typed
+    reject_note TEXT NOT NULL DEFAULT '',   -- ... and anything you typed
+    salary TEXT NOT NULL DEFAULT ''         -- the pay as the posting stated it
 );
 CREATE TABLE IF NOT EXISTS seen (
     url TEXT PRIMARY KEY,
@@ -125,7 +126,7 @@ def connect() -> sqlite3.Connection:
 # Columns added after the first release: a tracker made before them gets them on start-up.
 _ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": "TEXT NOT NULL DEFAULT ''",
                            "history": "TEXT NOT NULL DEFAULT ''", "reject_reason": "TEXT NOT NULL DEFAULT ''",
-                           "reject_note": "TEXT NOT NULL DEFAULT ''"}}
+                           "reject_note": "TEXT NOT NULL DEFAULT ''", "salary": "TEXT NOT NULL DEFAULT ''"}}
 
 
 def init() -> None:
@@ -171,13 +172,14 @@ def _query(sql: str, args=()) -> list[dict]:
 # ── jobs ──────────────────────────────────────────────────────────────
 
 def add_job(*, source, url, company, role, location="", apply_url="", posting_text="",
-            folder="", notes="", history="", match_score=None, run_id=None, state="Found") -> int:
+            folder="", notes="", history="", match_score=None, run_id=None, state="Found", salary="") -> int:
     ts = now()
     cur = _exec(
         "INSERT INTO jobs (created_at, updated_at, source, url, company, role, location, apply_url,"
-        " posting_text, state, folder, notes, history, match_score, run_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " posting_text, state, folder, notes, history, match_score, run_id, salary)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (ts, ts, source, url, company, role, location, apply_url, posting_text, state, folder, notes,
-         _stamp(history) if history else "", match_score, run_id),
+         _stamp(history) if history else "", match_score, run_id, salary or ""),
     )
     _exec("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,'jobhunt')", (cur.lastrowid, ts, state))
     return cur.lastrowid
@@ -251,6 +253,12 @@ def reject_text(job: dict) -> str:
     """'Too senior; Wrong location. "Too far from home"' ('' when no reason was given)."""
     reason, note = job.get("reject_reason") or "", job.get("reject_note") or ""
     return (reason + ("." if reason else "") + (f' "{note}"' if note else "")).strip()
+
+
+def recent_rejections(limit: int = 10) -> list[dict]:
+    """Your latest rejections that came with a reason, newest first."""
+    return _query("SELECT company, role, reject_reason, reject_note FROM jobs WHERE state = 'Not for me'"
+                  " AND (reject_reason != '' OR reject_note != '') ORDER BY updated_at DESC, id DESC LIMIT ?", (limit,))
 
 
 def why_needs_you(job: dict) -> str:

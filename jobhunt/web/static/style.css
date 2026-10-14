@@ -97,6 +97,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #c7d6ff; border-c
 .notice ul { margin: 6px 0 8px; padding-left: 20px; }
 .notice.avail { background: #f7f9ff; border-color: #c7d6ff; }
 .notice.news { background: #e3f6ee; border-color: #b7e4cf; color: #0b5c41; }
+.notice.tune { background: #f7f9ff; border-color: #c7d6ff; }
 .badge.LoggedIn { background: #e3f6ee; color: var(--ok); }
 .badge.LoggedOut { background: #fff1e6; color: var(--warn); }
 .notice.todo { background: #fff8eb; border-color: #f6d99b; margin: 12px 0 0; }
