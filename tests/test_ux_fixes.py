@@ -287,3 +287,10 @@ def test_an_older_tracker_gets_the_new_columns(data_dir):
     db.init()
     job = db.get_job(1)
     assert job["reason"] == "" and db.why_needs_you(job) == "Apply attempt broke"  # older jobs: their last note
+
+
+def test_a_hunt_whose_packages_were_dealt_with_doesnt_say_it_found_nothing(client):
+    run = finished_hunt("done", "1 package(s) built from 3 posting(s) examined (0 already known).", ready_jobs=1)
+    db.update_job(db.list_jobs("Ready")[0]["id"], state="Applied")
+    page = client.get("/hunt").text
+    assert "No new packages this time" not in page and "waiting for your approval: review" not in page

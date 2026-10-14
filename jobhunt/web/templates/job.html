@@ -79,6 +79,15 @@
   {% endif %}
 </div>
 
+{% if job.state == "Rejected" %}
+<details class="card decoder" id="decoder">
+  <summary>Decode this rejection</summary>
+  <p class="muted">What they wrote, and what they meant. Probably.</p>
+  <table>{% for said, meant in decoder %}<tr><td>“{{ said }}”</td><td>{{ meant }}</td></tr>{% endfor %}</table>
+  <p class="hint">Their loss. On to the next one.</p>
+</details>
+{% endif %}
+
 <div class="card">
   <h2>Posting text <span class="muted" style="font-weight:400;font-size:13px">(what the AI read)</span></h2>
   <div class="posting">{{ job.posting_text }}</div>

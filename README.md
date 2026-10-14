@@ -176,4 +176,5 @@ background runner), `applyagent.py` (form filling), `render.py` and `documents\`
 (templates), `db.py` (tracker), `secrets_store.py` and `first_run.py` (keys),
 `login_browser.py` and `login_check.py` (job-site logins and whether they worked),
 `updates.py` (version, update notices and Restart & update; the updating itself is
-`update.py` next to `run.bat`), `web\` (UI), `demo_board.py` (practice site).
+`update.py` next to `run.bat`), `web\` (UI), `demo_board.py` (practice site),
+`achievements.py` and `web\static\eggs.js` (a surprise for the user: please don't spoil it).

@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store, updates
+from .. import achievements, db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store, updates
 from .. import settings as settings_mod
 from ..sites import SITE_STATUS
 
@@ -128,21 +128,31 @@ def create_app(port: int = 8765) -> FastAPI:
 
     def page(request: Request, name: str, **ctx):
         s = settings_mod.load()
+        try:
+            toasts = achievements.check()
+        except Exception:  # a bit of fun must never break a page
+            toasts = []
+        name_ = (profile.load_contact().get("name") or "").split()
         ctx.update(request=request, nav=name.split(".")[0], status=hunt.runner.status(), settings=s,
                    msg=request.query_params.get("msg", ""), err=request.query_params.get("err", ""),
                    subscription=s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS,
                    key_saved=secrets_store.has_secret(secrets_store.api_key_name(s["provider"])),
                    updates=updates.info(), here=request.url.path, waiting=db.state_counts().get("Ready", 0),
-                   human_apply_sites=hunt.HUMAN_APPLY_SITES)
+                   human_apply_sites=hunt.HUMAN_APPLY_SITES, toasts=toasts, trophies=achievements.earned_count(),
+                   first_name=name_[0] if name_ else "",
+                   party=request.query_params.get("party", "") if request.query_params.get("party") in
+                   ("offer", "interview") else "")
         return templates.TemplateResponse(request, name, ctx)
 
-    def back(url: str, msg: str = "", err: str = "") -> RedirectResponse:
+    def back(url: str, msg: str = "", err: str = "", party: str = "") -> RedirectResponse:
         url, hash_, fragment = url.partition("#")  # the message goes before any #fragment, or it never shows
         sep = "&" if "?" in url else "?"
         if msg:
             url += f"{sep}msg={quote(msg)}"
         elif err:
             url += f"{sep}err={quote(err)}"
+        if party:
+            url += f"{'&' if '?' in url else '?'}party={party}"
         return RedirectResponse(url + hash_ + fragment, status_code=303)
 
     # ── dashboard & jobs ───────────────────────────────────────────────
@@ -172,7 +182,7 @@ def create_app(port: int = 8765) -> FastAPI:
         report_html = render.report_html(report.read_text(encoding="utf-8")) if report.exists() else ""
         has_package = (folder / "resume.pdf").is_file() if job["folder"] else False
         help_ = hunt.needs_you_fix(job)
-        return page(request, "job.html", job=job, files=render.list_files(folder) if job["folder"] else [],
+        return page(request, "job.html", job=job, decoder=achievements.DECODER, files=render.list_files(folder) if job["folder"] else [],
                     report_html=report_html, calls=db.job_calls(job_id), user_states=db.USER_STATES,
                     human_apply=job["source"] in hunt.HUMAN_APPLY_SITES, has_package=has_package,
                     why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
@@ -182,8 +192,10 @@ def create_app(port: int = 8765) -> FastAPI:
     def set_state(job_id: int, state: str = Form(...), next: str = Form("")):
         if state not in db.USER_STATES:
             return back(f"/jobs/{job_id}", err="Not a state you can set by hand.")
-        db.update_job(job_id, state=state)
-        return back(local_path(next, f"/jobs/{job_id}"), msg=f"Marked as {state}.")
+        db.update_job(job_id, state=state, by="you")
+        cheer = {"Offer": " Congratulations! 🎉", "Interview": " Nice one. Go get it!"}.get(state, "")
+        return back(local_path(next, f"/jobs/{job_id}"), msg=f"Marked as {state}.{cheer}",
+                    party={"Offer": "offer", "Interview": "interview"}.get(state, ""))
 
     @app.post("/jobs/{job_id}/notes")
     def set_notes(job_id: int, notes: str = Form("")):
@@ -486,6 +498,18 @@ def create_app(port: int = 8765) -> FastAPI:
         start_pending_login_check()
         return JSONResponse({"open": login_browser_open(), "checking": login_check_running() or _check_pending})
 
+    # ── achievements (not in the menu) ────────────────────────────────
+    @app.get("/achievements", response_class=HTMLResponse)
+    def achievements_page(request: Request):
+        achievements.set_flag("snoop")
+        return page(request, "achievements.html", board=achievements.board())
+
+    @app.post("/achievements/flag")
+    def achievement_flag(name: str = Form("")):
+        if name in achievements.SETTABLE_FLAGS:
+            achievements.set_flag(name)
+        return Response(status_code=204)
+
     # ── version & updates ──────────────────────────────────────────────
     @app.get("/api/version")
     def api_version():  # also how a second run.bat tells that JobHunt is the one on this port
@@ -520,7 +544,8 @@ def create_app(port: int = 8765) -> FastAPI:
                     needs_you=db.list_jobs("Needs you"), missing=hunt.readiness(s), ticked=hunt.suggested_sites(s),
                     practice_first=not s["hunt"].get("sites_chosen") and not db.practice_hunt_done(),
                     events=db.recent_events(150), last_hunt=last_hunt,
-                    last_hunt_ready=db.count_jobs(last_hunt["id"], "Ready") if last_hunt else 0)
+                    last_hunt_ready=db.count_jobs(last_hunt["id"], "Ready") if last_hunt else 0,
+                    last_hunt_built=db.count_jobs(last_hunt["id"]) if last_hunt else 0)
 
     @app.post("/hunt/start")
     async def hunt_start(request: Request):

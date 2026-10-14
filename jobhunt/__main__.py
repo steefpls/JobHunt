@@ -32,6 +32,18 @@ def jobhunt_running(port: int) -> bool:
         return False
 
 
+def seen_again(port: int) -> None:
+    """Tell the running JobHunt it was opened a second time (it has a little something for that)."""
+    direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/achievements/flag", data=b"name=deja_vu", method="POST",
+                                 headers={"Origin": f"http://127.0.0.1:{port}",
+                                          "Content-Type": "application/x-www-form-urlencoded"})
+    try:
+        direct.open(req, timeout=3).close()
+    except Exception:
+        pass
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="jobhunt")
     ap.add_argument("--port", type=int, default=8765)
@@ -41,6 +53,7 @@ def main() -> None:
     url = f"http://127.0.0.1:{args.port}/"
     if not port_free(args.port):  # before create_app: its start-up tidy-up would upset the JobHunt already running
         if jobhunt_running(args.port):  # run.bat double-clicked again (the tab was closed, say): just show it
+            seen_again(args.port)
             webbrowser.open(url)
             print(f"\n  JobHunt is already running, so it was opened in your browser ({url}).\n"
                   "  You can close this window.", flush=True)

@@ -229,7 +229,10 @@ def main(app_dir: Path = APP_DIR, argv: list[str] = ()) -> int:
             notes = changes(old, sha) if old else []
         except Exception:  # "what's new" is a nicety: the update itself already worked
             notes = []
-        write_status(app_dir, updated={"from": old, "to": sha, "at": now(), "changes": notes, "seen": False})
+        before = read_status(app_dir)
+        count = int(before.get("updates") or (1 if before.get("updated") else 0)) + 1  # updates installed so far
+        write_status(app_dir, updated={"from": old, "to": sha, "at": now(), "changes": notes, "seen": False},
+                     updates=count)
     if stale.exists():  # also retries a package refresh that failed at an earlier start
         print("  Updating packages (this can take a few minutes)...")
         try:

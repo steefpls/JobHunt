@@ -20,6 +20,7 @@
       const s = await (await fetch('/api/status?after=' + lastEvent)).json();
       const log = $('log');
       const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+      if (s.events.length && $('logArt')) $('logArt').remove();
       for (const e of s.events) { log.appendChild(line(e)); lastEvent = e.id; }
       if (atBottom) log.scrollTop = log.scrollHeight;
       const m = s.meter;

@@ -14,7 +14,7 @@
   <span class="muted">· {{ (lh.finished_at or lh.started_at).replace("T", " ")[:16] }}</span><br>
   {{ lh.summary }}
   {% if last_hunt_ready %}<div class="actions" style="margin-top:8px"><a class="btn small primary" href="#approve">{{ last_hunt_ready }} {{ "package is" if last_hunt_ready == 1 else "packages are" }} waiting for your approval: review {{ "it" if last_hunt_ready == 1 else "them" }}</a></div>
-  {% elif lh.status == "done" %}<br><span class="hint">No new packages this time. Widen your search keywords or Scope, or try more sites.</span>{% endif %}
+  {% elif lh.status == "done" and not last_hunt_built %}<br><span class="hint">No new packages this time. Widen your search keywords or Scope, or try more sites.</span>{% endif %}
 </div>
 {% endif %}
 
@@ -86,7 +86,12 @@
 
 <div class="card">
   <h2>Progress log</h2>
-  <div class="log" id="log">{% for e in events %}<div class="{{ e.level }}"><span class="ts">{{ e.ts[11:19] }}</span> {{ e.message }}</div>{% endfor %}</div>
+  <div class="log" id="log">{% if not events %}<div id="logArt" class="art">
+        __
+   (___()'`;     No hunts yet.
+   /,    /`      The dog is ready when you are.
+   \\"--\\
+</div>{% endif %}{% for e in events %}<div class="{{ e.level }}"><span class="ts">{{ e.ts[11:19] }}</span> {{ e.message }}</div>{% endfor %}</div>
 </div>
 {% endblock %}
 {% block scripts %}

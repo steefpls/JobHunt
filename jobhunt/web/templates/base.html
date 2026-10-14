@@ -6,10 +6,10 @@
 <title>{% if waiting %}({{ waiting }}) {% endif %}{% block title %}JobHunt{% endblock %} · JobHunt</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body data-party="{{ party }}" data-name="{{ first_name }}">
 <div class="layout">
   <nav class="side">
-    <div class="logo">Job<span>Hunt</span></div>
+    <div class="logo" id="logo">Job<span>Hunt</span></div>
     <a href="/" class="{{ 'on' if nav == 'dashboard' or nav == 'job' }}">Dashboard</a>
     <a href="/hunt" class="{{ 'on' if nav == 'hunt' }}">Hunt</a>
     <a href="/profile" class="{{ 'on' if nav == 'profile' }}">Profile</a>
@@ -25,6 +25,7 @@
       {% elif updates.check_ok %}Checked for updates {{ updates.checked_at }}
       {% else %}Couldn't check for updates ({{ updates.checked_at }}): offline?{% endif %}
     </div>
+    {% if trophies %}<a href="/achievements" class="trophies {{ 'on' if nav == 'achievements' }}">🏆 {{ trophies }} achievement{{ 's' if trophies != 1 }}</a>{% endif %}
   </nav>
   <main>
     {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
@@ -52,7 +53,16 @@
     {% block content %}{% endblock %}
   </main>
 </div>
+{% if toasts %}
+<div class="toasts" id="toasts">
+  {% for t in toasts[:4] %}<a class="toast" href="/achievements"><span class="ticon">{{ t.icon }}</span>
+    <span><b>{{ t.title }}</b><br>{{ t.text }}</span></a>{% endfor %}
+  {% if toasts|length > 4 %}<a class="toast" href="/achievements"><span class="ticon">🏆</span>
+    <span><b>And {{ toasts|length - 4 }} more</b><br>See them all</span></a>{% endif %}
+</div>
+{% endif %}
 <script src="/static/app.js"></script>
+<script src="/static/eggs.js"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

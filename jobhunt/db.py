@@ -6,6 +6,7 @@ Tables
   runs       one row per hunt / apply / profile task, with its spend
   llm_calls  every model call: stage, model, tokens, cost
   events     the live progress log shown on the Hunt page
+  job_states every change of a job's state, when, and whether you or JobHunt made it
 """
 import csv
 import io
@@ -85,6 +86,13 @@ CREATE TABLE IF NOT EXISTS events (
     level TEXT NOT NULL,
     message TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS job_states (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id INTEGER NOT NULL,
+    ts TEXT NOT NULL,
+    state TEXT NOT NULL,
+    by TEXT NOT NULL DEFAULT 'jobhunt'  -- 'jobhunt', 'you', or 'earlier' (rebuilt from a tracker made before this table)
+);
 CREATE TABLE IF NOT EXISTS timings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER,
@@ -121,6 +129,16 @@ def init() -> None:
             for name, decl in cols.items():
                 if name not in have:
                     con.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+        if not con.execute("SELECT 1 FROM job_states LIMIT 1").fetchone():
+            # A tracker from before job_states: start each job's history from what is known about it.
+            for j in con.execute("SELECT id, created_at, updated_at, state, date_applied FROM jobs").fetchall():
+                if j["date_applied"]:
+                    con.execute("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,'earlier')",
+                                (j["id"], j["date_applied"] + "T12:00:00", "Applied"))
+                if j["state"] != "Applied" or not j["date_applied"]:
+                    con.execute("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,'earlier')",
+                                (j["id"], max(j["updated_at"], j["date_applied"] + "T12:00:01") if j["date_applied"]
+                                 else j["updated_at"], j["state"]))
 
 
 def _exec(sql: str, args=()) -> sqlite3.Cursor:
@@ -154,6 +172,7 @@ def add_job(*, source, url, company, role, location="", apply_url="", posting_te
         (ts, ts, source, url, company, role, location, apply_url, posting_text, state, folder, notes,
          _stamp(history) if history else "", match_score, run_id),
     )
+    _exec("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,'jobhunt')", (cur.lastrowid, ts, state))
     return cur.lastrowid
 
 
@@ -161,7 +180,8 @@ _JOB_FIELDS = {"company", "role", "location", "apply_url", "posting_text", "stat
                "folder", "notes", "match_score", "reason", "reason_kind", "history"}
 
 
-def update_job(job_id: int, **fields) -> None:
+def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:
+    """Change a job. `by` says who changed its state: "jobhunt", or "you" from the job pages."""
     bad = set(fields) - _JOB_FIELDS
     if bad:
         raise ValueError(f"unknown job fields: {bad}")
@@ -174,7 +194,12 @@ def update_job(job_id: int, **fields) -> None:
         fields.setdefault("reason_kind", "")
     fields["updated_at"] = now()
     cols = ", ".join(f"{k} = ?" for k in fields)
-    _exec(f"UPDATE jobs SET {cols} WHERE id = ?", (*fields.values(), job_id))
+    with _lock:
+        old = _query("SELECT state FROM jobs WHERE id = ?", (job_id,)) if "state" in fields else []
+        _exec(f"UPDATE jobs SET {cols} WHERE id = ?", (*fields.values(), job_id))
+        if old and old[0]["state"] != fields["state"]:
+            _exec("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,?)",
+                  (job_id, fields["updated_at"], fields["state"], by))
 
 
 def append_note(job_id: int, note: str) -> None:
@@ -327,14 +352,22 @@ def recover_interrupted() -> None:
             add_history(job["id"], "JobHunt was closed while building this package.")
 
 
+def query(sql: str, args=()) -> list[dict]:
+    """A read-only query for code that only reports (achievements)."""
+    return _query(sql, args)
+
+
 def last_run(kind: str) -> dict | None:
     """The latest finished run of this kind (a running one is shown live instead)."""
     rows = _query("SELECT * FROM runs WHERE kind = ? AND status != 'running' ORDER BY id DESC LIMIT 1", (kind,))
     return rows[0] if rows else None
 
 
-def count_jobs(run_id: int, state: str) -> int:
-    return _query("SELECT COUNT(*) AS n FROM jobs WHERE run_id = ? AND state = ?", (run_id, state))[0]["n"]
+def count_jobs(run_id: int, state: str = "") -> int:
+    """Jobs from this run in this state; with no state, the packages it built (any state but Found / Error)."""
+    if state:
+        return _query("SELECT COUNT(*) AS n FROM jobs WHERE run_id = ? AND state = ?", (run_id, state))[0]["n"]
+    return _query("SELECT COUNT(*) AS n FROM jobs WHERE run_id = ? AND state NOT IN ('Found', 'Error')", (run_id,))[0]["n"]
 
 
 def practice_hunt_done() -> bool:

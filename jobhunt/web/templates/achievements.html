@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Achievements{% endblock %}
+{% block content %}
+<h1>🏆 Achievements</h1>
+<p class="sub">You found the secret page. Everything here comes from your own job hunt.</p>
+<p class="ach-summary"><b>{{ board.earned }}</b> of {{ board.possible }} earned.</p>
+
+{% for group, items in board.groups.items() %}
+<h2>{{ group }}</h2>
+<div class="ach-grid">
+  {% for a in items %}
+  {% if a.secret %}
+  <div class="ach secret">
+    <div class="top"><span class="icon">❔</span><div><div class="name">???</div>
+      <div class="hint" style="margin:0">{{ a.kind.hint }}</div></div></div>
+  </div>
+  {% else %}
+  <div class="ach {{ 'none' if not a.earned }}">
+    <div class="top"><span class="icon">{{ a.kind.icon }}</span>
+      <div><div class="name">{{ a.kind.name }}</div>
+        {% if a.current %}<span class="badge tier">{{ a.current }}</span>{% endif %}</div></div>
+    {% if a.kind.tiers|length > 1 or a.kind.lower_better %}
+    <div class="val">{{ a.value }} {{ a.unit }}{% if a.next %} · next: <b>{{ a.next[0] }}</b> at {{ a.next[1] }}{% if a.kind.lower_better %} or less{% endif %}{% else %} · all tiers earned{% endif %}</div>
+    <div class="bar"><span style="width:{{ a.progress }}%"></span></div>
+    <div class="pips">{% for name, at, on in a.tiers %}<span class="pip t{{ loop.index0 }} {{ 'on' if on }}" title="{{ name }}: {{ at }}">{{ at }}</span>{% endfor %}</div>
+    {% else %}
+    <div class="val">{{ a.kind.unit[0]|upper }}{{ a.kind.unit[1:] }}{% if not a.earned %} · not yet{% endif %}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
