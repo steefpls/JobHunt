@@ -55,14 +55,26 @@ def test_linkedin_sign_in_cookie():
                                     "linkedin.com", "li_at", now) == "out"
 
 
+def test_which_account_you_are_logged_in_as():
+    page = "Contact support@indeed.com\nJane Tan\njane.tan@gmail.com\n+65 9123 4567"
+    assert login_check.email_in_text(page, ["indeed.com"]) == "jane.tan@gmail.com"
+    assert login_check.email_in_text("Help: help@sg.jobstreet.com", ["jobstreet.com", "seek.com"]) == ""
+    assert login_check.email_in_text("", ["indeed.com"]) == ""
+    assert login_check.linkedin_name({"miniProfile": {"firstName": "Jane", "lastName": "Tan"}}) == "Jane Tan"
+    assert login_check.linkedin_name({"data": {}, "included": [{"$type": "x"}, {"firstName": "Jane", "lastName": ""}]}) == "Jane"
+    assert login_check.linkedin_name({"status": 401}) == "" and login_check.linkedin_name(None) == ""
+
+
 def test_accounts_page_shows_each_sites_login_state(client):
     assert client.get("/accounts").text.count("Not checked yet") == len(webapp.LOGIN_SITES)
-    login_check.save_status({"linkedin": {"state": "in", "detail": "", "checked_at": "2026-10-14T10:00:00"},
+    login_check.save_status({"linkedin": {"state": "in", "detail": "", "account": "Jane Tan",
+                                          "checked_at": "2026-10-14T10:00:00"},
                              "jobstreet": {"state": "out", "detail": "the site asked to sign in",
                                            "checked_at": "2026-10-14T10:00:00"}})
     page = client.get("/accounts").text
     assert "✓ Logged in" in page and "Not logged in" in page and "Not checked yet" in page
     assert "checked 2026-10-14 10:00" in page and "Log in again" in page
+    assert "Logged in</span> as <b>Jane Tan</b>" in page
     assert "Session saved" not in client.get("/static/app.js").text  # no more "saved" without knowing
 
 

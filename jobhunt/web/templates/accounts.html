@@ -42,7 +42,7 @@
     <tr><td><b>{{ label }}</b></td>
       <td>{% if browser_open or checking or check_waiting %}<span class="badge">…</span>
         {% elif not st %}<span class="badge">Not checked yet</span>
-        {% elif st.state == "in" %}<span class="badge LoggedIn">✓ Logged in</span>
+        {% elif st.state == "in" %}<span class="badge LoggedIn">✓ Logged in</span>{% if st.account %} as <b>{{ st.account }}</b>{% endif %}
         {% elif st.state == "out" %}<span class="badge LoggedOut">Not logged in</span>
         {% else %}<span class="badge">Couldn't tell</span>{% endif %}
         {% if st and not (browser_open or checking or check_waiting) %}<span class="hint">
