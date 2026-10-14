@@ -19,7 +19,7 @@
       </td></tr>
     {% endfor %}
   </table>
-  <form method="post" action="/accounts/apikey" class="row" style="margin-top:12px" autocomplete="off">
+  <form method="post" action="/accounts/apikey" class="row" style="margin-top:12px" autocomplete="off" data-guard>
     <div style="flex:0 0 260px"><label for="f_provider">Provider</label>
       <select id="f_provider" name="provider">{% for p, label in providers.items() %}<option value="{{ p }}" {{ 'selected' if p == settings.provider }}>{{ label }}</option>{% endfor %}</select></div>
     <div><label for="f_api_key">Paste key</label><input type="password" id="f_api_key" name="api_key" autocomplete="new-password" placeholder="paste your key here"></div>
@@ -79,7 +79,7 @@
     {% endfor %}
   </table>
   {% endif %}
-  <form method="post" action="/accounts/logins" autocomplete="off" style="margin-top:10px">
+  <form method="post" action="/accounts/logins" autocomplete="off" style="margin-top:10px" data-guard>
     <div class="row">
       <div><label for="f_name">Name</label><input type="text" id="f_name" name="name" placeholder="default"></div>
       <div><label for="f_username">Username / email</label><input type="text" id="f_username" name="username" autocomplete="off"></div>

@@ -80,11 +80,13 @@ never sent to the AI as text.
    expected salary...): forms are answered from these exactly, and a question you
    left empty sends the job to you as *Needs you*. Your expected salary is also the
    hunt's salary floor: postings that state a lower range are skipped.
+   Contact details, screening answers and the profile text are saved together by one
+   *Save profile* button, and JobHunt asks before you leave a page with unsaved changes.
 2. **Scope**: the search words to type into job sites, words to skip outright
    (for example *intern*), and a free-text description of what you want and what
-   to avoid. It starts as a template with a hint under each heading; press
+   to avoid. A guide next to the box says what helps the AI decide; press
    *Draft from my profile* to have the AI write a first version from your Profile,
-   then check it. Hunts won't start until the template's first line is gone.
+   then check it.
 3. **Accounts**: click a site to open JobHunt's browser and log in yourself
    (Singpass, 2FA and captchas are fine, because it is you doing it). When you close
    the window, JobHunt checks each site and shows **Logged in** or **Not logged in**
@@ -92,8 +94,9 @@ never sent to the AI as text.
    save application-site logins (Workday and similar) with the sites each one may
    be used on (required). There is no Google login on purpose: the browser that
    fills in forms should not be signed in to your email.
-4. **Hunt**: pick how many jobs and which sites, then *Start*. Try the
-   **Practice board** first: it is a fake job board and application site built
+4. **Hunt**: pick how many jobs and which sites, then *Start*. Until your AI key,
+   Profile and Scope are done, Start is greyed out and the page lists what's missing.
+   Try the **Practice board** first: it is a fake job board and application site built
    into the app. The estimate shows tokens, cost and expected speed before you start.
 5. **Dashboard**: every package. Open one to preview the PDFs and match report,
    approve it, open its folder, or set Interview / Offer / Rejected.

@@ -113,3 +113,35 @@ def test_scope_page_starts_empty_with_the_guide_beside_it(client):
 def test_saving_an_empty_description_says_so(client):
     r = client.post("/scope", data={"keywords": "engineer", "scope_text": ""}, headers=SAME_ORIGIN)
     assert "Describe the jobs you want in the big box" in r.text
+
+
+# ── Profile: one Save for the page ───────────────────────────────────
+
+def test_one_save_keeps_contact_screening_and_profile_together(client):
+    page = client.get("/profile").text
+    form = page.split('<form method="post" action="/profile/save"', 1)[1].split("</form>", 1)[0]
+    assert 'id="f_name"' in form and 'id="s_notice_period"' in form and 'id="f_profile_text"' in form
+    assert form.count("Save profile") == 2 and "data-guard" in form
+    for n in ("1. Upload your CVs", "2. Once a CV is uploaded", "3. Contact details", "4. Screening answers",
+              "5. Check your profile"):
+        assert n in page
+    r = client.post("/profile/save", data={"name": "Alex Tan", "email": "alex@example.com", "links": "a\nb",
+                                           "notice_period": "1 month", "profile_text": "# Alex\nBackend engineer"},
+                    headers=SAME_ORIGIN)
+    assert "Profile saved." in r.text
+    assert profile.load_contact()["name"] == "Alex Tan" and profile.load_contact()["links"] == ["a", "b"]
+    assert profile.load_screening()["notice_period"] == "1 month"
+    assert profile.load_profile().startswith("# Alex")
+
+
+def test_saving_the_empty_outline_is_not_a_profile(client):
+    client.post("/profile/save", data={"name": "Alex", "email": "a@example.com",
+                                       "profile_text": profile.PROFILE_TEMPLATE.replace("\n", "\r\n")}, headers=SAME_ORIGIN)
+    assert profile.load_profile() == "" and ("Build or write your profile", "/profile#profiletext") in hunt.readiness()
+
+
+def test_editable_forms_warn_before_leaving_unsaved(client):
+    for url in ("/profile", "/scope", "/settings", "/accounts"):
+        assert "data-guard" in client.get(url).text, url
+    js = client.get("/static/app.js").text
+    assert "beforeunload" in js and "form[data-guard]" in js

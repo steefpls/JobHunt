@@ -47,6 +47,24 @@ document.addEventListener('click', function (ev) {
   if (mode && mode.value === 'auto' && !confirm(btn.dataset.confirmAuto)) ev.preventDefault();
 });
 
+// <form data-guard>: ask before leaving the page with changes that weren't saved.
+// (Registered after the data-confirm handler, so a cancelled confirm doesn't count as saving.)
+(function () {
+  const forms = Array.from(document.querySelectorAll('form[data-guard]'));
+  if (!forms.length) return;
+  const snap = f => new URLSearchParams(new FormData(f)).toString();
+  const saved = new Map(forms.map(f => [f, snap(f)]));
+  let saving = false;
+  document.addEventListener('submit', function (ev) {
+    if (!ev.defaultPrevented && saved.has(ev.target)) saving = true;
+  });
+  window.addEventListener('beforeunload', function (ev) {
+    if (saving || !forms.some(f => snap(f) !== saved.get(f))) return;
+    ev.preventDefault();
+    ev.returnValue = '';  // the browser shows its own "Leave site? Changes you made may not be saved."
+  });
+})();
+
 // <select data-autosubmit>: send the form as soon as a value is picked.
 document.addEventListener('change', function (ev) {
   if (ev.target.matches && ev.target.matches('select[data-autosubmit]') && ev.target.value) ev.target.form.submit();

@@ -239,6 +239,19 @@ def create_app(port: int = 8765) -> FastAPI:
                     has_profile=bool(text.strip()), cvs=[p.name for p in profile.list_cvs()],
                     screening=profile.load_screening(), screening_fields=profile.SCREENING_FIELDS)
 
+    @app.post("/profile/save")
+    async def save_profile_page(request: Request):
+        """Contact details, screening answers and profile text: one Save for the whole page."""
+        f = await request.form()
+        profile.save_contact({k: str(f.get(k, "")).strip() for k in ("name", "email", "phone", "location")}
+                             | {"links": str(f.get("links", ""))})
+        profile.save_screening({k: f.get(k, "") for k in profile.SCREENING_FIELDS})
+        text = str(f.get("profile_text", ""))
+        if text.replace("\r\n", "\n").strip() == profile.PROFILE_TEMPLATE.strip():
+            text = ""  # the outline shown in an empty box isn't a profile
+        profile.save_profile(text)
+        return back("/profile", msg="Profile saved.")
+
     @app.post("/profile/screening")
     async def save_screening(request: Request):
         f = await request.form()

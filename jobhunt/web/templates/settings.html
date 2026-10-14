@@ -7,13 +7,13 @@
   <h2>AI key</h2>
   <p>{{ provider_short }} key: {% if key_saved %}<span class="badge Applied">set</span>{% else %}<span class="badge">not set</span>{% endif %}
     <span class="hint">Kept in Windows Credential Manager; never shown here.</span></p>
-  <form method="post" action="/accounts/apikey" class="row" autocomplete="off">
+  <form method="post" action="/accounts/apikey" class="row" autocomplete="off" data-guard>
     <input type="hidden" name="provider" value="{{ settings.provider }}"><input type="hidden" name="next" value="/settings">
     <div><input type="password" name="api_key" autocomplete="new-password" placeholder="paste a new {{ provider_short }} key"></div>
     <div style="flex:0 0 auto"><button class="btn">{{ 'Replace' if key_saved else 'Save key' }}</button></div>
   </form>
 </div>
-<form method="post" action="/settings">
+<form method="post" action="/settings" data-guard>
 <div class="grid two">
   <div class="card">
     <h2>AI provider &amp; models</h2>
