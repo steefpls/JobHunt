@@ -191,7 +191,8 @@ def create_app(port: int = 8765) -> FastAPI:
             return back(f"/jobs/{job_id}", err="Not a state you can set by hand.")
         db.update_job(job_id, state=state, by="you")
         cheer = {"Offer": " Congratulations! 🎉", "Interview": " Nice one. Go get it!"}.get(state, "")
-        done = {"Not for me": "Rejected: JobHunt won't suggest this job again. Changed your mind? Open it from the Dashboard."}
+        done = {"Not for me": "Rejected: JobHunt won't suggest this job again. Changed your mind? Open it from the Dashboard.",
+                "Applied": "Marked as Applied today. Nice one, good luck! It's on your Dashboard under Applied."}
         return back(local_path(next, f"/jobs/{job_id}"), msg=done.get(state, f"Marked as {state}.{cheer}"),
                     party={"Offer": "offer", "Interview": "interview"}.get(state, ""))
 

@@ -1,0 +1,4 @@
+{# "I applied": one click marks a job you applied for yourself as Applied (today). Needs: j, next. #}
+<form method="post" action="/jobs/{{ j.id }}/state" class="inline">
+  <input type="hidden" name="state" value="Applied"><input type="hidden" name="next" value="{{ next }}">
+  <button class="btn small{{ ' ' ~ cls if cls }}" title="You sent this application yourself: mark it Applied (today)">✓ I applied</button></form>

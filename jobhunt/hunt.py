@@ -239,7 +239,8 @@ def needs_you_kind(summary: str) -> str:
 def needs_you_fix(job: dict) -> dict:
     """For the job page: {"fix": (label, link) or None, "retry": may JobHunt try again, "advice": what else to do}."""
     kind = job.get("reason_kind") or ""
-    yourself = "Or finish it yourself: open the apply page, attach the resume and cover letter from Files below, then set the state to Applied."
+    yourself = ("Or finish it yourself: open the apply page, attach the resume and cover letter from Files below, "
+                "then press I applied.")
     out = {"fix": None, "retry": True, "advice": yourself}
     if kind.startswith("screening:"):
         topic = kind.split(":", 1)[1]
@@ -251,13 +252,13 @@ def needs_you_fix(job: dict) -> dict:
         out["fix"] = ("Raise the per-job cap in Settings", "/settings")
     elif kind == "singpass":
         out.update(retry=False, advice="Open the apply page, log in with Singpass, attach the resume and cover letter "
-                                       "from Files below, then set the state to Applied.")
+                                       "from Files below, then press I applied.")
     elif kind == "verify":
         out.update(retry=False, advice="It needs a human check (a captcha or a code). Open the apply page and finish "
-                                       "it yourself, then set the state to Applied.")
+                                       "it yourself, then press I applied.")
     elif kind in ("interrupted", "unconfirmed"):
-        out.update(retry=False, advice="Open the apply page and check whether it went through. If it did, set the "
-                                       "state to Applied; if not, finish it there yourself.")
+        out.update(retry=False, advice="Open the apply page and check whether it went through. If it did, press the "
+                                       "I applied button; if not, finish it there yourself.")
     if job.get("source") in HUMAN_APPLY_SITES:
         out["retry"] = False
     return out

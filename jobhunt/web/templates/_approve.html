@@ -5,6 +5,7 @@
     <td style="text-align:right;white-space:nowrap">
       <a class="btn small" href="/jobs/{{ j.id }}">Review</a>
       {% if j.source in human_apply_sites %}<a class="btn small" href="/jobs/{{ j.id }}">Apply yourself</a>
+      {% with next = request.url.path, cls = "" %}{% include "_applied.html" %}{% endwith %}
       {% else %}<form method="post" action="/jobs/{{ j.id }}/apply" class="inline"
             data-confirm="Let JobHunt fill in and SUBMIT this application now?">
         <button class="btn small primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button></form>{% endif %}

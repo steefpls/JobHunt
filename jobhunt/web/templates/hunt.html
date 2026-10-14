@@ -79,12 +79,14 @@
     {% endif %}
     {% if needs_you %}
     <h2 style="margin-top:18px">Needs you <span class="badge Needs you">{{ needs_you|length }}</span></h2>
-    <p class="hint" style="margin-top:0">JobHunt stopped on these and handed them to you. Open one to see why and finish it yourself.</p>
+    <p class="hint" style="margin-top:0">JobHunt stopped on these and handed them to you. Open one to see why and finish it
+      yourself, then press I applied.</p>
     <table>
       {% for j in needs_you %}
       <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a>
         {% set why = why_needs_you(j) %}{% if why %}<br><span class="hint">{{ why|truncate(140) }}</span>{% endif %}</td>
-        <td style="text-align:right"><a class="btn small" href="/jobs/{{ j.id }}">Open</a></td></tr>
+        <td style="text-align:right;white-space:nowrap"><a class="btn small" href="/jobs/{{ j.id }}">Open</a>
+          {% with next = "/hunt", cls = "" %}{% include "_applied.html" %}{% endwith %}</td></tr>
       {% endfor %}
     </table>
     {% endif %}

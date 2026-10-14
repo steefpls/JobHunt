@@ -49,6 +49,7 @@ tr:hover td { background: #fafbfc; }
 .btn.primary:hover { background: #2549c8; }
 .btn.danger { color: var(--bad); }
 .btn.small { padding: 4px 10px; font-size: 12px; }
+.btn.small.big { padding: 7px 14px; font-size: 14px; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 form.inline { display: inline; }
 label { display: block; font-weight: 600; margin: 12px 0 4px; }
