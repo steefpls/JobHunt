@@ -88,6 +88,17 @@ def test_changed_requirements_refresh_packages(install, monkeypatch):
     assert refreshed == [install]
 
 
+def test_line_endings_alone_are_not_a_change(install, monkeypatch):
+    """A git clone on Windows has CRLF files; GitHub's zip has LF. Same packages: no reinstall."""
+    (install / "requirements.txt").write_bytes(b"fastapi==1\r\nuvicorn==1\r\n")
+    monkeypatch.delenv("JOBHUNT_NO_UPDATE", raising=False)
+    monkeypatch.setattr(update, "latest_commit", lambda: SHA)
+    monkeypatch.setattr(update, "download", lambda sha: make_zip({"requirements.txt": "fastapi==1\nuvicorn==1\n"}))
+    monkeypatch.setattr(update, "refresh_packages", lambda d: pytest.fail("requirements didn't change"))
+    update.main(install)
+    assert (install / update.VERSION_FILE).read_text(encoding="utf-8") == SHA
+
+
 def test_offline_starts_as_is(install, monkeypatch):
     monkeypatch.delenv("JOBHUNT_NO_UPDATE", raising=False)
 

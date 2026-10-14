@@ -142,8 +142,13 @@ def download(sha: str, timeout: float = 60) -> bytes:
         return r.read()
 
 
+def _hash(data: bytes) -> str:
+    """sha256 ignoring line endings: git on Windows checks files out with CRLF, GitHub's zip has LF."""
+    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+
+
 def _digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+    return _hash(path.read_bytes()) if path.exists() else ""
 
 
 def _archive_digest(archive: bytes, rel: str) -> str:
@@ -151,7 +156,7 @@ def _archive_digest(archive: bytes, rel: str) -> str:
     with zipfile.ZipFile(io.BytesIO(archive)) as z:
         for info in z.infolist():
             if "/".join(info.filename.split("/")[1:]) == rel:
-                return hashlib.sha256(z.read(info)).hexdigest()
+                return _hash(z.read(info))
     return ""
 
 
@@ -171,7 +176,7 @@ def apply_archive(archive: bytes, app_dir: Path) -> list[str]:
                 target = app_dir / (RUN_BAT + ".new")
             target.parent.mkdir(parents=True, exist_ok=True)
             data = z.read(info)
-            if rel == RUN_BAT and _digest(app_dir / RUN_BAT) == hashlib.sha256(data).hexdigest():
+            if rel == RUN_BAT and _digest(app_dir / RUN_BAT) == _hash(data):
                 written.append(rel)
                 continue
             tmp = target.with_name(target.name + ".tmp")
