@@ -14,8 +14,10 @@ Status of each site (also shown in the UI):
                   login. It answers 429 often: SiteContext waits and retries once before giving up
   jobstreet       SEEK data-automation markup; checked live on 2026-10-13 and 2026-10-14 (search,
                   postings and salaries; headless bundled Chromium and real Chrome both fine)
-  indeed          known markup; Indeed often blocks automated browsers (experimental)
+  indeed          the search page's own job-card data, and each card's job as the page loads it when
+                  clicked; checked live on 2026-10-15 logged out (see the Indeed section below)
 """
+import json
 import random
 import re
 import time
@@ -66,10 +68,11 @@ class SiteContext:
         self.log(f"{urlparse(url).hostname} asked us to slow down (HTTP 429); waiting {wait:.0f}s before trying once more.")
         self._pause_until(time.monotonic() + wait)
 
-    def get_html(self, url: str) -> str:
+    def get_html(self, url: str, tab: str | None = None) -> str:
+        """`tab`: load it in a tab of the site's own, so the page stays open while other sites load theirs."""
         for attempt in (1, 2):
             self.wait_turn()
-            html = self.browser.load_html(url)
+            html = self.browser.load_html(url, tab=tab) if tab else self.browser.load_html(url)
             status = getattr(self.browser, "last_status", 0) or 0
             if status == 429 and attempt == 1:
                 self._slow_down(url)
@@ -80,6 +83,23 @@ class SiteContext:
             if status >= 400:
                 raise PageUnavailable(f"HTTP {status}")
             return html
+
+    def click_json(self, selector: str, wanted: list, tab: str | None = None):
+        """Click something on the open page (after the usual pause) and return the JSON it fetched
+        (see BrowserSession.click_for_response for `wanted`)."""
+        self.wait_turn()
+        text = self.browser.click_for_response(selector, wanted, tab=tab)
+        status = getattr(self.browser, "last_status", 0) or 0
+        if text.lstrip().startswith("<"):  # a page, not data: a block page, or the click fetched nothing
+            check_blocked(text, getattr(self.browser, "last_url", ""))
+        if status in (401, 403, 429):
+            raise SiteBlocked(f"HTTP {status}")
+        if status == 0 or status >= 400:
+            raise PageUnavailable(f"HTTP {status}" if status else "the page didn't load it")
+        try:
+            return json.loads(text)
+        except ValueError:
+            raise PageUnavailable("not the data we expected") from None
 
     def get_json(self, url: str, method: str = "GET", body: dict | None = None) -> dict:
         for attempt in (1, 2):
@@ -97,7 +117,7 @@ class SiteContext:
 
 
 _BLOCK_MARKERS = ["just a moment...", "verify you are human", "captcha", "access denied", "unusual traffic",
-                  "are you a robot"]
+                  "are you a robot", "security check - indeed", "additional verification required"]
 # Sign-in walls: where a site sends you when it wants a login before showing jobs.
 _LOGIN_URL_RE = re.compile(r"/(login|signin|sign-in|authwall|uas/login|checkpoint|oauth)\b", re.I)
 _LOGIN_TITLE_MARKERS = ["log in or sign up", "sign in |", "sign in to", "log in to", "login |"]
@@ -313,22 +333,82 @@ class JobStreetSite:
         return _fill_from_listing(p, listing)
 
 
-# ── Indeed (experimental) ─────────────────────────────────────────────
+# ── Indeed ────────────────────────────────────────────────────────────
+# Checked live from Singapore on 2026-10-15, logged out. Indeed sits behind Cloudflare: plain HTTP gets
+# a "Security Check". A browser without a window gets one search page, then a human check that sticks
+# to the browser profile; a real window searches keyword after keyword. Logged out, page 2 of a search
+# and a posting page (/viewjob) both go to the sign-in page. So a search loads in a tab of its own and
+# each description is read the way a visitor reads it: click the card, and the page fetches that job
+# into its right-hand pane. Indeed runs two versions of the page (which one depends on the browser
+# profile): one fetches viewjob?jk=...&viewtype=embedded (JSON), the other asks apis.indeed.com/graphql
+# for "Viewjob". Both are read.
+
+INDEED_HELP = ("Indeed wants a human check. On the Accounts page press Log in next to Indeed, tick 'Verify you "
+               "are human' in the Indeed tab yourself (logging in helps too), close the window, then hunt again")
+# Each search page carries one hidden trap card for robots, with a made-up key. Seen live:
+# abcdef0123456789, 789abcdef0123456 (runs of hex digits) and a1b2c3d4e5f67890.
+_DECOY_RUN = "0123456789abcdef" * 2
+_DECOY_RE = re.compile(r"a1b2c3d4e5f6")
+
+
+def indeed_job_key(jk) -> str:
+    """A real Indeed job key, or '' (16 hex digits, and not one of the trap cards' made-up keys)."""
+    jk = str(jk or "")
+    if not re.fullmatch(r"[0-9a-f]{16}", jk) or jk in _DECOY_RUN or _DECOY_RE.match(jk):
+        return ""
+    return jk
+
+
+def _mosaic_results(html: str):
+    """The job cards' own data the search page carries (None if it isn't there)."""
+    m = re.search(r'window\.mosaic\.providerData\["mosaic-provider-jobcards"\]\s*=\s*', html or "")
+    if not m:
+        return None
+    try:
+        data, _ = json.JSONDecoder().raw_decode(html, m.end())
+        model = data["metaData"]["mosaicProviderJobCardsModel"]
+        return model.get("results") or [], bool(model.get("loggedIn"))
+    except (ValueError, KeyError, TypeError):
+        return None
+
 
 class IndeedSite:
     key = "indeed"
-    label = "Indeed (experimental)"
+    label = "Indeed"
     BASE = "https://sg.indeed.com"
+    TAB = "indeed"  # the search page stays open here while other sites load theirs
+    needs_window = True  # see above: the hunt's browser runs as a real (minimized) window
+
+    def __init__(self):
+        self.logged_in = False
+
+    @property
+    def page_limit(self) -> int:
+        """Search pages per keyword: logged out, page 2 on is behind Indeed's sign-in page."""
+        return 99 if self.logged_in else 1
 
     def search(self, ctx, keyword, location, page_no):
-        url = f"{self.BASE}/jobs?q={quote_plus(keyword)}&l={quote_plus(location or '')}&start={page_no * 10}"
-        return self.parse_search(ctx.get_html(url))
+        # Newest first: logged out a hunt sees one page per keyword, and the next hunt should find new jobs on it.
+        url = f"{self.BASE}/jobs?q={quote_plus(keyword)}&l={quote_plus(location or '')}&sort=date"
+        if page_no:
+            url += f"&start={page_no * 10}"
+        try:
+            html = ctx.get_html(url, tab=self.TAB)
+        except SiteBlocked as e:
+            raise SiteBlocked(f"{e}. {INDEED_HELP}") from None
+        found = _mosaic_results(html)
+        if found:
+            self.logged_in = found[1]
+        return self.parse_search(html)
 
     def parse_search(self, html):
-        out = []
+        found = _mosaic_results(html)
+        if found is not None:
+            return [self.listing_from_result(r) for r in found[0] if indeed_job_key(r.get("jobkey"))]
+        out = []  # no card data: read the cards, skipping hidden ones (a visitor never sees those)
         for a in BeautifulSoup(html, "html.parser").select("a.jcs-JobTitle, h2.jobTitle a"):
-            jk = a.get("data-jk") or (parse_qs(urlparse(a.get("href", "")).query).get("jk") or [""])[0]
-            if not jk:
+            jk = indeed_job_key(a.get("data-jk") or (parse_qs(urlparse(a.get("href", "")).query).get("jk") or [""])[0])
+            if not jk or a.find_parent(attrs={"aria-hidden": "true"}) or a.find_parent(style=re.compile(r"display:\s*none")):
                 continue
             card = a.find_parent(class_=re.compile("job_seen_beacon|cardOutline|result")) or a.parent
             out.append(Listing(source=self.key, url=f"{self.BASE}/viewjob?jk={jk}", title=clean_whitespace(a.get_text(" ")),
@@ -336,12 +416,56 @@ class IndeedSite:
                                location=select_text(card, "[data-testid='text-location']")))
         return out
 
+    def listing_from_result(self, r: dict) -> Listing:
+        salary = clean_whitespace((r.get("salarySnippet") or {}).get("text") or "")
+        return Listing(source=self.key, url=f"{self.BASE}/viewjob?jk={r['jobkey']}",
+                       title=clean_whitespace(r.get("displayTitle") or r.get("title") or ""),
+                       company=clean_whitespace(r.get("company") or ""),
+                       location=clean_whitespace(r.get("formattedLocation") or ""),
+                       salary=salary, salary_max_monthly=salary_top_monthly(salary))
+
     def fetch(self, ctx, listing):
-        html = ctx.get_html(listing.url)
-        p = generic_posting(html, self.key, listing.url, body_selectors=["#jobDescriptionText"],
-                            title_sel="h1", company_sel="[data-testid='inlineHeader-companyName']",
-                            location_sel="[data-testid='inlineHeader-companyLocation']")
-        p.apply_url = listing.url
+        jk = indeed_job_key((parse_qs(urlparse(listing.url).query).get("jk") or [""])[0])
+        if not jk:
+            raise PageUnavailable("not an Indeed job link")
+        try:
+            data = ctx.click_json(f"a[data-jk='{jk}']", [f"/viewjob?jk={jk}", ('"operationName":"Viewjob"', jk)],
+                                  tab=self.TAB)
+        except LookupError:
+            raise PageUnavailable("no longer on the open search page") from None
+        except SiteBlocked as e:
+            raise SiteBlocked(f"{e}. {INDEED_HELP}") from None
+        return self.posting_from_job(data, listing)
+
+    def posting_from_job(self, data, listing: Listing) -> Posting:
+        """The job a card click fetched, in either of Indeed's two shapes, as a Posting."""
+        jk = (parse_qs(urlparse(listing.url).query).get("jk") or [""])[0]
+        body = data.get("body") if isinstance(data, dict) else None
+        graph = next((d["data"]["viewjob"] for d in (data if isinstance(data, list) else [])
+                      if isinstance(d, dict) and isinstance(d.get("data"), dict)
+                      and isinstance(d["data"].get("viewjob"), dict)), None)
+        if isinstance(body, dict) and body.get("jobKey", jk) == jk:  # viewjob?...&viewtype=embedded
+            info = (body.get("jobInfoWrapperModel") or {}).get("jobInfoModel") or {}
+            head = info.get("jobInfoHeaderModel") or {}
+            title, company, location = head.get("jobTitle"), head.get("companyName"), head.get("formattedLocation")
+            html, job_type = info.get("sanitizedJobDescription"), (info.get("jobMetadataHeaderModel") or {}).get("jobType")
+            salary = (body.get("salaryInfoModel") or {}).get("salaryText")
+        elif graph is not None and graph.get("key") == jk:  # graphql "Viewjob"
+            job, details = graph.get("job") or {}, graph.get("details") or {}
+            title, company = job.get("title"), job.get("sourceEmployerName")
+            location = ((job.get("location") or {}).get("formatted") or {}).get("long")
+            html = details.get("sanitizedJobDescription") or (job.get("description") or {}).get("html")
+            job_type = ", ".join((details.get("jobTypeAndShiftSchedule") or {}).get("jobTypes") or [])
+            salary = (job.get("compensation") or {}).get("formattedText")
+        else:  # not this card's job: never read another job as this one
+            raise PageUnavailable("not the job data we expected")
+        text = html_to_text(html or "")
+        if text and job_type:
+            text += f"\n\nJob type: {job_type}"
+        salary = clean_whitespace(salary or "")
+        p = Posting(source=self.key, url=listing.url, title=clean_whitespace(title or ""),
+                    company=clean_whitespace(company or ""), location=clean_whitespace(location or ""), text=text,
+                    apply_url=listing.url, salary=salary, salary_max_monthly=salary_top_monthly(salary))
         return _fill_from_listing(p, listing)
 
 
@@ -367,5 +491,7 @@ SITE_STATUS = {
                        "comes back to you as Apply yourself.",
     "linkedin": "Reads LinkedIn's public job pages. LinkedIn rate-limits hard; if it shows its sign-in wall the hunt skips it.",
     "jobstreet": "Reads JobStreet search pages in the browser. Checked against the live site in Oct 2026.",
-    "indeed": "Experimental: Indeed often blocks automated browsers.",
+    "indeed": "Reads the newest 15 Indeed jobs for each keyword (more pages if you log in to Indeed). While it "
+              "searches, JobHunt's browser opens as a window on your taskbar: Indeed turns away hidden browsers. If "
+              "Indeed asks you to prove you're human, the hunt skips it and tells you how to tick the check yourself.",
 }

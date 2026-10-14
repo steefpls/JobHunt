@@ -1,0 +1,28 @@
+{
+ "status": "success",
+ "body": {
+  "jobKey": "5a42582d6016c4d2",
+  "loggedIn": false,
+  "jobTitle": "Software Engineer (Fresh Graduate)",
+  "jobLocation": "River Valley",
+  "jobInfoWrapperModel": {
+   "jobInfoModel": {
+    "jobInfoHeaderModel": {
+     "jobTitle": "Software Engineer (Fresh Graduate)",
+     "companyName": "BLACKSCORE PTE. LTD.",
+     "formattedLocation": "River Valley",
+     "subtitle": "BLACKSCORE PTE. LTD. - River Valley"
+    },
+    "jobMetadataHeaderModel": {
+     "jobType": "Full-time"
+    },
+    "sanitizedJobDescription": "At BlackScore, we build AI-native intelligence fusion platforms trusted by law enforcement . Our technology transforms massive volumes of raw data into actionable intelligence, helping analysts make faster,smarter decisions at national scale. \n<br>\n<br>\n We are looking for curious, ambitious engineers who want to build impactful AI-powered systems from day one. You’ll contribute toproduction systems immediately, collaborate with experienced engineers, and gain exposure to cutting-edge AI technologies used in real-world environments. If you enjoy solving complex problems, learning quickly, and building products that matter, we’d love to hear from you. \n<br>\n<br>\n What You’ll Do \n<br>\n<br><b>As part of our engineering team, you will:</b>\n<br>\n Build real features used by real customers \n<br>\n<br>\n Own projects end-to-end, from design to deployment \n<br>\n<br>\n Design, develop, and deploy AI and machine learning models \n<br>\n<br>\n Work across TypeScript, Go, Python, graph databases, AI APIs, and real-time analytics systems \n<br>\n<br>\n Integrate AI solutions into production environments \n<br>\n<br>\n Collaborate with software engineers, data scientists, and business teams to deliver AI-driven solutions \n<br>\n<br>\n Maintain clear technical documentation for systems and architectures \n<br>\n<br>\n Stay current with emerging AI/ML technologies and apply innovative approaches to improve our platforms \n<br>\n<br>\n What We’re Looking For \n<br>\n<br>\n We’re looking forbuilders, problem-solvers, and fast learners who are excited to work with modern AI technologies and solve real-world challenges. \n<br>\n<br>\n Requirements \n<br>\n<br>\n Graduating in 2025 , 2026 with a Degree in Computer Science or a related field \n<br>\n<br>\n Strong coding and problem-solving abilities — language matters less than how you think \n<br>\n<br>\n Built projects outside of coursework that you can showcase \n<br>\n<br>\n Comfortable using AI tools as part of your daily development workflow \n<br>\n<br>\n Strong written and verbal communication skills \n<br>\n<br>\n Curious, self-driven, and able to learn independently without constant supervision \n<br>\n<br>\n Ability to adapt quickly in a fast-paced environment \n<br>\n<br>\n Experience with AI/ML frameworks or data-intensive applications \n<br>\n<br>\n Exposure to cloud platforms, APIs, or real-time systems \n<br>\n<br>\n Experience using AI-assisted development tools such as Cursor, Copilot, Claude, or ChatGPT \n<br>\n<br>\n What We Offer \n<br>\n<br>\n Competitive salary \n<br>\n<br>\n Opportunities for rapid professional growth and mentorship \n<br>\n<br>\n Exposure to cutting-edge AI technologies and large-scale intelligence systems \n<br>\n<br>\n Access to modern engineering tools and infrastructure \n<br>\n<br>\n The opportunity to work on meaningful technology with global impact \n<br>\n<br>\n Our Hiring Process \n<br>\n<br>\n We believe engineers should be evaluated based on how they actually work. As part of the interview process, candidates will complete a practical live problem-solving session using AI tools of their choice. We want to understand how you think, collaborate with AI, and build working solutions in real time. \n<br>\n<br>\n Interested parties,please send your resume with current &amp; expected salary &amp; date availableto \n<br>\n<br>\n jobs@example.com. \n<br>\n<br>\n We regret only shortlisted applicantswill be notified. \n<br>\n<br>\n BlackScore is a technology company seeking to disrupt risk assessment using AI-driven technology. Risk Scoring is at the heart of our philosophy, allowing companies make smart decisions based on vast amounts of data."
+   }
+  },
+  "salaryInfoModel": {
+   "salaryText": "$4,500 - $6,000 a month",
+   "salaryType": "MONTHLY",
+   "salaryCurrency": "SGD"
+  }
+ }
+}

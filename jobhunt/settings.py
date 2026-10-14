@@ -40,7 +40,7 @@ SITES = {
     "mycareersfuture": "MyCareersFuture (SG)",
     "jobstreet": "JobStreet (SG)",
     "linkedin": "LinkedIn Jobs",
-    "indeed": "Indeed SG (experimental)",
+    "indeed": "Indeed SG",
     "demo": "Practice board (fake jobs, safe to try)",
 }
 

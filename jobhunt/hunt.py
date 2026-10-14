@@ -49,7 +49,7 @@ def make_llm(settings: dict, meter: Meter, recorder, session_prefix: str = "") -
 
 
 def make_browser(headless: bool = True) -> BrowserSession:
-    return BrowserSession(headless=headless)
+    return BrowserSession(headless=headless, minimized=not headless)
 
 
 # ── the task context ──────────────────────────────────────────────────
@@ -200,7 +200,9 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
     # The per-job caps count everything this job ever used (filter, tailor, earlier
     # apply attempts), not just this run, so pressing Approve & apply again can't reset them.
     task.meter.seed_job(job_id, job["cost_usd"] or 0.0, (job["tokens_in"] or 0) + (job["tokens_out"] or 0))
-    browser.set_headless(not task.settings["apply"].get("show_browser", True))
+    hunt_mode = (browser.headless, browser.minimized)
+    needs_window = job["source"] in settings_mod.SITES and getattr(get_site(job["source"], task.settings), "needs_window", False)
+    browser.set_headless(not (task.settings["apply"].get("show_browser", True) or needs_window))
     agent = ApplyAgent(browser=browser, llm=task.get_llm(), settings=task.settings, contact=profile.load_contact(),
                        profile_text=profile.load_profile(), screening=profile.load_screening(), job=job,
                        folder=folder, redactor=task.redact,
@@ -212,7 +214,7 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
         task.log(f"Apply attempt broke: {type(e).__name__}: {str(e)[:200]}", "error")
         return "Needs you"
     finally:
-        browser.set_headless(True)
+        browser.set_headless(*hunt_mode)
     state = {"submitted": "Applied", "failed": "Error", "stopped": "Ready"}.get(result.status, "Needs you")
     if state == "Needs you":
         db.needs_you(job_id, result.kind or needs_you_kind(result.summary), result.summary)
@@ -336,6 +338,8 @@ def _site_listings(task, ctx, site, keywords, location, max_pages):
     for kw in keywords:
         for page_no in range(max_pages):
             task.check_stop()
+            if page_no >= getattr(site, "page_limit", max_pages):
+                break  # the site shows us no more pages (Indeed when logged out)
             try:
                 listings = site.search(ctx, kw, location, page_no)
             except (SiteBlocked, StopHunt):
@@ -430,7 +434,10 @@ def run_hunt(task: Task) -> str:
     dislikes = tuning.dislikes_text()  # why you turned recent packages down
     task.log(f"Hunt started: up to {target} jobs from {', '.join(site_keys)}; "
              f"{'AUTO-SUBMIT' if auto_submit else 'draft mode (nothing is submitted)'}; caps: {caps_text(s)}.")
-    browser = make_browser(headless=True)
+    # Some sites (Indeed) show their human check to a browser without a window: with one of those
+    # ticked, the hunt's browser is a real window, started minimized.
+    window = any(getattr(get_site(k, s), "needs_window", False) for k in site_keys)
+    browser = make_browser(headless=not window)
     ctx = SiteContext(browser, s["pacing"], task.stop_event, lambda m: task.log(m))
     matched, ready, examined, skipped_known = 0, 0, 0, 0
     companies, tried, blocked = set(), set(), {}

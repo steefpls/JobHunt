@@ -1,8 +1,8 @@
 """Crawler extraction against saved pages (no network).
 
 jobstreet_*.html are cut from real sg.jobstreet.com pages (2026-10-13);
-mcf_*.json are cut from the real MyCareersFuture API; the LinkedIn and Indeed
-pages are synthetic (LinkedIn rate-limited the build machine).
+mcf_*.json are cut from the real MyCareersFuture API; the LinkedIn pages are
+synthetic (LinkedIn rate-limited the build machine). Indeed has its own tests: test_indeed.py.
 """
 import json
 from pathlib import Path
@@ -91,19 +91,6 @@ def test_linkedin_guest_markup():
     assert p.title == "Backend Engineer"
     assert "- 3+ years backend experience" in p.text
     assert "Show more" not in p.text
-
-
-def test_indeed_markup():
-    site = sites.IndeedSite()
-    ctx = FakeCtx({"/jobs?q=": read("indeed_search.html"), "/viewjob?jk=a1b2": read("indeed_posting.html")})
-    listings = site.search(ctx, "python", "Singapore", 0)
-    assert [l.url for l in listings] == ["https://sg.indeed.com/viewjob?jk=a1b2c3d4e5f60718",
-                                         "https://sg.indeed.com/viewjob?jk=ffee112233445566"]
-    assert listings[0].company == "Kopi Labs"
-    p = site.fetch(ctx, listings[0])
-    assert p.title == "Python Developer"
-    assert "Python, FastAPI" in p.text
-    assert "track()" not in p.text and "footer" not in p.text
 
 
 def test_html_to_text_keeps_bullets_and_drops_scripts():

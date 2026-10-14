@@ -52,12 +52,14 @@ def prepare_profile(profile_dir: Path) -> None:
 
 
 class BrowserSession:
-    def __init__(self, headless: bool = True, profile_dir: Path | None = None):
+    def __init__(self, headless: bool = True, profile_dir: Path | None = None, minimized: bool = False):
         self.headless = headless
+        self.minimized = minimized  # a window that starts on the taskbar, not over your work
         self.profile_dir = profile_dir or paths.browser_profile_dir()
         self._pw = None
         self._ctx = None
         self._page = None
+        self._tabs = {}  # name -> page: a site that keeps its search page open between steps (Indeed)
         self._pdf_browser = None
         self.last_url = ""  # where the last load_html ended up (after redirects)
         self.last_status = 0  # its HTTP status (0 = unknown)
@@ -73,7 +75,8 @@ class BrowserSession:
                     str(self.profile_dir), headless=self.headless, user_agent=USER_AGENT,
                     viewport={"width": 1280, "height": 900}, accept_downloads=False,
                     service_workers="block",  # so the apply agent's network rules see every request
-                    args=["--disable-blink-features=AutomationControlled"],
+                    args=["--disable-blink-features=AutomationControlled",
+                          *(["--start-minimized"] if self.minimized and not self.headless else [])],
                 )
             except PlaywrightError as e:
                 if "user data directory is already in use" in str(e).lower() or "lock" in str(e).lower():
@@ -89,16 +92,26 @@ class BrowserSession:
             self._page = self._ctx.new_page()
         return self._page
 
-    def set_headless(self, headless: bool) -> None:
-        if headless != self.headless:
-            self.headless = headless
+    def set_headless(self, headless: bool, minimized: bool = False) -> None:
+        if (headless, minimized) != (self.headless, self.minimized):
+            self.headless, self.minimized = headless, minimized
             if self._ctx is not None:
                 self._ctx.close()
                 self._ctx = None
                 self._page = None
+                self._tabs = {}
 
-    def load_html(self, url: str) -> str:
-        page = self.page
+    def tab(self, name: str | None = None):
+        """The shared page, or a named tab of its own that other sites' page loads don't move."""
+        if not name:
+            return self.page
+        self._ensure()
+        if name not in self._tabs or self._tabs[name].is_closed():
+            self._tabs[name] = self._ctx.new_page()
+        return self._tabs[name]
+
+    def load_html(self, url: str, tab: str | None = None) -> str:
+        page = self.tab(tab)
         response = page.goto(url, wait_until="domcontentloaded", timeout=45000)
         try:
             page.wait_for_load_state("networkidle", timeout=8000)
@@ -107,6 +120,30 @@ class BrowserSession:
         self.last_url = page.url
         self.last_status = response.status if response else 0
         return page.content()
+
+    def click_for_response(self, selector: str, wanted: list, tab: str | None = None, timeout: int = 20000) -> str:
+        """Click something on the open page, as a visitor would, and return what the page fetched
+        because of it: the first response matching one of `wanted` (a string, or a tuple of strings,
+        that must all appear in the request's address or the data it sent). No response in time: the
+        page itself, so the caller can see a block page. Sets last_status (0 = no response)."""
+        page = self.tab(tab)
+        target = page.locator(selector).first
+        if not target.count():
+            raise LookupError(f"nothing to click: {selector}")
+        target.scroll_into_view_if_needed(timeout=5000)
+
+        def matches(r):
+            sent = f"{r.url}\n{r.request.post_data or ''}"
+            return any(all(part in sent for part in ((w,) if isinstance(w, str) else w)) for w in wanted)
+        try:
+            with page.expect_response(matches, timeout=timeout) as info:
+                target.click()
+            response = info.value
+            self.last_url, self.last_status = response.url, response.status
+            return response.text()
+        except PlaywrightError:
+            self.last_url, self.last_status = page.url, 0
+            return page.content()
 
     # PDFs ----------------------------------------------------------------
     def render_pdf(self, html: str, out_path: Path) -> Path:
@@ -145,6 +182,7 @@ class BrowserSession:
             except Exception:
                 pass
         self._ctx = self._page = self._pdf_browser = None
+        self._tabs = {}
         if self._pw is not None:
             try:
                 self._pw.stop()

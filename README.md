@@ -132,7 +132,7 @@ Everything personal (profile, CVs, tracker, job folders, browser profile) is in
 | MyCareersFuture | public job-search API | search tested live (Oct 2026). Applying needs Singpass, so these jobs are handed to you. |
 | JobStreet | reads pages in the browser | search, postings and salaries tested live (Oct 2026). A search card whose pay tops out below your expected salary is skipped without opening it. |
 | LinkedIn | public guest job pages | search and postings tested live without logging in (Oct 2026). LinkedIn often answers "too many requests" (HTTP 429): the hunt waits 45 seconds and tries once more. If LinkedIn shows a sign-in wall, the hunt skips it for that run. |
-| Indeed | reads pages in the browser | experimental: Indeed often blocks automated browsers |
+| Indeed | reads the search page in the browser, then clicks each job card to read its description | search and descriptions tested live without logging in (Oct 2026). Logged out you get page 1 (15 newest jobs) per keyword; logging in to Indeed on the Accounts page allows more pages. Indeed turns away hidden browsers, so with Indeed ticked the hunt's browser opens as a minimized window. If Indeed shows "Verify you are human", the hunt skips Indeed for that run and says how to tick it yourself (Accounts → Log in next to Indeed). |
 
 Pacing: 4–9 seconds between page loads and at most 15 applications per hour
 per site by default (Settings).
