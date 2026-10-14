@@ -8,6 +8,9 @@
       {% else %}<form method="post" action="/jobs/{{ j.id }}/apply" class="inline"
             data-confirm="Let JobHunt fill in and SUBMIT this application now?">
         <button class="btn small primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button></form>{% endif %}
+      <form method="post" action="/jobs/{{ j.id }}/state" class="inline">
+        <input type="hidden" name="state" value="Not for me"><input type="hidden" name="next" value="{{ request.url.path }}">
+        <button class="btn small danger" title="Not interested: JobHunt drops it and won't suggest it again">Reject</button></form>
     </td></tr>
   {% endfor %}
 </table>

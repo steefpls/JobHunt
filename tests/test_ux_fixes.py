@@ -1,6 +1,7 @@
 """The UX review fixes: Start says what's missing, Scope without a hidden line, one Save on Profile,
 a sensible first hunt, what a finished hunt found, and why a job needs you."""
 import re
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -294,3 +295,23 @@ def test_a_hunt_whose_packages_were_dealt_with_doesnt_say_it_found_nothing(clien
     db.update_job(db.list_jobs("Ready")[0]["id"], state="Applied")
     page = client.get("/hunt").text
     assert "No new packages this time" not in page and "waiting for your approval: review" not in page
+
+
+def test_reject_drops_a_package_without_counting_as_an_employer_rejection(client):
+    finished_hunt("done", "2 package(s) built", ready_jobs=2)
+    hunt_page = client.get("/hunt").text
+    assert hunt_page.count(">Reject</button>") == 2 and 'name="next" value="/hunt"' in hunt_page
+    assert client.get("/").text.count(">Reject</button>") == 2
+    jid = db.list_jobs("Ready")[0]["id"]
+    r = client.post(f"/jobs/{jid}/state", data={"state": "Not for me", "next": "/hunt"}, headers=SAME_ORIGIN,
+                    follow_redirects=False)
+    assert r.headers["location"].startswith("/hunt?msg=Rejected")
+    assert db.get_job(jid)["state"] == "Not for me" and len(db.list_jobs("Ready")) == 1
+    assert client.get("/hunt").text.count(">Reject</button>") == 1
+    assert db.is_duplicate(db.get_job(jid)["url"], "", "")  # a later hunt won't build it again
+    assert not db.list_jobs("Rejected")
+
+
+def test_progress_log_sits_under_this_run():
+    page = (Path(__file__).resolve().parent.parent / "jobhunt/web/templates/hunt.html").read_text(encoding="utf-8")
+    assert page.index("This run") < page.index("Progress log") < page.index("Waiting for your approval")

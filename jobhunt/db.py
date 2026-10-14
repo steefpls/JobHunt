@@ -17,8 +17,9 @@ from datetime import datetime
 
 from . import paths
 
-STATES = ["Found", "Ready", "Applying", "Applied", "Needs you", "Error", "Interview", "Offer", "Rejected"]
-USER_STATES = ["Ready", "Applied", "Needs you", "Interview", "Offer", "Rejected"]  # settable from the UI
+# "Rejected" is the employer saying no (it counts toward achievements); "Not for me" is you turning a package down.
+STATES = ["Found", "Ready", "Applying", "Applied", "Needs you", "Error", "Interview", "Offer", "Rejected", "Not for me"]
+USER_STATES = ["Ready", "Applied", "Needs you", "Interview", "Offer", "Rejected", "Not for me"]  # settable from the UI
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
