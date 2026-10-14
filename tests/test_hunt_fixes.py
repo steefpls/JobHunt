@@ -98,7 +98,8 @@ def test_the_old_filled_in_example_is_refused_too():
 def test_template_has_no_one_elses_values():
     template = (APP_DIR / "scope.example.md").read_text(encoding="utf-8")
     assert "SGD" not in template and "8,000" not in template and ".NET" not in template
-    assert template.splitlines()[0].endswith(profile.SCOPE_EXAMPLE_MARKER)
+    assert template.splitlines()[0] == "# What I'm looking for"  # nothing to delete by hand any more
+    assert profile.SCOPE_EXAMPLE_MARKER not in template
 
 
 # ── drafting the scope from the profile ───────────────────────────────
@@ -150,7 +151,7 @@ def test_saving_the_example_scope_warns_and_leaves_the_checklist_open(data_dir):
                    follow_redirects=False)
         assert "err=" in r.headers["location"]
         assert "✓</span>Set your search scope" not in c.get("/").text
-        mine = example.replace(profile.SCOPE_EXAMPLE_MARKER, "")
+        mine = "## Target roles\n- Backend engineer (Python)\n"
         r = c.post("/scope", data={"keywords": "engineer", "scope_text": mine}, headers=SAME_ORIGIN,
                    follow_redirects=False)
         assert "msg=" in r.headers["location"]

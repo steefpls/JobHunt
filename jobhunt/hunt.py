@@ -507,7 +507,7 @@ def run_scope(task: Task) -> str:
     profile_text = profile.load_profile()
     if not profile_text.strip():
         raise LLMError("Build your Profile first: the scope is drafted from it.")
-    template = (paths.APP_DIR / "scope.example.md").read_text(encoding="utf-8")
+    template = profile.scope_guide_text()
     task.log("Drafting your scope from your profile...")
     system, user = prompts.scope_prompt(profile_text, template, profile.load_screening())
     data, _ = task.get_llm().chat_json(stage="profile", system=system, user=user, max_tokens=3000)

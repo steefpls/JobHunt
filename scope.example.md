@@ -1,8 +1,4 @@
-# What I'm looking for (template: fill this in, then delete this line)
-
-The AI reads this whole page to decide yes or no on every posting, so be specific.
-Short answers under each heading are enough; delete headings you don't care about.
-Tip: "Draft from my profile" on the Scope page writes a first version for you.
+# What I'm looking for
 
 ## Target roles
 Job titles or kinds of work you want, most wanted first. Name specialisms too

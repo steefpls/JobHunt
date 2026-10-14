@@ -102,27 +102,78 @@ def save_profile(text: str) -> None:
 
 def load_scope_text() -> str:
     p = paths.scope_path()
-    return p.read_text(encoding="utf-8") if p.exists() else ""
+    return tidy_scope(p.read_text(encoding="utf-8")) if p.exists() else ""
 
 
 def save_scope_text(text: str) -> None:
-    paths.scope_path().write_text(text.replace("\r\n", "\n"), encoding="utf-8")
+    paths.scope_path().write_text(tidy_scope(text), encoding="utf-8")
 
 
-# The first line of scope.example.md. While it is still in the scope, the scope is an
-# unfilled template, so the hunt refuses to run on it. The older marker is the first
-# line of the previous default: Hyde's filled-in example (SGD 8,000 floor and all).
+# scope.example.md is the guide shown next to the Scope box (and the outline the AI drafts into).
+# Earlier versions put it IN the box, starting with a line you had to delete before a hunt would run:
+#   # What I'm looking for (template: fill this in, then delete this line)
+# followed by three intro lines. tidy_scope takes those out of a scope saved back then, so what you
+# wrote under the headings counts and nothing has to be deleted by hand.
 SCOPE_EXAMPLE_MARKER = "(template: fill this in, then delete this line)"
+_LEGACY_INTRO = (
+    "The AI reads this whole page to decide yes or no on every posting, so be specific.",
+    "Short answers under each heading are enough; delete headings you don't care about.",
+    "Tip: \"Draft from my profile\" on the Scope page writes a first version for you.",
+)
+# The previous default before that: Hyde's filled-in example (SGD 8,000 floor and all). Not yours,
+# so it still doesn't count as a scope.
 _OLD_SCOPE_MARKERS = ("(example: replace with your own)",)
 
 
+def scope_guide_text() -> str:
+    p = paths.APP_DIR / "scope.example.md"
+    return p.read_text(encoding="utf-8") if p.exists() else ""
+
+
+def scope_guide() -> list[tuple[str, str]]:
+    """The guide as (heading, hint) pairs, for the side of the Scope page."""
+    out = []
+    for line in scope_guide_text().splitlines():
+        line = line.strip()
+        if line.startswith("## "):
+            out.append((line[3:], ""))
+        elif out and line and line != "-":
+            line = line[2:] if line.startswith("- ") else line
+            out[-1] = (out[-1][0], (out[-1][1] + " " + line).strip())
+    return out
+
+
+def _template_lines() -> set[str]:
+    return {l.strip() for l in scope_guide_text().splitlines() if l.strip()} | set(_LEGACY_INTRO)
+
+
+def tidy_scope(text: str) -> str:
+    """The scope without the old template's leftovers. '' when nothing in it is yours."""
+    text = (text or "").replace("\r\n", "\n").replace(" " + SCOPE_EXAMPLE_MARKER, "").replace(SCOPE_EXAMPLE_MARKER, "")
+    template = _template_lines()
+    keep, own = [], False
+    for line in text.split("\n"):
+        s = line.strip()
+        if s in template and not s.startswith(("#", "-")):
+            continue  # a hint or intro line from the template
+        if s and not s.startswith("#") and s != "-" and s not in template:
+            own = True  # something you (or Draft from my profile) wrote
+        keep.append(line)
+    if not own:
+        return ""
+    out = "\n".join(keep).strip("\n")
+    while "\n\n\n" in out:
+        out = out.replace("\n\n\n", "\n\n")
+    return out + "\n"
+
+
 def scope_is_example(text: str) -> bool:
-    return any(m in (text or "") for m in (SCOPE_EXAMPLE_MARKER, *_OLD_SCOPE_MARKERS))
+    return any(m in (text or "") for m in _OLD_SCOPE_MARKERS)
 
 
 def scope_ready(text: str) -> bool:
-    """Is there a real description of the jobs wanted (not empty, not the template)?"""
-    return bool((text or "").strip()) and not scope_is_example(text)
+    """Is there a real description of the jobs wanted (not empty, not a template)?"""
+    return bool(tidy_scope(text).strip()) and not scope_is_example(text)
 
 
 def salary_floor() -> float:

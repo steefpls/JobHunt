@@ -25,7 +25,8 @@ h2 { font-size: 16px; margin: 0 0 10px; }
 .grid { display: grid; gap: 16px; }
 .grid.two { grid-template-columns: 1fr 1fr; }
 .grid.three { grid-template-columns: repeat(3, 1fr); }
-@media (max-width: 900px) { .grid.two, .grid.three { grid-template-columns: 1fr; } .side { display: none; } }
+.grid.wide-left { grid-template-columns: 2fr 1fr; }
+@media (max-width: 900px) { .grid.two, .grid.three, .grid.wide-left { grid-template-columns: 1fr; } .side { display: none; } }
 .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; min-width: 110px; }
 .stat b { display: block; font-size: 20px; }
@@ -99,3 +100,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #c7d6ff; border-c
 .badge.LoggedOut { background: #fff1e6; color: var(--warn); }
 .notice.todo { background: #fff8eb; border-color: #f6d99b; margin: 12px 0 0; }
 .notice.todo ul { margin-bottom: 0; }
+textarea.plain { font: inherit; font-size: 14px; }
+.guide h3 { font-size: 13.5px; margin: 12px 0 2px; }
+.guide p { margin: 0; color: var(--muted); font-size: 13px; }

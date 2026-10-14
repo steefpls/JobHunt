@@ -88,7 +88,7 @@ def scope_prompt(profile_text: str, template: str, screening: dict) -> tuple[str
         "Candidate profile:\n" + _cap(profile_text, CAPS["profile"]) + "\n\n"
         "Their screening answers:\n" + (answers or "(none)") + "\n\n"
         "Template to follow (keep its headings and the 'Notes for the filter' section; replace each hint with real "
-        "content; drop the first line and the intro lines):\n" + _cap(template, CAPS["scope"]) + "\n\n"
+        "content):\n" + _cap(template, CAPS["scope"]) + "\n\n"
         'Return: {"scope_markdown": "the filled-in scope", '
         '"keywords": ["4-8 search phrases to type into job sites, most promising first"], '
         '"avoid_words": ["a few words that, in a job title, always mean no (e.g. intern)"]}\n'

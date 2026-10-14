@@ -3,32 +3,46 @@
 {% block content %}
 <h1>What you're looking for</h1>
 <p class="sub">The search words go to the job sites; the description is what the AI uses to say yes or no to each posting.</p>
-<form method="post" action="/scope">
+<form method="post" action="/scope" data-guard>
 <div class="grid two">
   <div class="card">
     <h2>Search</h2>
     <label for="f_keywords">Search keywords <span class="hint">one per line, e.g. "backend engineer"</span></label>
-    <textarea id="f_keywords" name="keywords" style="min-height:110px">{{ settings.scope.keywords|join("\n") }}</textarea>
+    <textarea id="f_keywords" name="keywords" class="plain" style="min-height:110px">{{ settings.scope.keywords|join("\n") }}</textarea>
     <label for="f_location">Location</label>
     <input type="text" id="f_location" name="location" value="{{ settings.scope.location }}">
   </div>
   <div class="card">
     <h2>Never apply when the title or company contains</h2>
     <p class="muted">Skipped instantly, without spending any AI tokens. One per line.</p>
-    <textarea name="avoid_words" style="min-height:150px">{{ settings.scope.avoid_words|join("\n") }}</textarea>
+    <textarea name="avoid_words" class="plain" style="min-height:150px" aria-label="Avoid words">{{ settings.scope.avoid_words|join("\n") }}</textarea>
   </div>
 </div>
-<div class="card" id="describe">
-  <h2>Describe the jobs you want</h2>
-  <p class="muted">Target roles, seniority, skills, industries, way of working and an <b>Avoid</b> list. Be specific: this is
-    the filter. Your salary floor is the <a href="/profile#screening">Expected salary</a> on the Profile page.</p>
-  <textarea name="scope_text" class="tall">{{ scope_text }}</textarea>
-  <div class="actions"><button class="btn primary">Save scope</button>
-    <button class="btn" formaction="/scope/draft" {{ 'disabled' if status.busy or not key_saved or not has_profile }}>Draft from my profile (AI)</button></div>
-  {% if not key_saved %}<p class="hint">Draft from my profile needs your AI key: add it on the <a href="/accounts">Accounts</a> page.</p>
-  {% elif not has_profile %}<p class="hint">Draft from my profile needs a profile to draft from: build or write it on the <a href="/profile">Profile</a> page.</p>{% endif %}
-  <p class="hint">Draft from my profile replaces the text above with a first version written from your Profile (the old
-    text is kept as scope.previous.md); search keywords and avoid words you've set are kept.</p>
+<div class="grid wide-left">
+  <div class="card" id="describe">
+    <h2>Describe the jobs you want</h2>
+    <p class="muted">The AI reads this to decide yes or no on every posting, so be specific. Short answers are enough;
+      the guide on the right says what helps. Your salary floor is the <a href="/profile#screening">Expected salary</a>
+      on the Profile page.</p>
+    {% if old_example %}<p class="flash err">This is still the example from the original JobHunt, not yours. Write your
+      own, or press Draft from my profile.</p>{% endif %}
+    <label for="f_scope" class="sr">Describe the jobs you want</label>
+    <textarea id="f_scope" name="scope_text" class="tall plain"
+      placeholder="Easiest: press Draft from my profile below, then check what it wrote.&#10;&#10;Or write it yourself, for example:&#10;## Target roles&#10;- Backend engineer (Python), payments or logistics&#10;&#10;## Avoid (do NOT apply)&#10;- Sales, support, anything that is mostly on-call">{{ scope_text }}</textarea>
+    <div class="actions"><button class="btn primary">Save scope</button>
+      <button class="btn" formaction="/scope/draft" {{ 'disabled' if status.busy or not key_saved or not has_profile }}>Draft from my profile (AI)</button></div>
+    {% if not key_saved %}<p class="hint">Draft from my profile needs your AI key: add it on the <a href="/accounts">Accounts</a> page.</p>
+    {% elif not has_profile %}<p class="hint">Draft from my profile needs a profile to draft from: build or write it on the <a href="/profile">Profile</a> page.</p>{% endif %}
+    <p class="hint">Draft from my profile replaces the text above with a first version written from your Profile (the old
+      text is kept as scope.previous.md); search keywords and avoid words you've set are kept.</p>
+  </div>
+  <div class="card guide">
+    <h2>What helps the AI decide</h2>
+    {% for heading, hint in guide %}
+    <h3>{{ heading }}</h3>
+    <p>{{ hint }}</p>
+    {% endfor %}
+  </div>
 </div>
 </form>
 {% endblock %}

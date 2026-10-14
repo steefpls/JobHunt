@@ -288,10 +288,8 @@ def create_app(port: int = 8765) -> FastAPI:
     @app.get("/scope", response_class=HTMLResponse)
     def scope_page(request: Request):
         text = profile.load_scope_text()
-        if not text.strip():
-            example = paths.APP_DIR / "scope.example.md"
-            text = example.read_text(encoding="utf-8") if example.exists() else ""
-        return page(request, "scope.html", scope_text=text, has_profile=bool(profile.load_profile().strip()))
+        return page(request, "scope.html", scope_text=text, guide=profile.scope_guide(),
+                    old_example=profile.scope_is_example(text), has_profile=bool(profile.load_profile().strip()))
 
     def store_scope(keywords: str, location: str, avoid_words: str, scope_text: str) -> None:
         settings_mod.update({"scope": {
@@ -305,8 +303,11 @@ def create_app(port: int = 8765) -> FastAPI:
     def save_scope(keywords: str = Form(""), location: str = Form(""), avoid_words: str = Form(""), scope_text: str = Form("")):
         store_scope(keywords, location, avoid_words, scope_text)
         if profile.scope_is_example(scope_text):
-            return back("/scope", err="Saved, but this is still the template. Fill it in (or press Draft from my "
-                                      "profile) and delete its first line: hunts won't start until you do.")
+            return back("/scope", err="Saved, but this is still the example from the original JobHunt, not yours. "
+                                      "Write your own (or press Draft from my profile): hunts won't start until you do.")
+        if not profile.scope_ready(scope_text):
+            return back("/scope", err="Saved. Describe the jobs you want in the big box (or press Draft from my "
+                                      "profile): hunts won't start until you do.")
         return back("/scope", msg="Scope saved.")
 
     @app.post("/scope/draft")

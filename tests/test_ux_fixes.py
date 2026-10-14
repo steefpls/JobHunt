@@ -69,3 +69,47 @@ def test_draft_from_my_profile_is_greyed_out_without_a_profile(client, secrets):
     page = client.get("/scope").text
     assert re.search(r'<button[^>]*formaction="/scope/draft"[^>]*disabled', page)
     assert "needs a profile to draft from" in page
+
+
+# ── Scope: nothing to delete by hand ─────────────────────────────────
+
+LEGACY_TEMPLATE = ("# What I'm looking for (template: fill this in, then delete this line)\n\n"
+                   "The AI reads this whole page to decide yes or no on every posting, so be specific.\n"
+                   "Short answers under each heading are enough; delete headings you don't care about.\n"
+                   "Tip: \"Draft from my profile\" on the Scope page writes a first version for you.\n\n")
+
+
+def legacy_scope() -> str:
+    """What the Scope box held before this version: the intro + the guide."""
+    from conftest import APP_DIR
+    guide = (APP_DIR / "scope.example.md").read_text(encoding="utf-8").split("\n", 2)[2]
+    return LEGACY_TEMPLATE + guide
+
+
+def test_an_untouched_old_template_counts_as_empty(data_dir):
+    (data_dir / "scope.md").write_text(legacy_scope(), encoding="utf-8")
+    assert profile.load_scope_text() == "" and not profile.scope_ready(legacy_scope())
+
+
+def test_writing_under_the_old_template_counts_even_with_its_first_line_left_in(data_dir):
+    filled = legacy_scope().replace("(e.g. \"backend engineer - payments\", \"Unity developer - simulation, not mobile games\").\n-",
+                                    "(e.g. \"backend engineer - payments\", \"Unity developer - simulation, not mobile games\").\n"
+                                    "- Unity developer, simulation")
+    assert "Unity developer, simulation" in filled
+    (data_dir / "scope.md").write_text(filled, encoding="utf-8")
+    text = profile.load_scope_text()
+    assert profile.scope_ready(text) and "- Unity developer, simulation" in text and "## Target roles" in text
+    assert "template" not in text and "Tip:" not in text and "Job titles or kinds of work" not in text
+    assert text.startswith("# What I'm looking for\n")
+
+
+def test_scope_page_starts_empty_with_the_guide_beside_it(client):
+    page = client.get("/scope").text
+    box = re.search(r'<textarea id="f_scope"[^>]*>(.*?)</textarea>', page, re.S).group(1)
+    assert box == "" and "What helps the AI decide" in page and "<h3>Target roles</h3>" in page
+    assert "Job titles or kinds of work you want" in page  # the hint, in the guide
+
+
+def test_saving_an_empty_description_says_so(client):
+    r = client.post("/scope", data={"keywords": "engineer", "scope_text": ""}, headers=SAME_ORIGIN)
+    assert "Describe the jobs you want in the big box" in r.text

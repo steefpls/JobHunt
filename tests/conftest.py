@@ -89,12 +89,23 @@ def candidate():
     from jobhunt import paths, profile
     profile.save_contact(json.loads((FIXTURES / "contact.json").read_text(encoding="utf-8")))
     profile.save_profile((FIXTURES / "profile.md").read_text(encoding="utf-8"))
-    # the example scope with its "replace with your own" line edited out, as a real user would
-    profile.save_scope_text((APP_DIR / "scope.example.md").read_text(encoding="utf-8")
-                            .replace(profile.SCOPE_EXAMPLE_MARKER, ""))
+    profile.save_scope_text(CANDIDATE_SCOPE)
     profile.save_screening({"work_auth": "Singapore Citizen", "notice_period": "1 month",
                             "expected_salary": "SGD 8,500 per month"})
     return paths.data_dir()
+
+
+CANDIDATE_SCOPE = """# What I'm looking for
+
+## Target roles
+- Backend Engineer (Python), Platform Engineer
+
+## Avoid (do NOT apply)
+- Sales, support and mostly on-call roles
+
+## Notes for the filter
+- When unsure, include it.
+"""
 
 
 def free_port() -> int:

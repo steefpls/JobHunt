@@ -222,4 +222,4 @@ def test_draft_from_my_profile_keeps_what_you_typed(client, fake_llm, secrets, c
                                       "avoid_words": "intern", "scope_text": "my own words"}, headers=SAME_ORIGIN)
     s = settings.load()["scope"]
     assert s["keywords"] == ["data engineer", "ml engineer"] and s["location"] == "Singapore"
-    assert profile.load_scope_text() == "my own words" and started == ["scope"]
+    assert profile.load_scope_text().strip() == "my own words" and started == ["scope"]
