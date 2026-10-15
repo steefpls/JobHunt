@@ -1,0 +1,1082 @@
+# Singapore Standard Industrial Classification: 5-digit code -> title. SSIC 2025 titles, and SSIC 2020 for codes
+# 2025 dropped (ACRA records may carry either). Source: Department of Statistics Singapore, singstat.gov.sg.
+01111	Growing of leafy and fruit vegetables (non-hydroponics)
+01112	Growing of mushrooms (non-hydroponics)
+01113	Growing of root crops
+01119	Growing of food crops (non-hydroponics) n.e.c.
+01120	Growing of leafy and fruit vegetables (hydroponics)
+01130	Growing of fruits and nuts (except legumes)
+01141	Growing of orchids
+01142	Growing of ornamental plants
+01149	Growing of nursery products n.e.c.
+01190	Growing of other crops
+01410	Cattle and goat farms (for livestock and milk production)
+01411	Pig farms
+01412	Cattle farms (including dairy cattle)
+01413	Goat farms (including goat's milk production)
+01421	Rearing of poultry (except layer farms)
+01422	Layer farms (chickens reared for eggs)
+01423	Layer farms (chickens reared for eggs)
+01424	Duck farms
+01491	Dog breeding
+01492	Bird breeding
+01493	Crocodile farms
+01494	Frog farms
+01499	Other animal production n.e.c.
+01500	Growing of crops combined with animal production (mixed farming)
+01600	Agricultural and animal husbandry service activities (except veterinary activities)
+02000	Forestry, logging and related service activities
+03101	Ocean, coastal and kelong fishing
+03102	Ocean fishing except fishing in kelongs
+03103	Coastal fishing except fishing in kelongs
+03109	Fishing n.e.c.
+03201	Food fish farms and food fish hatcheries
+03202	Ornamental fish farms and ornamental fish hatcheries
+03209	Aquaculture n.e.c.
+08101	Stone quarrying
+08102	Quarrying of sand and clay
+08900	Other mining and quarrying
+09001	Crude petroleum and natural gas production
+09002	Service activities incidental to oil and gas extraction (except surveying and engineering design and consultancy services supporting mining, oil and gas extraction and offshore exploration activities)
+10101	Slaughtering of livestock and poultry
+10102	Manufacture of sausage
+10103	Preparing, canning and preserving of livestock and livestock products
+10104	Preparing, canning and preserving of poultry and poultry products
+10109	Processing and preserving of meat and meat products n.e.c.
+10200	Processing and preserving of seafood
+10301	Manufacture of jams
+10302	Other canning and preserving of fruits and fruit juices
+10303	Other canning and preserving of vegetables and vegetable juices
+10401	Manufacture of edible vegetable and animal oils and fats
+10402	Manufacture of inedible vegetable and animal oils and fats
+10409	Manufacture of vegetable and animal oils and fats n.e.c.
+10501	Manufacture of condensed and evaporated milk; pasteurising and bottling of fluid milk
+10502	Manufacture of milk powder
+10503	Manufacture of ice-cream
+10509	Manufacture of dairy products n.e.c.
+10611	Rice milling
+10612	Wheat milling
+10613	Provision of milling services
+10619	Manufacture of grain mill products n.e.c.
+10620	Manufacture of starches and starch products
+10711	Manufacture of biscuits
+10712	Manufacture of bread, cakes and confectionery (except frozen bakery products)
+10719	Manufacture of bakery products n.e.c.
+10720	Manufacture of sugar and sugar products
+10731	Manufacture of cocoa and chocolate powder from beans
+10732	Manufacture of chocolate and chocolate products
+10733	Manufacture of non-chocolate confectionery
+10740	Manufacture of macaroni, noodles, vermicelli and other related products
+10750	Manufacture of prepared meals and dishes
+10761	Manufacture of instant beverages
+10762	Processing of coffee seeds
+10763	Manufacture of coffee powder
+10764	Manufacture of tea; processing of tea leaves
+10765	Manufacture of non-dairy creamer
+10791	Manufacture of sauces
+10792	Manufacture of soya bean products (except soy-based meat alternatives, sauce and milk)
+10793	Manufacture and processing of spices
+10794	Manufacture of chips, crackers and other titbits (except biscuits and confectionery)
+10795	Manufacture of plant-based/microbial-fermented/cell-cultivated food products
+10799	Manufacture of other food products n.e.c. (except food chemicals and additives)
+10800	Manufacture of prepared animal feeds
+11010	Distilling, rectifying and blending of spirits; ethyl alcohol production from fermented materials
+11020	Manufacture of wines
+11030	Manufacture of malt liquors and malt
+11041	Manufacture of soft drinks and mineral waters
+11042	Manufacture of cordials, syrups and composite concentrates for beverages
+11043	Manufacture of ice (except dry ice)
+12001	Manufacture of cigarettes
+12009	Manufacture of tobacco products n.e.c.
+13100	Spinning, weaving and finishing of textiles
+13910	Manufacture of knitted and crocheted fabrics and laces
+13921	Manufacture of made-up household textile articles
+13922	Manufacture of other made-up house furnishings (e.g. napkins, table cloths)
+13929	Manufacture of made-up textile articles n.e.c (except apparel)
+13930	Manufacture of carpets and rugs
+13940	Manufacture of cordage, rope, twine and netting
+13990	Manufacture of other textiles n.e.c.
+14101	Manufacture of outer garments
+14102	Manufacture of brassieres and other undergarments
+14103	Tailoring and dressmaking to individual order
+14109	Manufacture of wearing apparel n.e.c. (except fur apparel)
+14200	Manufacture of fur apparel and articles of fur
+14301	Manufacture of socks, stockings and other hosiery
+14302	Manufacture of briefs, singlets and other knitted or crocheted wear (e.g. pullovers, cardigans)
+14309	Manufacture of knitted and crocheted apparel n.e.c.
+15110	Tanning and dressing of leather; dressing and dyeing of fur
+15121	Manufacture of luggage, bags, brief cases and the like
+15122	Manufacture of handbags
+15129	Manufacture of saddlery, harness and articles of leather n.e.c.
+15200	Manufacture of footwear
+16101	Sawmilling
+16102	Preservation of wood
+16109	Sawmilling and planing of wood n.e.c.
+16211	Manufacture of plywood and veneer
+16219	Manufacture of laminboard, particle board and other panels and boards n.e.c.
+16291	Manufacture of wooden window, door and other millwork (except prefabricated wooden building structures)
+16292	Manufacture of household and kitchen wooden ware (except wooden footwear)
+16293	Manufacture of wooden containers
+16294	Rattan processing
+16295	Rattan processing
+16299	Manufacture of other products of wood and articles of cork, straw and plaiting materials n.e.c.
+17010	Manufacture of pulp, paper and paperboard
+17021	Manufacture of corrugated paper and paperboard
+17022	Manufacture of containers and boxes of paper and paperboard
+17091	Manufacture of joss paper and other related ceremonial paper products
+17092	Manufacture of sanitary towels, toilet paper, paper towels, disposable diapers and related paper products
+17093	Manufacture of paper cups, plates and utensils
+17094	Manufacture of unprinted cards, envelopes and stationery
+17099	Manufacture of other articles of paper and paperboard n.e.c.
+18111	Printing of periodicals, books and magazines
+18112	Commercial printing
+18113	Silk screen/metal printing
+18114	Printing of continuous and fan-fold forms
+18115	Silk screen printing (including metal printing)
+18119	Printing n.e.c.
+18121	Bookbinding
+18122	Colour separation
+18129	Service activities related to printing n.e.c.
+18200	Reproduction of recorded media/phonograph records/magnetic tapes/compact discs/non-customised software
+19100	Manufacture of coke oven products
+19201	Petroleum refineries
+19202	Manufacture of petroleum lubricating oil
+19209	Manufacture of refined petroleum products n.e.c.
+20111	Manufacture of industrial gases and dry ice
+20112	Manufacture of basic industrial acids and alkalis
+20113	Manufacture of basic chemicals (except fertilisers and nitrogen)
+20114	Manufacture of solvents
+20119	Manufacture of basic chemicals n.e.c.
+20120	Manufacture of fertilisers and nitrogen compounds
+20131	Manufacture of petrochemical primary products
+20132	Manufacture of derivatives and intermediates produced from basic building blocks
+20133	Manufacture of synthetic rubber
+20210	Manufacture of pesticides and other agro-chemical products
+20221	Manufacture of paints
+20222	Manufacture of varnishes and lacquers
+20223	Manufacture of printing ink, prepared pigments and dyes
+20229	Manufacture of paints, varnishes and similar coatings, printing ink and mastics n.e.c.
+20231	Manufacture of soap, detergents, washing and other cleaning preparations
+20232	Manufacture of perfumes and fragrances
+20233	Manufacture of cosmetics and toiletries
+20234	Manufacture of waxes and polishes and deodorising preparations
+20241	Manufacture of food chemicals and additives
+20242	Manufacture of additives for mineral oil
+20249	Manufacture of additives n.e.c.
+20291	Manufacture of epoxy moulding compounds and phenolic moulding compounds
+20292	Manufacture of ultrapure electronic chemicals, materials and laminates
+20293	Manufacture of water treatment, waste treatment and oilfield chemicals
+20294	Manufacture of writing and drawing inks
+20295	Manufacture of photographic film, paper, plate and chemicals
+20296	Manufacture of adhesives and sealants
+20297	Manufacture of catalysts and catalyst regeneration
+20298	Manufacture of biofuels
+20299	Manufacture of other chemical products n.e.c.
+20300	Manufacture of man-made fibres (except glass)
+21011	Manufacture of pharmaceutical intermediates and fine chemicals for human use
+21012	Manufacture of pharmaceutical products and preparations for human use
+21013	Manufacture of pharmaceutical products for veterinary use
+21021	Manufacture of vaccines for human use
+21022	Manufacture of other biological products and preparations for human use
+21023	Manufacture of biological products and preparations for veterinary use
+21030	Manufacture of Traditional Chinese Medicine
+22111	Processing, grading and packing of rubber; processing of rubber latex
+22112	Grading and packing of rubber
+22119	Processing of natural gums n.e.c.
+22121	Manufacture of tyres and tubes
+22122	Retreading and vulcanising of tyres
+22191	Manufacture of foam rubber products (except foam rubber mattresses)
+22192	Manufacture of rubber automotive parts
+22193	Manufacture of industrial and mechanical rubber goods
+22194	Manufacture of rubber floorings
+22199	Manufacture of other rubber products n.e.c. (except rubber footwear and toys)
+22211	Manufacture of plastic tableware, household and kitchen ware (except disposable utensils)
+22212	Manufacture of styrofoam and plastic disposable utensils
+22213	Manufacture of plastic sheet, film and articles thereof
+22214	Manufacture of plastic bottles, boxes and containers (except for household use)
+22215	Manufacture of plastic pipes and tubes
+22216	Manufacture of plastic precision engineering parts
+22217	Manufacture of PVC files, holders and albums
+22218	Manufacture of plastic cable ties
+22219	Manufacture of plastic products n.e.c. (except plastic footwear and toys)
+22220	Plastic product services
+23100	Manufacture of glass and glass products
+23910	Manufacture of clay products
+23911	Manufacture of bricks
+23912	Manufacture of tiles, pipes and channels (including clay roofing, wall and floor tiles, and earthen and glazed pipes)
+23919	Manufacture of clay products n.e.c.
+23930	Manufacture of other porcelain and ceramic products
+23931	Manufacture of plumbing fixtures and fittings of vitreous china, china and earthenware (e.g. sinks, closets, bowls)
+23939	Manufacture of other porcelain and ceramic products n.e.c.
+23940	Manufacture of cement, lime and plaster
+23951	Manufacture of ready-mix concrete
+23959	Manufacture of articles of concrete, cement and plaster n.e.c. (except precast concrete components)
+23960	Cutting, shaping and finishing of stone
+23991	Manufacture of fibreglass and fibreglass products
+23992	Manufacture of other insulation products
+23993	Manufacture of non-structural pre-cast components
+23994	Manufacture of asphalt premix
+23995	Manufacture of asphalt premix
+23999	Manufacture of other non-metallic mineral products n.e.c.
+24101	Iron and steel rolling mills
+24102	Manufacture of ferrous metal alloys
+24109	Manufacture of basic iron and steel n.e.c.
+24201	Manufacture of non-ferrous metal alloys
+24202	Manufacture of non-ferrous metal alloys
+24209	Manufacture of basic precious and non-ferrous metals n.e.c.
+24310	Iron and steel foundries
+24320	Non-ferrous metal foundries
+25111	Manufacture of metal doors, window and door frames, grilles and gratings
+25112	Manufacture of metal strips and slabs
+25113	Manufacture of metal pipes and tubes
+25114	Manufacture of steel structural component
+25119	Manufacture of structural metal products n.e.c.
+25120	Manufacture/repair of tanks, reservoirs and containers of metal
+25131	Manufacture/repair of heating boilers, radiators and correctors
+25139	Manufacture/repair of steam generators n.e.c. (except central heating hot water boilers)
+25200	Manufacture/repair of weapons and ammunition
+25911	Iron and steel and non-ferrous forgings
+25912	Manufacture of leadframe
+25913	Metal stampings (except metal caps)
+25914	Metal stampings except metal caps
+25919	Pressing and roll-forming of metal and powder metallurgy n.e.c.
+25921	Electroplating and plating of metals and formed products
+25922	Polishing of metals and formed products
+25923	Rustproofing of metals and formed products
+25924	Heat treatment for metals
+25929	Metal product services n.e.c.
+25931	Manufacture of table, kitchen and other cutlery
+25932	Manufacture of hand and edge tools
+25939	Manufacture of general hardware n.e.c.
+25941	Manufacture of uninsulated wire
+25949	Manufacture of metal wire and cable products n.e.c.
+25951	Manufacture of tinplate cans
+25952	Manufacture of other tinplate and zinc articles
+25959	Manufacture of metal cans, containers and related products n.e.c.
+25991	Manufacture of sanitary ware of enamelled iron and metal and plumbers' ware of brass
+25992	Manufacture of plumbing, heating and related products (except electric)
+25993	Manufacture of bolts, nuts, rivets, fasteners and screw machine products
+25994	Manufacture of pipe fittings
+25995	Manufacture of springs
+25996	Manufacture of kitchen and household utensils
+25997	Manufacture of metal precision components
+25998	Slitting, shearing and pasting of metal sheeting
+25999	Manufacture of other fabricated metal products n.e.c.
+26111	Manufacture of discrete devices
+26112	Semiconductor wafer fabrication
+26113	Assembly and testing of semiconductors
+26114	Manufacture of solar wafers
+26115	Manufacture of solar cells
+26119	Manufacture of semiconductor devices n.e.c.
+26121	Manufacture of capacitors
+26122	Manufacture of printed circuit boards without electronic parts
+26123	Manufacture of printed circuit boards with electronic parts
+26124	Manufacture of piezo-electric devices
+26125	Manufacture of electronic display devices (except light emitting diodes)
+26126	Manufacture of electronic connectors
+26129	Manufacture of other electronic components and boards n.e.c.
+26201	Manufacture of computers and data processing equipment (except computer peripheral equipment)
+26202	Manufacture of disk drives
+26203	Manufacture of printers
+26204	Manufacture of smart cards and related products
+26209	Manufacture of computers and peripheral equipment n.e.c.
+26301	Manufacture of telecommunications apparatus
+26302	Manufacture of networking products
+26303	Manufacture of wireless communications equipment
+26304	Manufacture of electronic security systems
+26309	Manufacture of communications equipment n.e.c.
+26400	Manufacture of consumer electronics
+26511	Manufacture/repair of engineering and scientific instruments
+26512	Manufacture/repair of measuring devices
+26513	Manufacture/repair of process control equipment and related products
+26520	Manufacture of watches and clocks
+26521	Manufacture of fully electronic watches and clocks
+26522	Manufacture of electro-mechanical watches and clocks (e.g. watches and clocks with moving parts and battery)
+26523	Manufacture of mechanical watches and clocks
+26524	Manufacture of parts and accessories for watches and clocks
+26601	Manufacture/repair of electrotherapeutic devices
+26602	Manufacture/repair of irradiation and electromedical equipment and instruments
+26701	Manufacture of photographic equipment and parts
+26709	Manufacture of optical instruments and photographic equipment n.e.c.
+26801	Manufacture of disk media
+26802	Manufacture of blank magnetic tapes, diskettes, Blu-ray technology discs, CDs, DVDs and VCDs
+27101	Manufacture/repair of electric motors
+27102	Manufacture/repair of electric generators
+27103	Manufacture/repair of transformers
+27104	Manufacture/repair of switchgear and switchboard apparatus
+27109	Manufacture/repair of electric motors, generators, transformers and electricity distribution and control apparatus n.e.c.
+27201	Manufacture of primary batteries
+27202	Manufacture of secondary batteries
+27321	Manufacture of telecommunications cables and wires
+27322	Manufacture of electric power cables and wires
+27323	Manufacture of wire and cable assemblies and harnesses
+27324	Manufacture of wire and cable assemblies and harnesses
+27329	Manufacture of electronic and electric wires and cables n.e.c.
+27330	Manufacture/repair of wiring devices
+27400	Manufacture/repair of electric lamps and lighting equipment
+27501	Manufacture of electrical household appliances
+27509	Manufacture of domestic appliances n.e.c.
+27900	Manufacture of other electrical equipment, apparatus, appliances and supplies
+27901	Manufacture of fuel cells
+27902	Manufacture of electrical machinery, apparatus, appliances and supplies (including sound or visual signalling apparatus, electrical insulators except porcelain or glass)
+28111	Manufacture/repair of engines and turbines (except aircraft, vehicle, cycle and marine engines)
+28112	Manufacture/repair of marine engine
+28121	Manufacture/repair of pumps
+28122	Manufacture/repair of taps, cocks and valves
+28129	Manufacture/repair of pumps, compressors, taps and valves n.e.c.
+28141	Manufacture of bearings
+28142	Manufacture/repair of gears, gearing and driving elements
+28150	Manufacture/repair of ovens, furnaces and furnace burners
+28161	Manufacture/repair of lifting and hoisting machinery (except electrical)
+28162	Manufacture/repair of lifts and escalators
+28169	Manufacture/repair of lifting and handling equipment n.e.c.
+28171	Manufacture of office machinery and equipment (except computers and peripheral equipment)
+28172	Repair and maintenance of office machinery and equipment
+28181	Manufacture/repair of industrial robots
+28182	Manufacture/repair of service robots
+28189	Manufacture/repair of robots n.e.c.
+28191	Manufacture/repair of refrigerating, air-conditioning and ventilating machinery and equipment (except household refrigerators)
+28192	Manufacture/repair of separation/mixing equipment
+28193	Manufacture/repair of solar modules and panels
+28194	Manufacture/repair of welding and soldering equipment
+28195	Manufacture/repair of packaging machinery
+28199	Manufacture/repair of other general purpose machinery and equipment n.e.c. (except electrical and electronic)
+28210	Manufacture/repair of agricultural and forestry machinery
+28221	Manufacture/repair of machinery and machine-tools - metal cutting types
+28222	Manufacture/repair of machinery and machine-tools - metal forming types
+28223	Manufacture/repair of dies, moulds, tools, jigs and fixtures
+28224	Manufacture/repair of machine tool accessories
+28225	Manufacture and repair of metal additive manufacturing (AM) equipment (including metal powder)
+28229	Manufacture/repair of metal-forming machinery and machine tools n.e.c.
+28241	Manufacture/repair of oil rigs
+28242	Manufacture/repair of other oilfield and gasfield machinery and equipment
+28243	Manufacture/repair of construction machinery and parts
+28249	Manufacture/repair of machinery for mining, quarrying and construction n.e.c.
+28251	Manufacture/repair of machinery for food products processing
+28252	Manufacture/repair of machinery for beverage production
+28253	Manufacture/repair of machinery for tobacco processing
+28260	Manufacture/repair of machinery for textile, apparel and leather production
+28271	Manufacture of probe cards
+28272	Manufacture of bonding tools
+28273	Manufacture/repair of semiconductor assembly and testing equipment
+28274	Manufacture/repair of semiconductor foundry equipment
+28291	Manufacture/repair of water/waste water treatment equipment
+28292	Manufacture/repair of plastic processing machinery
+28293	Manufacture/repair of additive manufacturing (AM) equipment
+28294	Manufacture and repair of polymer additive manufacturing (AM) equipment
+28299	Manufacture/repair of other special purpose machinery n.e.c.
+28300	Installation of industrial machinery and equipment, mechanical engineering works
+29100	Manufacture and assembly of motor vehicles (except motorcycles and scooters)
+29200	Manufacture of motor vehicle bodies (coachwork), trailers and semi-trailers
+29300	Manufacture of parts and accessories for motor vehicles
+30110	Building and repairing of ships, tankers, off-shore structures and other ocean-going vessels
+30120	Building and repair of pleasure crafts, lighters and boats
+30200	Manufacture/repair of railway and tramway locomotives and rolling stock
+30301	Manufacture and assembly of aircraft and spacecraft
+30302	Repair and servicing of aircraft and spacecraft
+30400	Manufacture/repair of military fighting vehicles
+30910	Manufacture and assembly of motorcycles and scooters
+30920	Manufacture and assembly of bicycles, tricycles, trishaws and invalid carriages
+30990	Manufacture/repair of other transport equipment n.e.c.
+31001	Manufacture of furniture and fixtures of wood
+31002	Manufacture of furniture of rattan and cane
+31003	Manufacture of furniture and fixtures primarily of metal
+31004	Manufacture of furniture of other materials (except primarily of stone, ceramic or concrete)
+31005	Manufacture of window and door screens and shades
+31006	Manufacture of mattresses
+31009	Manufacture of furniture n.e.c.
+32111	Manufacture of jewellery (except costume jewellery)
+32112	Manufacture of pewter ware
+32119	Manufacture of jewellery and related articles n.e.c. (except costume jewellery)
+32120	Manufacture of costume jewellery and related articles
+32200	Manufacture of musical instruments
+32300	Manufacture of sporting and athletic goods
+32400	Manufacture of games and toys
+32501	Manufacture of medical research and clinical diagnostic instruments and supplies
+32502	Manufacture of medical disposables and surgical supplies
+32503	Manufacture of implantables and artificial limbs
+32504	Manufacture of ophthalmic goods
+32509	Manufacture of medical and dental instruments and supplies n.e.c.
+32901	Manufacture of signs and advertising displays
+32909	Other manufacturing industries n.e.c.
+35101	Generation of electricity from non-renewable sources
+35102	Generation of electricity from renewable sources
+35103	Transmission, distribution and sale of electricity
+35104	Other related services (e.g. electricity brokers, meter reading)
+35200	Manufacture of gas; distribution of gaseous fuels through mains; processing of natural gas
+35201	Manufacture of gas; distribution of gaseous fuels through mains
+35202	Processing of natural gas
+35203	Other related services (e.g. arranging for sale of natural gas)
+35300	Supply of air or water for cooling or heating purposes
+35400	Activities of brokers and agents for electric power and natural gas
+36000	Collection, purification and distribution of water
+37000	Operation of sewer systems
+38100	Collection of waste
+38200	Treatment and disposal of waste
+38301	Recycling of metal waste and scrap
+38309	Recycling of non-metal waste n.e.c.
+39000	Carbon capture activities
+41001	General contractors for building construction and major upgrading works
+41002	Structural repair contractors
+41009	Construction of buildings n.e.c.
+42100	Civil engineering general contractors
+42101	General contractors (non-building construction)
+42102	Road and railway construction
+42103	Bridge, tunnel, viaduct and expressway construction
+42200	Road, railway and associated viaduct, bridge and tunnel construction
+42201	Water and gas pipe-line and sewer construction
+42202	Communications and power line construction
+42301	Water and gas pipe-line and sewer construction
+42302	Communications and power line construction
+42901	Land reclamation works
+42902	Dam and drainage construction
+42903	Marine construction
+42909	Construction of other civil engineering projects n.e.c.
+43110	Wrecking and demolition works
+43121	Soil investigation, treatment and stabilisation
+43122	Excavation and earthmoving works
+43129	Site preparation n.e.c.
+43210	Electrical works
+43220	Installation of plumbing, heating (non-electric) and air-conditioning systems
+43291	Installation and erection of building equipment
+43292	Installation of building automated systems for remote monitoring
+43293	Installation of awning and window shades
+43294	Installation of thermal and sound insulation
+43295	Signcraft installation
+43296	Signcraft installation
+43299	Other construction installation n.e.c.
+43301	Renovation contractors
+43302	Tile setting and plastering
+43303	Joinery and other woodworks
+43304	Painting and decorating
+43305	Glass and glazing works; mirror and shower screen installation
+43306	Curtain walling/cladding works
+43307	Installation of doors, gates, grilles and windows
+43309	Building completion and finishing n.e.c.
+43901	Foundation works; micropiling, conventional piling and underpinning
+43902	Brick laying, stone setting and cement works
+43903	Roofing works; timber carcassing
+43904	Production of pre-cast components
+43905	Scaffolding works
+43906	Sandblasting/shotblasting works (except ships)
+43907	Production of Prefabricated Prefinished Volumetric Construction (PPVC) modules
+43909	Other specialised construction activities n.e.c.
+46100	Wholesale on a fee or commission basis
+46211	Wholesale of cut flowers and plants
+46212	Wholesale of aquarium fishes and related accessories/products
+46213	Wholesale of pet birds and animals and related accessories/products
+46219	Wholesale of agricultural raw materials and live animals n.e.c. (except tropical produce)
+46221	Wholesale of rubber
+46222	Wholesale of pepper and other spices
+46223	Wholesale of coffee, cocoa and tea
+46224	Wholesale of coconut
+46225	Wholesale of palm oil
+46229	Wholesale of tropical produce n.e.c.
+46301	Wholesale of fruits and vegetables
+46302	Wholesale of livestock, meat, poultry, eggs and seafood
+46303	Wholesale of a general line of groceries
+46304	Wholesale of confectionery and bakery products
+46305	Wholesale of ice-cream
+46306	Wholesale of health supplements
+46307	Wholesale of liquor, soft drinks and beverages
+46308	Wholesale of tobacco products
+46309	Wholesale of food, beverages and tobacco n.e.c.
+46411	Wholesale of textiles and leathers
+46412	Wholesale of adults' clothing
+46413	Wholesale of children and infants' clothing
+46414	Wholesale of footwear
+46415	Wholesale of bags, luggage and travel accessories
+46416	Wholesale of sewing and clothing accessories
+46421	Wholesale of jewellery made from precious metals and stones
+46422	Wholesale of costume jewellery
+46423	Wholesale of watches and clocks
+46424	Wholesale of personal care products
+46429	Wholesale of personal effects n.e.c.
+46431	Wholesale of furniture
+46432	Wholesale of furnishings
+46433	Wholesale of lighting and lighting accessories
+46434	Wholesale of crockery, cutlery and kitchen utensils
+46435	Wholesale of household electrical appliances and equipment
+46436	Wholesale of audio and video equipment (except electrical and electronic components)
+46437	Wholesale of musical instruments and scores
+46439	Wholesale of furniture, home furnishings and other household equipment n.e.c.
+46441	Wholesale of sporting goods and equipment
+46442	Wholesale of music and video recordings
+46443	Wholesale of toys and games
+46444	Wholesale of computer games
+46445	Wholesale of musical instruments and scores
+46449	Wholesale of sporting and other recreational goods n.e.c.
+46451	Wholesale of antiques and works of art
+46452	Wholesale of handicrafts and gifts
+46453	Wholesale of artificial flowers and plants
+46459	Wholesale of handicrafts and fancy goods n.e.c.
+46461	Wholesale of medicinal and pharmaceutical products (Western)
+46462	Wholesale of medicine and herbs (except Western)
+46471	Wholesale of paper and paper products
+46472	Wholesale of packaging materials
+46473	Wholesale of stationery
+46474	Wholesale of books and magazines
+46479	Wholesale of paper, paper-related products, stationery, cellophane products and packaging materials n.e.c.
+46491	Wholesale of optical equipment and supplies (except binoculars)
+46492	Wholesale of photographic equipment and supplies
+46499	Wholesale of other household goods n.e.c.
+46511	Wholesale of computer hardware and peripheral equipment (except cybersecurity related hardware and peripheral equipment)
+46512	Wholesale of computer software (except games and cybersecurity software)
+46513	Wholesale of computer accessories
+46514	Wholesale of cybersecurity software, hardware and peripheral equipment
+46521	Wholesale of telecommunications equipment (except handphones)
+46522	Wholesale of electronic components
+46523	Wholesale of handphones and related telecommunications and peripheral equipment
+46530	Wholesale of agricultural machinery, equipment and supplies
+46541	Wholesale of industrial machinery and equipment
+46542	Wholesale of construction equipment
+46543	Wholesale of lifts, escalators and industrial and office air-conditioning equipment
+46544	Wholesale of electrical and wiring accessories
+46549	Wholesale of industrial, construction and related machinery and equipment n.e.c.
+46551	Wholesale of marine equipment and accessories
+46552	Wholesale of aircraft equipment and supplies
+46559	Wholesale of transport equipment n.e.c. (except motor vehicles and motorcycles)
+46561	Wholesale of motor vehicles (except motorcycles and scooters)
+46562	Wholesale of motorcycles and scooters
+46563	Wholesale of parts and accessories for motor vehicles
+46591	Wholesale of office machines and equipment
+46592	Wholesale of medical, professional, scientific and precision equipment
+46593	Wholesale of commercial food service equipment
+46594	Wholesale of service establishment equipment and supplies
+46595	Wholesale of security and safety equipment
+46599	Wholesale of other machinery and equipment n.e.c.
+46610	Wholesale of fuels and related products
+46620	Wholesale of metals and metal ores (except general hardware)
+46631	Wholesale of logs, sawn timber, plywood and related products
+46632	Wholesale of general hardware
+46633	Wholesale of structural clay and concrete products
+46634	Wholesale of paints
+46635	Wholesale of glass
+46639	Wholesale of construction materials, hardware, plumbing and heating equipment and supplies n.e.c.
+46641	Wholesale of basic industrial chemicals (except fertilisers)
+46642	Wholesale of chemical fertilisers
+46643	Wholesale of petrochemical products
+46649	Wholesale of chemicals and chemical products n.e.c.
+46651	Wholesale of scrap, junk and waste dealers
+46659	Wholesale of other intermediate products, waste and scrap n.e.c.
+46661	Ship chandlers
+46662	Ship bunkering
+46900	Wholesale trade of a variety of goods without a dominant product
+47101	Supermarkets and hypermarkets
+47102	Mini-marts, convenience stores and provision shops
+47103	Department stores
+47109	Retail sale in non-specialised stores n.e.c.
+47211	Retail sale of fruits and vegetables
+47212	Retail sale of meat, poultry, eggs and seafood
+47213	Retail sale of confectionery and bakery products (not manufactured on site)
+47214	Retail sale of health supplements
+47219	Retail sale of food n.e.c.
+47220	Retail sale of beverages
+47230	Retail sale of tobacco products
+47311	Retail sale of motor vehicles (except motorcycles and scooters)
+47312	Retail sale of motorcycles and scooters
+47313	Retail sale of tyres and batteries for motor vehicles
+47314	Retail sale of parts and accessories for motor vehicles
+47320	Retail sale of automotive fuel
+47411	Retail sale of handphones and related telecommunications and peripheral equipment
+47412	Retail sale of computer hardware and peripheral equipment, and computer software (except games and cybersecurity hardware and software)
+47413	Retail sale of computer games
+47414	Retail sale of computer and office equipment consumables
+47415	Retail sale of cybersecurity software, hardware and peripheral equipment
+47420	Retail sale of audio and video equipment (e.g. radio and television sets, sound reproducing and recording equipment)
+47510	Retail sale of textiles
+47521	Retail sale of paints
+47522	Retail sale of hardware
+47529	Retail sale of hardware, paint and glass n.e.c.
+47531	Retail sale of furniture
+47532	Retail sale of furnishings
+47533	Retail sale of lighting and lighting accessories
+47534	Retail sale of crockery, cutlery and kitchen utensils
+47535	Retail sale of household electrical appliances and equipment
+47536	Retail sale of security and safety equipment
+47537	Retail sale of security and safety equipment
+47539	Retail sale of electrical household appliances, furniture, lighting equipment and other household articles n.e.c.
+47610	Retail sale of books, newspapers and stationery
+47620	Retail sale of music and video recordings
+47630	Retail sale of sports apparel and equipment
+47640	Retail sale of games and toys
+47650	Retail sale of musical instruments and scores
+47711	Retail sale of clothing for adults
+47712	Retail sale of children and infants' clothing
+47713	Retail sale of footwear
+47714	Retail sale of bags, luggage and travel accessories
+47715	Retail sale of sewing and clothing accessories
+47719	Retail sale of clothing, footwear and leather articles n.e.c.
+47721	Retail sale of personal care products
+47722	Pharmacies and drug stores (Western)
+47723	Chinese medicine shops
+47729	Retail sale of pharmaceutical and medical goods n.e.c.
+47731	Retail sale of jewellery made from precious metals and stones
+47732	Retail sale of costume jewellery
+47733	Retail sale of watches and clocks
+47739	Retail sale of personal effects n.e.c.
+47741	Retail sale of antiques and works of art
+47742	Retail sale of handicrafts, collectibles and gifts
+47743	Retail sale of cut flowers
+47744	Retail sale of artificial flowers and plants
+47745	Retail sale of aquarium fishes and related accessories/products
+47746	Retail sale of pet birds and animals and related accessories/products
+47749	Retail sale of handicrafts and fancy goods, flowers, plants and pet animals n.e.c.
+47751	Retail sale of spectacles and other optical goods
+47752	Retail sale of cameras and other photographic goods
+47759	Retail sale of optical and photographic goods n.e.c.
+47761	Retail sale of joss paper and other ceremonial products
+47762	Retail sale of liquefied petroleum gas (LPG)
+47769	Retail sale of other goods n.e.c.
+47770	Retail sale of second-hand goods in stores
+47801	Stalls selling uncooked food
+47802	Stalls selling other goods (except uncooked food)
+49101	Railroad services
+49102	Mass rapid transit systems
+49211	Public bus services (scheduled services)
+49212	Chartered bus services
+49213	Inter-country bus services
+49214	Street-hail and ride-hail service providers
+49215	Rental and leasing of cars with driver (except street-hail and ride-hail service providers)
+49220	Aerial cableways
+49231	Freight transport by road
+49232	Moving services
+49233	Rental and leasing of freight land transport vehicle with driver
+49300	Transport via pipelines
+50011	International cruise services
+50012	Other sight-seeing cruise services
+50013	Passenger ferry services
+50014	Chartering of ships and boats with crew (passenger)
+50021	Shipping companies and chartering of ships/boats with crew (freight)
+50022	Operators and charterers of barges, tugboats and bumboats (freight)
+50023	Branches of foreign shipping lines
+51001	Airlines (passenger)
+51002	Airlines (freight)
+51003	Branches of foreign airlines (passenger)
+51004	Branches of foreign airlines (freight)
+51005	Aircraft chartering with operator
+52101	General warehousing
+52102	Refrigerated warehousing and storage
+52103	Storage for dangerous goods
+52109	Specialised storage n.e.c.
+52211	Carpark management and operation services
+52212	Motor vehicle towing services
+52219	Supporting services to land transport n.e.c.
+52221	Representative offices of foreign shipping lines
+52222	Shipping agencies (freight)
+52223	Port operators
+52224	Lighterage services
+52225	Salvaging of distressed vessels and cargos
+52226	Ship management services
+52227	Ship brokering services
+52229	Supporting services to water transport n.e.c.
+52231	Representative offices of foreign airlines
+52232	Airline agencies (freight)
+52233	Airport operation services
+52234	Airport terminal services
+52239	Supporting services to air transport n.e.c.
+52241	Container depot services
+52242	Industrial cargo lifting and moving services (except for use in construction industry)
+52243	Stevedoring services
+52251	Classification societies
+52252	Marine surveying services (except classification societies)
+52291	Cargo surveying services
+52292	Freight transport arrangement
+53100	National post activities
+53200	Courier activities (except national post activities)
+55101	Hotels
+55102	Chalets
+55103	Short term accommodation activities other than hotels and chalets
+55109	Short term accommodation activities n.e.c.
+55900	Hostels and dormitories for students, workers and other individuals
+56111	Restaurants
+56112	Cafes
+56121	Fast food outlets
+56122	Operators of food courts, hawker centres, coffee shops and canteens (with mainly food and beverage income)
+56123	Food and drinks kiosks mainly for takeaway and delivery
+56130	Pubs
+56140	Stalls selling cooked food and prepared drinks
+56200	Food caterers
+58110	Publishing of books, brochures, musical books and other publications
+58120	Publishing of directories and mailing lists
+58131	Publishing of news
+58132	Publishing of journals, periodicals and magazines
+58190	Other publishing activities
+58201	Publishing of games software/applications
+58202	Publishing of software/applications (non-games)
+59111	Movie production
+59112	Production of advertisements, corporate videos and event videos
+59113	Production of dramas, variety shows and documentaries
+59114	Animation production
+59119	Movie, video, television and other programme production activities n.e.c.
+59120	Movie, video, television and other programme post-production activities
+59131	Movie distribution
+59132	Distribution of television programmes
+59139	Movie, video, television and other programme distribution activities n.e.c.
+59140	Movie projection activities
+59201	Sound recording production
+59202	Music publishing and distribution activities
+60100	Radio programme production and broadcasting
+60200	Television programming and broadcasting
+60301	News agency activities
+60302	Operation of social network sites and other content distribution activities (except publishing)
+61010	Telecommunications network operation
+61011	Wired telecommunications network operation (including fixed-line, fibre optics, local/international PSTN and leased circuits)
+61012	Mobile cellular and other wireless telecommunications network operation
+61013	Satellite telecommunications network operation
+61020	Telecommunications resellers/third party telecommunications providers
+61090	Other telecommunication services
+61091	Telecommunications resellers/third party telecommunications providers (including value-added network operators)
+61092	Internet access providers, include ISPs
+61099	Other telecommunications activities n.e.c. (e.g. provision of VoIP (Voice over Internet Protocol services))
+62011	Development of software and applications (except games and cybersecurity)
+62012	Development of computer games
+62013	Development of software for cybersecurity
+62021	Information technology consultancy (except cybersecurity)
+62022	Information technology cybersecurity consultancy
+62023	Computer facilities management activities
+62090	Other information technology and computer service activities
+63111	Data centres
+63112	Hosting services by non-data centres
+63119	Data analytics, processing, hosting and related activities n.e.c.
+63120	Internet search engines
+63201	Online marketplaces operating on a fee or commission basis for goods and food sold by third-party; Online marketplaces operating on a fee or commission basis for food delivery services
+63202	Online marketplaces operating on a fee or commission basis for health services provided by third-party
+63203	Online marketplaces operating on a fee or commission basis for education services provided by third-party
+63204	Online marketplaces operating on a fee or commission basis for travel and accommodation services provided by third-party
+63205	Online marketplaces operating on a fee or commission basis for real estate services provided by third-party
+63209	Online marketplaces operating on a fee or commission basis for other services provided by third-party
+63901	Internet search engines
+63909	Other information service activities n.e.c.
+64110	Central bank
+64120	Full banks
+64130	Wholesale banks
+64140	Merchant banks
+64150	Finance companies (with deposit taking functions)
+64190	Other monetary intermediation
+64201	Holding companies of firms engaged in financial and insurance activities
+64202	Holding companies of firms engaged in non-financial and insurance activities
+64300	Trusts, funds and similar financial entities (except those with rental income)
+64910	Financial leasing companies
+64921	Thrift and loan societies and credit associations
+64922	Credit card services
+64923	Mutual benefits organisations
+64924	Money-lending
+64925	Pawnbrokerage
+64929	Other credit granting n.e.c.
+64991	Factoring companies
+64992	Representative offices of foreign banks
+64993	Remittance services
+64994	Treasury centres
+64999	Other financial service activities n.e.c. (except insurance and pension funding activities)
+65110	Life insurance
+65121	Marine insurance
+65122	Captive insurance
+65123	Import, export and credit insurance
+65124	General insurance (except marine and import, export and credit insurance)
+65201	Life reinsurance
+65202	General reinsurance
+65300	Provident funding and pension funding
+65301	Provident funding
+65302	Pension funding
+66110	Securities and commodities exchange
+66121	Stock, share and bond brokers and dealers
+66122	Foreign exchange brokers and dealers
+66123	Gold bullion brokers and dealers
+66124	Commodity and futures brokers and dealers (except gold)
+66125	Carbon credit brokers/traders
+66126	Money-changing services
+66129	Security dealings and commodity contracts brokerage activities n.e.c.
+66191	Trustee, fiduciary and custody services
+66192	Corporate finance advisory services
+66193	Clearing and settlement of financial instruments
+66194	Activities auxiliary to fund management activities
+66195	Transaction/payment processing services
+66199	Other activities auxiliary to financial service activities n.e.c.
+66210	Risk and damage evaluation
+66221	Insurance agencies and agents
+66222	Insurance brokers
+66291	Representative offices of foreign insurers and professional reinsurers
+66292	Captive managers
+66299	Other activities auxiliary to insurance and pension funding n.e.c.
+66301	Traditional/long-only asset/portfolio management
+66302	Hedge fund management
+66303	Property fund/REIT management
+66304	Private equity firms
+66305	Venture capital activities
+66306	Single/multiple family offices activities
+66307	Private debt funds
+66309	Fund management activities n.e.c.
+68101	Real estate developers
+68102	Operating of serviced apartments
+68103	Letting and operating of self-owned or leased real estate property (except food courts, hawker centres, coffee shops and canteens)
+68104	Letting and operating of self-owned or leased food courts, hawker centres, coffee shops and canteens (with mainly rental income)
+68105	Collective portfolio investment funds with rental income
+68106	Management of self-owned strata titled property
+68201	Real estate agencies and valuation services
+68202	Town councils
+68203	Residential, commercial and industrial real estate management (except town councils)
+68209	Real estate activities on a fee or commission basis n.e.c.
+69101	Legal activities
+69102	Arbitration and mediation services
+69201	Accounting, auditing and tax consultancy services
+69202	Book-keeping services
+70101	Activities of head and regional head offices; Centralised administrative offices and subsidiary management offices
+70102	Business representative offices
+70201	Management consultancy services
+70202	Management consultancy services for healthcare organisations
+70203	Management consultancy services for hotels
+70204	Human resource consultancy services
+70205	Public relations, marketing and brand consultancy services
+70206	Port, shipping and maritime-related consultancy services
+70209	Management consultancy services n.e.c.
+71111	Architectural services
+71112	Landscape design and landscape architecture
+71113	Quantity surveying services
+71114	Land surveying services
+71119	Other surveying services n.e.c.
+71121	General building engineering design and consultancy services
+71122	Process and industrial plant engineering design and consultancy services
+71123	Engineering design and consultancy services in energy management and clean energy systems
+71124	Environmental engineering design and consultancy services (except clean energy)
+71125	Infrastructure engineering design and consultancy services
+71126	Engineering design and consultancy services supporting mining, oil and gas extraction and offshore exploration activities
+71129	Engineering design and consultancy activities n.e.c.
+71200	Technical testing and analysis services; certification of products and services
+72101	Research and experimental development on biotechnology (except medical and veterinary science)
+72102	Research and experimental development on electronics (except medical and veterinary science)
+72103	Research and experimental development on chemicals (except medical and veterinary science)
+72104	Research and experimental development on engineering
+72105	Research and experimental development on environment and clean technologies (except biotechnology)
+72106	Research and experimental development on medical and veterinary sciences
+72109	Research and experimental development on natural sciences n.e.c.
+72200	Research and experimental development on social sciences and humanities
+73100	Advertising activities
+73200	Market research and public opinion polling
+74111	Electronics-related industrial design services
+74112	Transport-related industrial design services
+74113	Furniture design services
+74119	Industrial design activities n.e.c.
+74191	Interior design services
+74192	Art and graphic design services
+74193	Fashion and accessories design services
+74194	Exhibition stand design services
+74199	Other specialised design activities n.e.c.
+74200	Photographic activities
+74901	Translation services
+74902	Brokerage and consultancy services of intellectual property assets
+74903	Agrotechnology consultancy services
+74904	Sustainability consultancy services
+74905	Agents for artistes, athletes, models and other performers
+74909	Other professional, scientific and technical activities n.e.c.
+75000	Veterinary activities
+77101	Renting and leasing of private cars without driver
+77102	Renting and leasing of bicycles and inline/roller skates
+77109	Renting and leasing of land transport equipment without driver n.e.c. (except cars)
+77210	Renting and leasing of recreational and sports goods
+77220	Renting of VCDs and DVDs
+77291	Renting and leasing of furniture, utensils and electronic equipment for household use
+77292	Renting of costumes and other attire
+77299	Renting and leasing of other personal and household goods n.e.c.
+77310	Renting of water transport equipment and floating structures without operator
+77320	Renting of air transport equipment without operator
+77330	Renting of construction and civil engineering machinery and equipment without operator
+77341	Renting of computers and peripheral equipment without operator
+77342	Renting of office machinery and equipment without operator
+77391	Renting and leasing of professional radio and television sets and sound reproducing and recording equipment without operator
+77392	Renting of industrial machinery and equipment without operator
+77399	Renting of other machinery, equipment and tangible goods without operator n.e.c.
+77400	Leasing of non-financial intangible assets
+78101	IT manpower contracting services
+78102	Manpower contracting services (except IT manpower)
+78103	Domestic worker employment placement agencies
+78104	Employment agencies (except domestic worker employment placement agencies)
+78300	Management of human resource functions
+79101	Travel agencies and tour operators (mainly inbound)
+79102	Travel agencies and tour operators (mainly outbound)
+79200	Timesharing service activities
+80100	Private security activities
+80200	Detective and investigation activities
+81211	General cleaning services (except household cleaning)
+81212	Domestic/household cleaning services
+81291	Pest control services not in connection with agriculture
+81292	Cleaning, maintenance and/or treatment of swimming pools, spa pools, water playgrounds and fountains
+81299	Other cleaning services n.e.c.
+81300	Landscape service activities (except landscape design and architecture)
+82110	Office administrative services on a fee or contract basis
+82191	Stenographic and secretarial services
+82192	Duplicating and photo-copying services
+82199	Other specialised office support activities n.e.c.
+82200	Call centres
+82301	Exhibition organisers
+82302	Convention/conference/corporate meeting organisers
+82303	Event organisers (except concerts, sports/fitness event organisers and wedding planners)
+82304	Exhibition stand contractors
+82305	Concert organisers
+82911	Debt collection services
+82912	Credit rating agencies
+82920	Packaging activities
+82991	Activities of auction houses
+82999	Other business support service activities
+84110	Executive, legislative and other general public administration
+84120	Public administration of economic, social and environmental programmes
+84210	Foreign affairs
+84221	Armed forces
+84229	Defence activities n.e.c.
+84231	Judiciary and related services
+84232	Police
+84233	Prisons
+84234	Other places of detention, correction and rehabilitation
+84235	Civil defence
+84239	Public order and safety activities n.e.c.
+85100	Pre-primary education; child care with pre-primary education services
+85101	Nurseries and kindergartens
+85102	Primary schools
+85200	Primary education
+85211	Secondary schools including combined primary and secondary schools
+85212	Junior colleges and centralised pre-university institutes (post-secondary non-tertiary) including combined secondary schools and post-secondary non-tertiary schools
+85213	Commercial schools offering general secondary and post-secondary non-tertiary education programmes
+85220	Technical and vocational secondary and post-secondary non-tertiary education
+85230	International and foreign system schools
+85240	Schools for special needs
+85250	Specialised education schools
+85301	Polytechnics
+85302	Universities
+85303	Teachers' training institute
+85304	Commercial schools offering higher education programmes
+85310	Secondary schools; combined primary and secondary schools
+85320	Technical and vocational (secondary and post-secondary non-tertiary) education
+85331	Junior colleges and centralised pre-university institutes (post-secondary non-tertiary); combined secondary schools and post-secondary non-tertiary schools
+85332	Commercial schools offering general secondary and post-secondary non-tertiary education programmes
+85340	International and foreign system schools
+85350	Schools for special needs
+85360	Specialised education schools
+85401	Polytechnics
+85402	Universities
+85403	Teachers' training institute
+85404	Commercial schools offering tertiary education programmes
+85405	Training courses for information and communications, finance and professional services
+85406	Training courses for wholesale trade, logistics and transport
+85407	Training courses for sports and games
+85408	Training courses for music, dancing, art, speech and drama
+85409	Training courses n.e.c.
+85501	Training courses for construction, real estate, security and investigation services, cleaning, landscaping, waste management and pest management
+85502	Training courses for healthcare, education, community and social services
+85503	Training courses for food and beverage, retail and accommodation, tour operators, travel agencies and travel-related reservation services
+85504	Training courses for manufacturing
+85505	Training courses for information and communications, finance and professional services
+85506	Training courses for wholesale trade, logistics and transport
+85507	Training courses for sports and games
+85508	Training courses for music, dancing, art, speech and drama
+85509	Training courses n.e.c.
+85601	Student recruitment agencies
+85602	Examination and accreditation agencies for education services
+85609	Educational support services n.e.c.
+86101	Acute hospitals
+86102	Community hospitals
+86109	Hospital activities n.e.c.
+86201	Clinics and other general medical services (Western)
+86202	Clinics and other general medical services (Non-Western)
+86203	Specialised medical services
+86204	Dental services
+86901	Medical laboratories
+86902	Medical diagnostic imaging centres
+86903	Ambulance and medical evacuation services
+86904	Home healthcare services
+86905	Dialysis services
+86909	Other health services n.e.c.
+87010	Nursing and personal care facilities
+87021	Residential care services for the elderly
+87022	Residential care services for children
+87029	Other residential care services n.e.c.
+88101	Social services for the elderly
+88102	Social services for persons with disabilities
+88911	Infant care services; child minding services for pre-school children
+88912	Student care services; child minding services for school-going children
+88913	Social services for children and youths
+88919	Social services without accommodation for children, youth and families n.e.c.
+88920	Community development councils
+88991	Job training and vocational rehabilitation services
+88992	Charitable and other supporting activities aimed at humanitarian work
+88999	Other social services without accommodation n.e.c.
+90001	Production of live stage presentations
+90002	Performing arts venue operation
+90003	Orchestras, musical bands, choirs and dance groups
+90009	Dramatic arts, music and other arts production-related activities n.e.c. (e.g. stage, lighting and sound services)
+90110	Literary creation and musical composition activities
+90120	Visual arts creation activities
+90190	Other arts creation activities
+90201	Production of live theatrical presentations
+90202	Orchestras, musical bands, choirs and dance performance activities
+90209	Activities of performing arts n.e.c.
+90310	Arts facilities/venue operation
+90390	Other support activities to arts and performing arts
+91010	Libraries and archives activities
+91021	Museums
+91029	Preservation of historical sites, buildings, artefacts and paintings, cultural villages and other related activities n.e.c.
+91030	Botanical and zoological gardens and nature reserves activities
+91100	Libraries and archives activities
+91201	Museums
+91209	Operation of historical sites and buildings n.e.c.
+91300	Conservation, restoration and other support activities for cultural heritage
+91400	Botanical and zoological gardens and nature reserves activities (except landscaping and nature tours)
+92001	Horse-racing and other betting activities
+92002	Casinos
+93111	Fitness centres and gymnasiums
+93112	Sports/fitness event organisers
+93119	Operation of sports facilities n.e.c.
+93120	Activities of sports clubs/associations and related activities
+93201	Amusement theme parks, adventure and family attractions
+93202	Game arcade, online game aggregator, LAN game operators and gaming centres
+93203	Night clubs, discotheques, dance clubs and karaoke lounges
+93204	Recreation clubs
+93209	Other amusement and recreation activities n.e.c.
+94110	Activities of business and employers' membership organisations
+94120	Activities of professional membership organisations
+94200	Activities of trade unions and platform work associations
+94911	Churches
+94912	Mosques
+94913	Buddhist/Taoist temples
+94914	Hindu/Sikh temples
+94919	Activities of religious organisations n.e.c.
+94920	Activities of political organisations
+94991	Philanthropic trusts, foundations and related activities
+94992	Ethnic associations
+94993	Associations for hobbies, recreational, cultural and extra-curricular activities
+94994	Student/alumni bodies and related associations
+94995	Organisations for the protection of the environment and animals
+94996	Community and grassroots organisations
+94999	Activities of other membership organisations n.e.c.
+95110	Repair and maintenance of computer hardware, data processing equipment and computer peripherals
+95120	Repair of communications equipment
+95210	Repair of audio and video equipment
+95220	Repair of domestic electrical/electronic appliances (except audio and video equipment)
+95230	Repair of footwear and leather goods
+95240	Repair and restoration of cabinets, furniture, upholstery, window shades and other fixtures
+95291	Repair of bicycles and tricycles
+95292	Repair of watches and clocks
+95293	Repair of jewellery
+95299	Repair of other personal and household goods n.e.c.
+95301	Repair and maintenance of motor vehicles
+95302	Car washing and related services
+95303	Motor vehicles inspection and valuation services
+96011	Laundry and dry cleaning services (except self-operated laundries)
+96012	Self-operated laundries
+96021	Hairdressing salons/shops
+96022	Beauty salons and spas
+96023	Manicure and pedicure services
+96024	Massage parlours and foot reflexology
+96029	Beauty and other personal care services n.e.c.
+96030	Funeral and related activities
+96040	Wedding and related activities
+96091	Friendship, match-making and dating services
+96092	Social escort services
+96093	Astrology, palmistry and other fortune telling services
+96094	Training of pets
+96095	Care services for pets and animals
+96099	Other personal service activities n.e.c.
+97001	Activities of households as employers of domestic workers
+97002	Activities of households as employers of other domestic personnel
+99010	Foreign embassies and trade representative offices
+99020	Foreign armed forces
+99090	Other extra-territorial organisations and bodies

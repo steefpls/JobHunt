@@ -211,7 +211,9 @@ def test_a_jobstreet_lookup_reads_the_company_page_and_website_with_pacing(monke
     assert "6 Penjuru Close, Singapore" in srcs[2].text  # the footer is read: that's where addresses are
     assert browser.loaded == [board]  # the job board, in the job-site browser
     assert browser.isolated == ["http://www.hopetechnik.com", "http://www.hopetechnik.com/contact-us"]  # no logins
-    assert ctx.turns == 3 and skipped == []  # every load waited its turn
+    assert ctx.turns == 3  # every load waited its turn
+    # nothing skipped but what tests can't reach (the registry and Wikipedia; no search: the board named the site)
+    assert [s.split(":")[0] for s in skipped] == ["Singapore's company registry (ACRA)", "Wikipedia"]
 
 
 def test_indeed_and_linkedin_company_pages_are_never_loaded(monkeypatch):

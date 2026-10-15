@@ -11,9 +11,15 @@ Every fact comes from a page JobHunt read for this job, never from the AI's own 
                          (seen live from Singapore on 2026-10-15)
         Indeed           not read: its company pages sit behind the human check, and Indeed is only ever
                          read in a window (sites.IndeedSite), never in the hidden browser a lookup uses
-  S3+ the company's own website: its home page and its contact (or about) page. The address comes from the
-      board, from a link or email address in the posting that carries the company's name, or else from the
-      name itself (<name>.com.sg, .sg, .com) when that page names the company and Singapore.
+  S3+ Singapore's company registry (ACRA open data on data.gov.sg): registered name, UEN, status, registered
+      address, registered business activity, incorporation date; only for one clear match (company_sources.py)
+      the company's own website: its home page and its contact (or about) page. The address comes from the
+      board, from a link or email address in the posting that carries the company's name, from Wikidata, from
+      one web search (a result whose address carries the company's name), or else from the name itself
+      (<name>.com.sg, .sg, .com); a found or guessed site must name the company and Singapore (or its
+      registered postal code or UEN)
+      Wikipedia, for larger companies: only an article that is clearly this company, or the group a regional
+      subsidiary ('X South East Asia Pte Ltd') belongs to
 
 A page with a robot check or a sign-in wall is skipped, never worked around. Job boards are paced like a hunt
 (SiteContext.wait_turn); company websites load in a separate throwaway browser with no saved logins.
@@ -22,27 +28,36 @@ One cheap AI call (the filter model) writes the summary. For each fact it must n
 exact words; code then checks every quote against that page and drops a fact whose quote isn't there, or whose
 numbers or place names aren't in the quote, so a location, size or headquarters can't be made up: it shows
 "Not found". Nothing here can fail or hold up a package: every problem is caught and shown on the job page.
+
+The summary is about the company, from the company's own sources first: "What they do" from the posting is shown
+as "From the job posting only". On a recruiter posting the company is the agency ("Posted by"), and what the
+posting says about the client it hires for is kept apart ("Hiring for"), so the client is never described as the
+agency. "Where the job is" is the board's own location field, credited to the posting.
 """
 import ipaddress
 import json
 import re
 import socket
 import threading
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
-from . import db, paths, prompts
+from . import company_sources as more, db, paths, prompts
 from .extract import clean_whitespace, find_jsonld_jobposting, html_to_text, main_text
 
 # What the summary holds, in the order the job page shows it.
 FIELDS = [("what_they_do", "What they do"), ("industry", "Industry"), ("job_location", "Where the job is"),
-          ("company_location", "Company's office"), ("hq_country", "Headquarters"), ("size", "Size")]
+          ("company_location", "Company's office"), ("hq_country", "Headquarters"), ("size", "Size"),
+          ("registered", "Registered as")]
 PLACE_FIELDS = {"job_location", "company_location", "hq_country"}
-MAX_PAGE_LOADS = 4  # pages one lookup may load (board pages and website pages together)
-CAPS = {"posting": 3500, "board": 3000, "web": 2500}
+CODE_FIELDS = {"registered"}  # made by code from the registry record, never by the AI
+REST_S = 120  # a source that said "too many requests" is left alone this long
+MAX_PAGE_LOADS = 5  # pages one lookup may load (board pages and website pages together)
+CAPS = {"posting": 3500, "board": 3000, "web": 2500, "registry": 1200, "wiki": 1500}
 NOT_FOUND = "Not found"
 
 # Never a company's own website: job boards, application systems, social sites, link shorteners, webmail.
@@ -64,8 +79,17 @@ _LEGAL_WORDS = {"pte", "ltd", "limited", "private", "llp", "llc", "inc", "incorp
 # Only strong signs: "our clients" (plural) is how any consultancy talks about its customers, and a bare
 # R1234567 is as likely a requisition number as an EA personnel number.
 _AGENCY_RE = re.compile(r"\b(our (?:esteemed |valued )?client\b|on behalf of (?:our|a|the) client\b|"
-                        r"EA\s*(?:licen[cs]e|reg(?:istration)?\.?|no\.?|personnel)|"
+                        r"EA\s*(?:licen[cs]e\b|reg(?:istration)?\b\.?|no\b\.?|personnel\b)|"
                         r"recruitment (?:agency|firm|consultancy)\b|employment agency\b|\b\d{2}C\d{4}\b)", re.I)
+_NOT_BEFORE = re.compile(r"\b(?:not|never|nor)\s+(?:an?\s+)?$", re.I)
+
+
+def agency_sign(text: str):
+    """The first strong sign that a recruiter wrote this posting ("We are not a recruitment agency" isn't one)."""
+    for m in _AGENCY_RE.finditer(text or ""):
+        if not _NOT_BEFORE.search(text[max(0, m.start() - 20):m.start()]):
+            return m
+    return None
 
 
 @dataclass
@@ -74,6 +98,8 @@ class Source:
     label: str
     url: str
     text: str
+    kind: str = ""  # posting, board, registry, website, wikipedia
+    meta: dict = field(default_factory=dict)
 
 
 # ── reading the pages ─────────────────────────────────────────────────
@@ -290,6 +316,22 @@ def website_text(html: str) -> str:
     return clean_whitespace("\n".join(filter(None, [title, main_text(html), feet])))
 
 
+def _page_name(url: str) -> str:
+    """'/contact', or '/?page_id=136' for a site whose pages are numbered."""
+    p = urlparse(url)
+    return (p.path or "/") + (f"?{p.query}" if p.query else "")
+
+
+def _same_page(a: str, b: str) -> bool:
+    def key(u):
+        p = urlparse(u)
+        return ((p.hostname or "").removeprefix("www."), p.path.rstrip("/"), p.query)
+    try:
+        return key(a) == key(b)
+    except ValueError:
+        return False
+
+
 def subpage_link(html: str, base_url: str) -> str:
     """The site's contact page (where the address is), else its about page; same site only."""
     host = host_of(base_url).removeprefix("www.")
@@ -300,7 +342,8 @@ def subpage_link(html: str, base_url: str) -> str:
             path = urlparse(url).path
         except ValueError:
             continue
-        if host_of(url).removeprefix("www.") != host or url.rstrip("/") == base_url.rstrip("/"):
+        if host_of(url).removeprefix("www.") != host or not (path.strip("/") or urlparse(url).query) \
+                or _same_page(url, base_url):
             continue
         words = f"{a.get_text(' ')} {path}".lower()
         for kind in ("contact", "about"):
@@ -309,8 +352,9 @@ def subpage_link(html: str, base_url: str) -> str:
     return found.get("contact") or found.get("about") or ""
 
 
-def looks_like(html_text: str, company: str, guessed: bool) -> bool:
-    """Is this page the company's own? A guessed address must name the company and Singapore."""
+def looks_like(html_text: str, company: str, guessed: bool, confirm: tuple = ()) -> bool:
+    """Is this page the company's own? A guessed (or searched-for) address must name the company and Singapore,
+    or the company's registered postal code or UEN (`confirm`)."""
     flat = re.sub(r"[^a-z0-9]+", "", (html_text or "").lower())
     names = [n for n in short_names(company) if n]
     if not names or not any(n in flat for n in names):
@@ -318,7 +362,7 @@ def looks_like(html_text: str, company: str, guessed: bool) -> bool:
     low = (html_text or "").lower()
     if re.search(r"domain (is|may be) for sale|buy this domain|parked free|this domain has expired", low):
         return False
-    return not guessed or "singapore" in low
+    return not guessed or "singapore" in low or any(c and re.search(rf"\b{re.escape(c.lower())}\b", low) for c in confirm)
 
 
 class Reader:
@@ -326,12 +370,22 @@ class Reader:
 
     def __init__(self, ctx, practice_base: str = ""):
         self.ctx, self.loads, self.skipped = ctx, 0, []
+        self.blocked_sites: set = set()  # websites that showed a robot check in this lookup: not asked again
         # boards that showed a robot check: kept on the hunt's SiteContext, so later packages leave them alone
         self.blocked = getattr(ctx, "blocked_hosts", None)
         if self.blocked is None:
             self.blocked = set()
             try:
                 ctx.blocked_hosts = self.blocked
+            except AttributeError:
+                pass
+        # the registry, search or Wikipedia that said "too many requests": when to ask it again (kept on the
+        # hunt's SiteContext, like `blocked`)
+        self.resting = getattr(ctx, "company_resting", None)
+        if self.resting is None:
+            self.resting = {}
+            try:
+                ctx.company_resting = self.resting
             except AttributeError:
                 pass
         # a practice-board job: only the practice board's own pages are opened (nothing leaves the PC)
@@ -363,10 +417,36 @@ class Reader:
         except SiteBlocked as e:
             if board:  # once a board shows a robot check, no more of its company pages this hunt
                 self.blocked.add(host_of(url))
+            else:
+                self.blocked_sites.add(host_of(url).removeprefix("www."))
             self.skipped.append(f"{what}: it showed a robot check or a sign-in page, so it was skipped ({str(e)[:80]})")
         except PageUnavailable as e:
             self.skipped.append(f"{what}: the page didn't open ({e})")
         except Exception as e:  # a slow or broken site
+            self.skipped.append(f"{what}: couldn't be read ({type(e).__name__})")
+        return None
+
+    def lookup(self, fn, what: str, *args, once: str = ""):
+        """A call to the registry, the web search or Wikipedia (company_sources.py): its answer, or None with the
+        reason noted. `once`: a source that showed a robot check is left alone for the rest of the hunt."""
+        if self.stopped():
+            return None
+        if once and once in self.blocked:
+            self.skipped.append(f"{what}: it showed a robot check earlier, so it was left alone")
+            return None
+        rest = self.resting.get(what, 0) - time.monotonic()
+        if rest > 0:
+            self.skipped.append(f"{what}: it asked JobHunt to slow down, so it is left alone for {rest:.0f} more seconds")
+            return None
+        try:
+            return fn(*args, stop_event=getattr(self.ctx, "stop_event", None))
+        except more.Unavailable as e:
+            if once and "robot check" in str(e):
+                self.blocked.add(once)
+            if re.search(r"too many requests|HTTP 429", str(e), re.I):
+                self.resting[what] = time.monotonic() + REST_S
+            self.skipped.append(f"{what}: {e}")
+        except Exception as e:  # a slow or broken service never costs the summary
             self.skipped.append(f"{what}: couldn't be read ({type(e).__name__})")
         return None
 
@@ -461,18 +541,18 @@ def gather(ctx, job: dict, info: dict | None = None, practice_base: str = "") ->
     reader = Reader(ctx, (practice_base or "http://practice-board.invalid") if practice else "")
     sources: list[Source] = []
 
-    def add(label, url, text, cap):
+    def add(label, url, text, cap, kind="", **meta):
         text = clean_whitespace(text or "")
         if len(text) >= 20:
-            sources.append(Source(f"S{len(sources) + 1}", label, url, text[:cap]))
+            sources.append(Source(f"S{len(sources) + 1}", label, url, text[:cap], kind, meta))
             return sources[-1]
         return None
 
-    add("The job posting", job.get("url") or "", posting_source_text(job), CAPS["posting"])
+    add("The job posting", job.get("url") or "", posting_source_text(job), CAPS["posting"], "posting")
     info = dict(info) if info is not None else board_info(reader, job)
     if info.get("text"):
         add(info.get("label") or "The job board's company record", info.get("url") or job.get("url") or "",
-            info["text"], CAPS["board"])
+            info["text"], CAPS["board"], "board")
     websites = []  # (url, how it was found, guessed)
     if info.get("website"):
         websites.append((info["website"], "named by the job board", False))
@@ -483,25 +563,49 @@ def gather(ctx, job: dict, info: dict | None = None, practice_base: str = "") ->
         html = reader.page(info["board_page"], label, board=True)
         if html:
             text, website = parse_board_company_page(html, info["board_page"])
-            add(label, info["board_page"], text, CAPS["board"])
+            add(label, info["board_page"], text, CAPS["board"], "board")
             if website:
                 websites.append((website, "named by the job board", False))
     company = job.get("company") or ""
     for url in links_in_text("\n".join([job.get("posting_text") or ""] + [s.text for s in sources[1:]])):
         if domain_matches_name(host_of(url), company):
             websites.append((url, "linked from the posting or the board", False))
-    _read_website(reader, websites, company, add)
-    if not any(s.label.startswith("The company's website") for s in sources) and reader.loads < MAX_PAGE_LOADS:
+    confirm: tuple = ()
+    if not practice and company:  # nothing leaves the PC for a practice-board job
+        reg = reader.lookup(more.acra_lookup, "Singapore's company registry (ACRA)", company)
+        if reg:
+            add("Singapore's company registry (ACRA), via data.gov.sg", reg.url, reg.text, CAPS["registry"], "registry",
+                name=reg.name, uen=reg.uen, status=reg.status, industry_line=reg.industry_line,
+                ssic=reg.ssic_codes, head=reg.text.split("\n", 1)[0])
+            confirm = tuple(c for c in (reg.postal_code, reg.uen) if c)
+        if not websites:  # one search, only when neither the board nor the posting names the website
+            found = reader.lookup(more.web_search, "Web search", company, once="web search")
+            hits = [(u, "found by a web search: check it is theirs", True) for u, _ in (found or [])
+                    if host_of(u) and not not_company_site(host_of(u)) and domain_matches_name(host_of(u), company)]
+            if found is not None and not hits:
+                reader.skipped.append("Web search: no result on a website that carries the company's name")
+            websites += hits[:2]
+        wiki = reader.lookup(more.wikipedia, "Wikipedia", company, [w[0] for w in websites],
+                             job.get("posting_text") or "")
+        if wiki:
+            label = (f"Wikipedia: {wiki.title}" if wiki.how != "group" else
+                     f"Wikipedia: {wiki.title} (the group this company appears to belong to, matched by name)")
+            add(label, wiki.url, wiki.text, CAPS["wiki"], "wikipedia", group=wiki.how == "group")
+            if wiki.website:
+                websites.insert(0, (wiki.website, "named by Wikipedia", False))
+    _read_website(reader, websites, company, add, confirm=confirm)
+    # no guessing when the company's own site was found but turned JobHunt away
+    if not any(s.kind == "website" for s in sources) and not reader.blocked_sites and reader.loads < MAX_PAGE_LOADS:
         names = [n for n in short_names(company) if len(n) >= 4]
-        if names and not practice and not _AGENCY_RE.search(job.get("posting_text") or ""):
+        if names and not practice:
             # an address that doesn't exist costs no page load (see Reader.address), only a name lookup
             guesses = [(f"https://www.{name}{end}", "found from the company's name: check it is theirs", True)
                        for name in names for end in (".com.sg", ".sg", ".com")]
-            _read_website(reader, guesses, company, add, max_tries=2)
+            _read_website(reader, guesses, company, add, max_tries=2, confirm=confirm)
     return sources, reader.skipped
 
 
-def _read_website(reader: Reader, candidates: list, company: str, add, max_tries: int = 3) -> None:
+def _read_website(reader: Reader, candidates: list, company: str, add, max_tries: int = 3, confirm: tuple = ()) -> None:
     tries, unique = 0, {}
     for c in candidates:  # the same site found twice keeps how it was found first
         unique.setdefault(c[0].rstrip("/").lower(), c)
@@ -509,7 +613,7 @@ def _read_website(reader: Reader, candidates: list, company: str, add, max_tries
         if tries >= max_tries or reader.loads >= MAX_PAGE_LOADS or reader.stopped():
             return
         host = host_of(url)
-        if not host or not_company_site(host):
+        if not host or not_company_site(host) or host.removeprefix("www.") in reader.blocked_sites:
             continue
         safe = reader.address(url)
         if not safe:
@@ -525,24 +629,29 @@ def _read_website(reader: Reader, candidates: list, company: str, add, max_tries
         if not reader.address(final):
             final = safe
         sub = subpage_link(html, final)
-        if not looks_like(text, company, guessed):
+        if not looks_like(text, company, guessed, confirm):
             # a guessed site whose home page names the company but not Singapore: its contact page may
             # (seen live: alberthoo.com.sg has the Singapore address only on /contact)
             if guessed and looks_like(text, company, False) and sub and reader.address(sub):
                 sub_html = reader.page(sub, f"The company's website ({host}, second page)", board=False)
                 sub_text = website_text(sub_html) if sub_html else ""
-                if looks_like(sub_text, company, True):
-                    add(f"The company's website ({how})", final, text, CAPS["web"])
-                    add(f"The company's website ({how}), {urlparse(sub).path or '/'}", sub, sub_text, CAPS["web"])
+                if looks_like(sub_text, company, True, confirm):
+                    add(f"The company's website ({how})", final, text, CAPS["web"], "website")
+                    add(f"The company's website ({how}), {_page_name(sub)}", sub, sub_text, CAPS["web"],
+                        "website")
                     return
             if not guessed:
                 reader.skipped.append(f"{host}: the page doesn't name {company}, so it wasn't used")
+            elif how.startswith("found by a web search"):
+                reader.skipped.append(f"{host} (from the web search): the page doesn't name {company} and "
+                                      "Singapore, so it wasn't used")
             continue
-        add(f"The company's website ({how})", final, text, CAPS["web"])
+        add(f"The company's website ({how})", final, text, CAPS["web"], "website")
         if sub and reader.address(sub):
             sub_html = reader.page(sub, f"The company's website ({host}, second page)", board=False)
             if sub_html:
-                add(f"The company's website ({how}), {urlparse(sub).path or '/'}", sub, website_text(sub_html), CAPS["web"])
+                add(f"The company's website ({how}), {_page_name(sub)}", sub, website_text(sub_html),
+                    CAPS["web"], "website")
         return
 
 
@@ -604,11 +713,11 @@ def check_fact(item, by_id: dict, place: bool = False, key: str = "") -> dict | 
     return out
 
 
-def verify(data: dict, sources: list[Source], posting_text: str = "") -> dict:
+def verify(data: dict, sources: list[Source], posting_text: str = "", job: dict | None = None) -> dict:
     by_id = {s.id: s for s in sources}
     fields, dropped = {}, 0
     for key, _ in FIELDS:
-        raw = data.get(key) if isinstance(data, dict) else None
+        raw = data.get(key) if isinstance(data, dict) and key not in CODE_FIELDS else None
         fact = check_fact(raw, by_id, place=key in PLACE_FIELDS, key=key)
         if fact is None and isinstance(raw, dict) and raw.get("text") and not _norm(str(raw["text"])).startswith("not found"):
             dropped += 1
@@ -623,7 +732,7 @@ def verify(data: dict, sources: list[Source], posting_text: str = "") -> dict:
     agency = isinstance(data, dict) and str(data.get("agency")).strip().lower() == "true"
     # the posting as the AI saw it (S1), so the quote below is really in S1
     posting_text = sources[0].text if sources else posting_text
-    m = _AGENCY_RE.search(posting_text)
+    m = agency_sign(posting_text)
     if m:  # seen by code, so it's said even when the AI missed it
         agency = True
         if not any(re.search(r"recruit|agency|client", n["text"], re.I) for n in notable) and sources:
@@ -633,8 +742,74 @@ def verify(data: dict, sources: list[Source], posting_text: str = "") -> dict:
             notable.insert(0, {"text": "Posted by a recruitment agency: the real employer may be a client it doesn't name.",
                                "source": "S1", "quote": line})
     elif agency and not any(re.search(r"recruit|agency|client", n["text"], re.I) for n in notable):
-        agency = False  # the AI said so but backed it with nothing that survived the check
-    return {"fields": fields, "notable": notable[:4], "agency": agency, "dropped": dropped}
+        reg = next((s for s in sources if s.kind == "registry"), None)
+        if reg and str((reg.meta.get("ssic") or [""])[0]).startswith("78") and reg.meta.get("industry_line"):
+            # registered as an employment or manpower agency (SSIC 78): that backs what the AI saw
+            notable.insert(0, {"text": "Posted by a recruitment agency: the real employer may be a client it doesn't name.",
+                               "source": reg.id, "quote": reg.meta["industry_line"]})
+        else:
+            agency = False  # the AI said so but backed it with nothing that survived the check
+    out = {"fields": fields, "notable": notable[:4], "agency": agency, "dropped": dropped, "client": None}
+    _company_first(out, data if isinstance(data, dict) else {}, sources, by_id, job or {})
+    return out
+
+
+def _company_first(out: dict, data: dict, sources: list[Source], by_id: dict, job: dict) -> None:
+    """The summary is about the company, from its own sources first (Zech, 2026-10-15: "a literal summary of the
+    job posting and not so much the company"):
+      - a recruiter posting: the facts are about the agency, so none of them may come from the posting (which
+        describes the client); what the posting says about the client is kept apart, as `client`
+      - otherwise 'What they do' from the posting says so (from_posting)
+      - 'Where the job is' is the board's own location field, credited to the posting
+      - 'Registered as' (and the industry, when nothing else gave one) comes from the registry record"""
+    f = out["fields"]
+    posting = sources[0].id if sources else "S1"
+    hired = {}  # the board record of an agency posting that names its client (MyCareersFuture's hiringCompany)
+    for s in sources:
+        m = re.search(r"^Hiring company \(the employer this was posted for\): (.+)$", s.text, re.M) \
+            if s.kind == "board" else None
+        p = re.search(r"^Posted by: (.+)$", s.text, re.M) if m else None
+        if m:
+            hired = {"source": s, "client": m.group(1).strip()[:120], "agency": p.group(1).strip()[:120] if p else ""}
+            break
+    if hired and more.name_key(hired["client"]) == more.name_key(job.get("company") or ""):
+        # the job's company IS the employer the agency names: the summary is about that employer
+        out["agency"] = False
+        out["notable"] = [n for n in out["notable"] if not n["text"].startswith("Posted by a recruitment agency")]
+        if hired["agency"]:
+            out["posted_by"] = hired["agency"]
+            out["notable"].insert(0, {"text": f"Posted by {hired['agency']}, a recruitment agency, for this employer.",
+                                      "source": hired["source"].id, "quote": f"Posted by: {hired['agency']}"})
+    if out["agency"]:
+        client_pages = {posting} | ({hired["source"].id} if hired else set())
+        for key in ("what_they_do", "industry", "company_location", "hq_country", "size"):
+            if f.get(key) and f[key]["source"] in client_pages:
+                f[key] = None
+        if hired:
+            out["client_name"] = hired["client"]
+        client = check_fact(data.get("client"), by_id)
+        if client and (by_id[client["source"]].kind in ("posting", "board") or client["source"] == posting):
+            out["client"] = client
+    elif f.get("what_they_do") and f["what_they_do"]["source"] == posting:
+        f["what_they_do"]["from_posting"] = True
+        # "only" when no page about the company itself (its website, the board's company page, Wikipedia) was read
+        f["what_they_do"]["posting_only"] = not any(s.kind in ("board", "website", "wikipedia") for s in sources)
+    loc = clean_whitespace(job.get("location") or "")
+    head = sources[0].text if sources else ""
+    if loc and f"Location: {loc}" in head:
+        ai = f.get("job_location")
+        if not (ai and _norm(loc) in ("singapore", "remote", "") and len(_norm(ai["text"])) > len(_norm(loc))
+                and by_id[ai["source"]].kind in ("posting", "board", "")):
+            f["job_location"] = {"text": loc, "source": posting, "quote": f"Location: {loc}", "board_field": True}
+    reg = next((s for s in sources if s.kind == "registry"), None)
+    if reg and reg.meta.get("head") and reg.meta["head"] in reg.text:
+        f["registered"] = {"text": reg.meta["head"], "source": reg.id, "quote": reg.meta["head"]}
+        line = reg.meta.get("industry_line") or ""
+        if not f.get("industry") and line and line in reg.text:
+            f["industry"] = {"text": line.split(": ", 1)[-1], "source": reg.id, "quote": line}
+        m = re.search(r"^Registered office address: (.+)$", reg.text, re.M)
+        if not f.get("company_location") and m:
+            f["company_location"] = {"text": f"{m.group(1)} (registered office)", "source": reg.id, "quote": m.group(0)}
 
 
 def one_line(info: dict | None) -> str:
@@ -653,9 +828,12 @@ def one_line(info: dict | None) -> str:
     size = (f.get("size") or {}).get("text", "")
     if size and not re.search(r"staff|employee|people|person", size, re.I) and len(size) < 20:
         size += " staff"
-    parts = [p for p in (what, where, size[:40]) if p]
-    if info.get("agency"):
-        parts.insert(0, "Recruiter posting")
+    if info.get("agency"):  # what the agency does isn't the job: say who it's for, and where
+        client = info.get("client") or {}
+        hiring = client.get("short") or (client.get("text") if len(client.get("text") or "") <= 40 else "")
+        return " · ".join(p for p in ("Recruiter posting", f"for: {hiring}" if hiring else "for an unnamed client",
+                                      (f.get("job_location") or {}).get("text", "")[:50]) if p)
+    parts = [p for p in ("Via a recruiter" if info.get("posted_by") else "", what, where, size[:40]) if p]
     return " · ".join(parts)
 
 
@@ -696,7 +874,7 @@ def summarise(task, ctx, job_id: int, info: dict | None = None, practice_base: s
             return None
         system, user = prompts.company_prompt(job.get("company") or "", job.get("role") or "", sources)
         data, _ = task.get_llm().chat_json(stage="company", system=system, user=user, max_tokens=1200, job_id=job_id)
-        checked = verify(data, sources, job.get("posting_text") or "")
+        checked = verify(data, sources, job.get("posting_text") or "", job)
         result = {"status": "ok", **checked}
         if old and old.get("status") == "ok" and len(sources) < len(old.get("sources") or []) \
                 and _found(result) < _found(old):
@@ -715,7 +893,7 @@ def summarise(task, ctx, job_id: int, info: dict | None = None, practice_base: s
             return {**old, "refresh_error": reason[:200]}
         result = {"status": "failed", "error": reason[:300]}
     result.update(made_at=datetime.now().isoformat(timespec="minutes"), company=job.get("company") or "",
-                  sources=[{"id": s.id, "label": s.label, "url": s.url} for s in sources], skipped=skipped)
+                  sources=[{"id": s.id, "label": s.label, "url": s.url, "kind": s.kind} for s in sources], skipped=skipped)
     db.set_company_info(job_id, json.dumps(result, ensure_ascii=False))
     _write_file(job, result)
     if result["status"] == "ok":
@@ -730,13 +908,25 @@ def summarise(task, ctx, job_id: int, info: dict | None = None, practice_base: s
 
 
 def summary_md(info: dict) -> str:
-    lines = [f"# About {info.get('company', '')}", ""]
+    agency = info.get("agency")
+    lines = [f"# Posted by: {info.get('company', '')} (a recruitment agency)" if agency
+             else f"# About {info.get('company', '')}", ""]
     if info.get("status") != "ok":
         return "\n".join(lines + [f"Couldn't look this company up: {info.get('error', '')}", ""])
     f = info.get("fields") or {}
     for key, label in FIELDS:
+        if agency and key == "job_location":
+            continue
         fact = f.get(key)
-        lines.append(f"- **{label}:** " + (f"{fact['text']} [{fact['source']}]" if fact else NOT_FOUND))
+        tag = ((" (from the job posting only)" if fact.get("posting_only") else " (from the job posting)")
+               if fact and fact.get("from_posting") else "")
+        lines.append(f"- **{label}:** " + (f"{fact['text']}{tag} [{fact['source']}]" if fact else NOT_FOUND))
+    if agency:
+        client, where = info.get("client"), f.get("job_location")
+        lines += ["", f"## Hiring for: {info.get('client_name') or 'an unnamed client'}", "",
+                  "- **What the posting says about the client:** "
+                  + (f"{client['text']} [{client['source']}]" if client else NOT_FOUND),
+                  "- **Where the job is:** " + (f"{where['text']} [{where['source']}]" if where else NOT_FOUND)]
     if info.get("notable"):
         lines += ["", "## Notable"] + [f"- {n['text']} [{n['source']}]" for n in info["notable"]]
     lines += ["", "## Sources"] + [f"- {s['id']}: {s['label']}: {s['url']}" for s in info.get("sources", [])]

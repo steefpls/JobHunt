@@ -71,6 +71,15 @@ def no_internet_lookups(monkeypatch):
     def offline(host, port):
         raise OSError("no DNS in tests")
     monkeypatch.setattr(company, "resolve", offline)
+    # nor the registry, the web search or Wikipedia: a test that wants an answer sets company_sources.http_get
+    import httpx
+    from jobhunt import company_sources
+
+    def no_http(url, params=None, headers=None, timeout=20):
+        raise httpx.ConnectError("no internet in tests")
+    monkeypatch.setattr(company_sources, "http_get", no_http)
+    monkeypatch.setattr(company_sources, "GAP_S", 0)
+    monkeypatch.setattr(company_sources, "RETRY_WAIT_S", 0)
 
 
 @pytest.fixture(autouse=True)

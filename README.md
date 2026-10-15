@@ -143,21 +143,42 @@ per site by default (Settings).
 
 Every package starts with a short summary of the company at the top of its job page:
 what it does, its industry, where the job is, where the company's office is, where
-it is headquartered, how big it is, and anything notable (for example a recruitment
-agency posting for a client it doesn't name). It is written from the pages JobHunt
-read, and only those:
+it is headquartered, how big it is, how it is registered, and anything notable. It
+is about the company, written from pages about the company first, and only from
+pages JobHunt read:
 
-- the posting itself;
+- **Singapore's company registry** (ACRA's open data on data.gov.sg, no login or
+  key): registered name, UEN, status, registered office address, registered business
+  activity and the date it was registered. The employer's name is looked up exactly,
+  in all its spellings (Pte. Ltd., Pte Ltd, Private Limited...); when no single
+  registered company has that very name, the summary says so instead of picking one.
 - the job board's own company record, where it can be read without logging in:
   MyCareersFuture's job record (company description, registered business, staff
   count, workplace address) and JobStreet's company page (website, size, address,
   overview). LinkedIn's company pages need a login and Indeed's sit behind its human
-  check, so for those jobs it reads only the posting and the company's website;
-- the company's own website (its home page and its contact or about page), when the
-  board or the posting names it, or when the company's name with .com.sg, .sg or .com
-  opens a page that names the company and Singapore (marked "check it is theirs").
-  Websites open in a separate browser with none of your logins, and a website that
-  tries to send JobHunt to your own PC or home network is not read.
+  check, so they are never read;
+- the company's own website (its home page and its contact or about page): the one
+  the board or the posting names, the one Wikipedia names, or else the first result
+  of **one web search** (DuckDuckGo) whose address carries the company's name, or
+  finally the company's name with .com.sg, .sg or .com. A site found by search or by
+  name must name the company and Singapore (or its registered postal code or UEN),
+  and is marked "check it is theirs". Websites open in a separate browser with none
+  of your logins, and a website that tries to send JobHunt to your own PC or home
+  network is not read;
+- **Wikipedia**, for larger companies: only an article that is clearly this company,
+  or the group a regional company belongs to ("Applied Materials South East Asia Pte
+  Ltd" reads the article on Applied Materials, marked as its group).
+- the posting itself. *What they do* comes from the posting only when no page about
+  the company described it, and then says **From the job posting**.
+
+**Recruiter postings.** When an agency posts for a client it doesn't name, the summary
+says so honestly: **Posted by** the agency, with facts about the agency itself (from
+the registry and its website), and **Hiring for: unnamed client**, with what the
+posting says about the client, marked as from the posting. The client is never
+described as the agency.
+
+**Where the job is** is the job board's own location field (for example "Kent Ridge,
+Singapore"), credited to the posting.
 
 The AI must quote the exact words behind every fact, and JobHunt checks each quote
 against the page it names: a fact whose quote, numbers or place names aren't on that
@@ -167,12 +188,15 @@ headquarters or size must also be called that on the page ("Headquartered in ...
 are listed under the summary (point at a source mark to see the quoted words).
 
 It costs one small AI call per package on the filter model (counted in the job's AI
-use and in the hunt estimate) and two to four page loads, paced like the hunt. A page
-with a robot check or a sign-in wall is skipped, never worked around. A lookup that
-fails never holds up or fails the package: the job page says what went wrong, and
-**Look up this company** (or **Refresh**) on the job page tries again. A refresh that
-could read fewer pages than last time (one was blocked, say) keeps the fuller summary.
-Packages made before this have no summary until you press that button.
+use and in the hunt estimate; about $0.0004 a lookup with the default model), a few
+calls to the registry, the search and Wikipedia, and two to five page loads, paced like
+the hunt. A page or search with a robot check or a sign-in wall is skipped, never
+worked around (a search that shows one is left alone for the rest of the hunt). A
+lookup that fails never holds up or fails the package: the job page says what went
+wrong, and **Look up this company** (or **Refresh**) on the job page tries again. A
+refresh that could read fewer pages than last time (one was blocked, say) keeps the
+fuller summary. Press **Refresh** on an older package to redo its summary with the new
+sources.
 
 ## Safety rules the app enforces
 
@@ -211,7 +235,7 @@ scripted fake, serve the practice board locally, and run a full draft hunt plus
 Approve & apply in headless Chromium. They check that no secret value reaches a
 prompt, a log line, the tracker or any file.
 
-Code map (`jobhunt\`): `sites.py` and `extract.py` (crawling), `company.py` (company summaries), `prompts.py` (every
+Code map (`jobhunt\`): `sites.py` and `extract.py` (crawling), `company.py` and `company_sources.py` (company summaries; `ssic.tsv` is the registry's industry codes, from the Department of Statistics), `prompts.py` (every
 prompt), `llm.py` (HTTP client and spending caps), `hunt.py` (the hunt loop and
 background runner), `applyagent.py` (form filling), `render.py` and `documents\`
 (templates), `db.py` (tracker), `secrets_store.py` and `first_run.py` (keys),

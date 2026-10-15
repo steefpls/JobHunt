@@ -32,8 +32,8 @@ HUMAN_APPLY_SITES = {"mycareersfuture"}
 APPLY_FROM_STATES = {"Ready", "Needs you"}
 
 # Starting guesses for the estimate; replaced by your own averages once you have history.
-DEFAULT_TOKENS = {"filter": (2600, 160), "tailor": (7500, 2600), "apply": (5200, 260), "company": (3600, 450)}
-DEFAULT_SECONDS = {"filter": 4.0, "tailor": 30.0, "apply_step": 5.0, "pdf": 3.0, "company": 6.0}
+DEFAULT_TOKENS = {"filter": (2600, 160), "tailor": (7500, 2600), "apply": (5200, 260), "company": (4800, 550)}
+DEFAULT_SECONDS = {"filter": 4.0, "tailor": 30.0, "apply_step": 5.0, "pdf": 3.0, "company": 10.0}
 COMPANY_PAGE_LOADS = 2.5  # pages a company summary loads, on average (board page, website, its contact page)
 DEFAULT_APPLY_STEPS = 14
 DEFAULT_CANDIDATES_PER_MATCH = 3.0

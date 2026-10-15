@@ -1,0 +1,81 @@
+{
+ "success": true,
+ "result": {
+  "resource_id": "d_181005ca270b45408b4cdfc954980ca2",
+  "fields": [
+   {
+    "type": "text",
+    "id": "uen"
+   },
+   {
+    "type": "text",
+    "id": "issuance_agency_id"
+   },
+   {
+    "type": "text",
+    "id": "entity_name"
+   }
+  ],
+  "records": [
+   {
+    "_id": 38736,
+    "uen": "202125857G",
+    "issuance_agency_id": "ACRA",
+    "entity_name": "PIVOT SEARCH PTE. LTD.",
+    "entity_type_description": "Local Company",
+    "business_constitution_description": "na",
+    "company_type_description": "Exempt Private Company Limited by Shares",
+    "paf_constitution_description": "na",
+    "entity_status_description": "Live Company",
+    "registration_incorporation_date": "2021-07-26",
+    "uen_issue_date": "2021-07-26",
+    "address_type": "LOCAL",
+    "block": "66",
+    "street_name": "DUCHESS AVENUE",
+    "level_no": "04",
+    "unit_no": "02",
+    "building_name": "DUCHESS CREST",
+    "postal_code": "269204",
+    "other_address_line1": "na",
+    "other_address_line2": "na",
+    "account_due_date": "2027-01-30",
+    "annual_return_date": "2026-01-30",
+    "primary_ssic_code": "78104",
+    "primary_ssic_description": "na",
+    "primary_user_described_activity": "na",
+    "secondary_ssic_code": "70204",
+    "secondary_ssic_description": "na",
+    "secondary_user_described_activity": "na",
+    "no_of_officers": "7",
+    "former_entity_name1": "na",
+    "former_entity_name2": "na",
+    "former_entity_name3": "na",
+    "former_entity_name4": "na",
+    "former_entity_name5": "na",
+    "former_entity_name6": "na",
+    "former_entity_name7": "na",
+    "former_entity_name8": "na",
+    "former_entity_name9": "na",
+    "former_entity_name10": "na",
+    "former_entity_name11": "na",
+    "former_entity_name12": "na",
+    "former_entity_name13": "na",
+    "former_entity_name14": "na",
+    "former_entity_name15": "na",
+    "uen_of_audit_firm1": "na",
+    "name_of_audit_firm1": "na",
+    "uen_of_audit_firm2": "na",
+    "name_of_audit_firm2": "na",
+    "uen_of_audit_firm3": "na",
+    "name_of_audit_firm3": "na",
+    "uen_of_audit_firm4": "na",
+    "name_of_audit_firm4": "na",
+    "uen_of_audit_firm5": "na",
+    "name_of_audit_firm5": "na"
+   }
+  ],
+  "total": 1,
+  "limit": 20,
+  "filters": "{\"entity_name\":[\"PIVOT SEARCH PTE. LTD.\"]}"
+ }
+}

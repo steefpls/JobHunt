@@ -1,0 +1,76 @@
+{
+ "batchcomplete": true,
+ "continue": {
+  "gsroffset": 5,
+  "continue": "gsroffset||"
+ },
+ "warnings": {
+  "extracts": {
+   "warnings": "The value \"1500\" for parameter \"exchars\" must be between 1 and 1,200."
+  }
+ },
+ "query": {
+  "pages": [
+   {
+    "pageid": 479719,
+    "ns": 0,
+    "title": "Applied Materials",
+    "index": 1,
+    "extract": "Applied Materials, Inc. is an American corporation that supplies equipment, services and software for the manufacture of semiconductor (integrated circuit) chips for electronics, flat panel displays for computers, smartphones, televisions, and solar products. The company also supplies equipment to produce coatings for flexible electronics, packaging and other applications. The company is headquartered in Santa Clara, California, and is the second largest supplier of semiconductor equipment in the world based on revenue behind Dutch company ASML.\n\n",
+    "pageprops": {
+     "wikibase_item": "Q621610"
+    },
+    "fullurl": "https://en.wikipedia.org/wiki/Applied_Materials",
+    "canonicalurl": "https://en.wikipedia.org/wiki/Applied_Materials"
+   },
+   {
+    "pageid": 9077564,
+    "ns": 0,
+    "title": "Semitool",
+    "index": 3,
+    "extract": "Semitool was a semiconductor manufacturing/capital equipment company based in Kalispell, Montana. Raymon Thompson founded the company in  California in 1978 and moved it to Montana, where it was officially incorporated in 1979. The company was sold to Applied Materials in December 2009.",
+    "pageprops": {
+     "wikibase_item": "Q7449678"
+    },
+    "fullurl": "https://en.wikipedia.org/wiki/Semitool",
+    "canonicalurl": "https://en.wikipedia.org/wiki/Semitool"
+   },
+   {
+    "pageid": 21527754,
+    "ns": 0,
+    "title": "ACS Applied Materials & Interfaces",
+    "index": 4,
+    "extract": "ACS Applied Materials & Interfaces is a peer-reviewed scientific journal that was established in 2009 by the American Chemical Society. Originally published monthly, the journal became biweekly in 2013 and weekly in 2015. The current editor-in-chief is Xing Yi Ling (Nanyang Technological University). The journal covers research on advanced active and passive electronic/optical materials, coatings, colloids, biomaterials and bio-interfaces, polymers, hybrid and composite materials; and friction and wear.\n\n",
+    "pageprops": {
+     "wikibase_item": "Q2819060"
+    },
+    "fullurl": "https://en.wikipedia.org/wiki/ACS_Applied_Materials_%26_Interfaces",
+    "canonicalurl": "https://en.wikipedia.org/wiki/ACS_Applied_Materials_%26_Interfaces"
+   },
+   {
+    "pageid": 70620703,
+    "ns": 0,
+    "title": "ACS Applied Energy Materials",
+    "index": 2,
+    "extract": "ACS Applied Energy Materials is a monthly peer-reviewed scientific journal that was established in 2018 by the American Chemical Society. It covers aspects of materials, engineering, chemistry, physics, and biology relevant to sustainable applications in energy conversion and storage. The editor in chief is Kirk S. Schanze. According to the Journal Citation Reports, the journal has a 2022 impact factor of 6.4.",
+    "pageprops": {
+     "wikibase_item": "Q111962486"
+    },
+    "fullurl": "https://en.wikipedia.org/wiki/ACS_Applied_Energy_Materials",
+    "canonicalurl": "https://en.wikipedia.org/wiki/ACS_Applied_Energy_Materials"
+   },
+   {
+    "pageid": 81681997,
+    "ns": 0,
+    "title": "ACS Applied Nano Materials",
+    "index": 5,
+    "extract": "ACS Applied Nano Materials is a peer-reviewed scientific journal published weekly by American Chemical Society. Established in 2018, it covers research on fundamental science and applications of nanomaterials. Its current editor-in-chief is Xing Yi Ling (Nanyang Technological University).",
+    "pageprops": {
+     "wikibase_item": "Q96320481"
+    },
+    "fullurl": "https://en.wikipedia.org/wiki/ACS_Applied_Nano_Materials",
+    "canonicalurl": "https://en.wikipedia.org/wiki/ACS_Applied_Nano_Materials"
+   }
+  ]
+ }
+}

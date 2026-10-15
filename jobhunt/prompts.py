@@ -175,7 +175,7 @@ def tailor_prompt(profile_text: str, contact: dict, posting) -> tuple[str, str]:
 # ── 3b. company summary, from the pages JobHunt read ─────────────────
 
 COMPANY_SHAPE = """{
- "what_they_do": {"text": "1-2 plain sentences: what the company does, its main products or services, who its customers are",
+ "what_they_do": {"text": "1-2 plain sentences: what THE COMPANY does (for a recruiter posting: the agency itself), its main products or services, who its customers are",
                   "short": "at most 6 words, e.g. 'Engineering and robotics firm'", "source": "S2", "quote": "exact words from that source"},
  "industry": {"text": "", "source": "", "quote": ""},
  "job_location": {"text": "where THIS job is based: office area or address", "source": "", "quote": ""},
@@ -183,7 +183,9 @@ COMPANY_SHAPE = """{
  "hq_country": {"text": "country of the company's headquarters", "source": "", "quote": ""},
  "size": {"text": "number of employees, e.g. '51-100 employees'", "source": "", "quote": ""},
  "notable": [{"text": "at most 3 things a job seeker should know, e.g. a recruitment agency posting for a client it doesn't name, a government body, a start-up, part of a larger group", "source": "", "quote": ""}],
- "agency": false
+ "agency": false,
+ "client": {"text": "only when agency is true: what the posting says about the employer the agency is hiring for (its industry, products, size, area), 1 sentence, about the employer and not the role; if the posting says nothing about the employer: not found",
+            "short": "at most 5 words, e.g. 'Game developer'", "source": "S1", "quote": ""}
 }"""
 
 
@@ -199,8 +201,19 @@ def company_prompt(company: str, role: str, sources) -> tuple[str, str]:
         "headquarters from the company's name, a 'Pte Ltd' ending, the currency, the phone number or the job board. "
         "If the sources don't say it, write \"not found\" with an empty source and quote.\n"
         "- For locations and the headquarters, use the place names exactly as the quote has them.\n"
+        "- The summary is about the company named in 'The job'. Take what_they_do, industry, office, headquarters and "
+        "size from the company's own sources first: the company registry, its website, the job board's company page or "
+        "record, Wikipedia. Use the job posting for what_they_do only when no other source describes the company.\n"
+        "- Don't mix sources in one fact: its text may only say what its own source says.\n"
+        "- The registry's 'Registered office address' is the company's registered office; its 'registered business "
+        "activity' is its industry as registered.\n"
+        "- A source marked 'the group this company appears to belong to' is about the parent group: say 'The group' "
+        "in any fact taken from it (e.g. 'The group makes chip-making equipment').\n"
         "- agency: true only if the sources say the posting is by a recruitment or employment agency (for example "
-        "'our client', an EA licence number); then say so in notable, and whether the client is named.\n"
+        "'our client', an EA licence number); then say so in notable, and whether the client is named. On such a "
+        "posting the company is the AGENCY: what_they_do, industry, office, headquarters and size describe the agency "
+        "and must never come from what the posting says about its client. Put what the posting says about the client "
+        "in client instead.\n"
         "- Keep it short and plain: no marketing words.\n"
         + UNTRUSTED_RULES
         + "\nReply with one JSON object only."

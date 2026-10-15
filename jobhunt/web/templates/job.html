@@ -8,9 +8,15 @@
   {% if job.date_applied %} · applied {{ job.date_applied }}{% endif %}</p>
 
 {# The company summary: every fact was checked against the page it quotes (company.py) #}
+{% macro fact(f, posting_tag="") %}{% if f %}{{ f.text }}{% set s = company_src.get(f.source) %}
+        <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
+           title="{{ (s.label ~ ': ' if s) ~ '“' ~ f.quote ~ '”' }}">{{ f.source }}</a>
+        {%- if f.from_posting or posting_tag %} <span class="tag">{{ posting_tag or ("From the job posting only" if f.posting_only else "From the job posting") }}</span>{% endif %}
+        {% else %}<span class="muted">Not found</span>{% endif %}{% endmacro %}
+{% set agency = company and company.status == "ok" and company.agency %}
 <div class="card company" id="company">
   <div class="company-head">
-    <h2>About {{ job.company or "this company" }}{% if company and company.agency %} <span class="badge agency">Recruiter posting</span>{% endif %}</h2>
+    <h2>{% if agency %}Posted by: {{ job.company or "a recruiter" }}{% else %}About {{ job.company or "this company" }}{% endif %}{% if company and company.agency %} <span class="badge agency">Recruiter posting</span>{% endif %}</h2>
     {% if not company_busy %}
     <form method="post" action="/jobs/{{ job.id }}/company" class="inline">
       <button class="btn small" {{ 'disabled' if status.busy }}>{{ 'Refresh' if company else 'Look up this company' }}</button>
@@ -19,18 +25,27 @@
   </div>
   {% if company_busy %}
     <p class="muted" id="companyBusy" data-job="{{ job.id }}"><span class="dot live"></span>Looking up {{ job.company }}:
-      reading the posting, the job board's company page and the company's website. This takes under a minute;
+      reading the posting, the job board's company page, Singapore's company registry, Wikipedia and the company's
+      website. This takes about a minute;
       the summary shows here when it's done.</p>
   {% elif company and company.status == "ok" %}
+    {% if agency %}<p class="hint">A recruitment agency posted this job for an employer it doesn't name. These facts are
+      about the agency; what the posting says about the employer is under Hiring for.</p>{% endif %}
     <dl class="facts">
-      {% for key, label in company_fields %}{% set f = (company.fields or {}).get(key) %}
-      <dt>{{ label }}</dt>
-      <dd>{% if f %}{{ f.text }}{% set s = company_src.get(f.source) %}
-        <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
-           title="{{ (s.label ~ ': ' if s) ~ '“' ~ f.quote ~ '”' }}">{{ f.source }}</a>
-        {% else %}<span class="muted">Not found</span>{% endif %}</dd>
+      {% set posting_id = company.sources[0].id if company.sources else "S1" %}
+      {% for key, label in company_fields if not (agency and key == "job_location") %}{% set f = (company.fields or {}).get(key) %}
+      {% if agency and f and f.source == posting_id %}{% set f = none %}{% endif %}{# the client's, from the posting #}
+      <dt>{{ "What the agency does" if agency and key == "what_they_do" else label }}</dt>
+      <dd>{{ fact(f) }}</dd>
       {% endfor %}
     </dl>
+    {% if agency %}
+    <h3 class="hiring">Hiring for: {{ company.client_name or "unnamed client" }}</h3>
+    <dl class="facts">
+      <dt>What the posting says</dt><dd>{{ fact(company.client, "From the job posting") }}</dd>
+      <dt>Where the job is</dt><dd>{{ fact((company.fields or {}).get("job_location")) }}</dd>
+    </dl>
+    {% endif %}
     {% if company.notable %}
     <ul class="notable">{% for n in company.notable %}{% set s = company_src.get(n.source) %}
       <li>{{ n.text }} <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
