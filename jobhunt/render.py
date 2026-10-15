@@ -230,4 +230,5 @@ def list_files(folder: Path) -> list[dict]:
     order = {n: i for i, n in enumerate(PACKAGE_FILES + ["apply_confirmation.pdf", "resume.html", "cover_letter.html"])}
     files = [f for f in folder.iterdir() if f.is_file()]
     files.sort(key=lambda f: (order.get(f.name, 99), f.name))
-    return [{"name": f.name, "size": f.stat().st_size} for f in files]
+    # version: changes whenever the file is rewritten, so a link with ?v=<version> never shows a stale copy
+    return [{"name": f.name, "size": (st := f.stat()).st_size, "version": st.st_mtime_ns} for f in files]

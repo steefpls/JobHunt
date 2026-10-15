@@ -148,3 +148,36 @@ def test_contact_details_and_name_are_swapped_in_the_letter():
     assert new.count("Alex Tan Wei") == 3  # title, letterhead and signature
     assert json.dumps(refresh.refresh_cover_letter(new, {"name": "Alex Tan Wei", "email": "b@x.com", "phone": "1"},
                                                    "Lumen", "Dev")[1]) == "[]"
+
+
+def _tab_urls(page_html: str) -> dict:
+    import re
+    return {name: src for src, name in re.findall(r'data-src="([^"]+)" data-name="([^"]+)"', page_html)}
+
+
+def test_rebuilt_pdf_shows_in_the_preview_not_a_cached_copy(client, candidate):
+    """Zech's bug: after Rebuild PDFs, resume.pdf on disk had the new dates but the job page's preview still
+    showed the old PDF. The browser's PDF viewer kept its copy of /files/<id>/resume.pdf: the file links now
+    carry the file's version and the files are sent with no-store, so a rebuilt PDF is always fetched again."""
+    jid = built_package()
+    folder = paths.jobs_dir() / db.get_job(jid)["folder"]
+    before = _tab_urls(client.get(f"/jobs/{jid}").text)
+    assert before["resume.pdf"].startswith(f"/files/{jid}/resume.pdf?v=")
+
+    r = client.get(before["resume.pdf"])
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    cache = r.headers["cache-control"]
+    assert "no-store" in cache and "no-cache" in cache
+    for name in ("cover_letter.pdf", "resume.html"):  # every file the job page links to, not just the resume
+        assert "no-store" in client.get(f"/files/{jid}/{name}").headers["cache-control"]
+
+    profile.save_profile(profile.load_profile().replace("CartNest Commerce - Singapore - Jul 2020 to Feb 2023",
+                                                        "CartNest Commerce - Singapore - Jul 2019 to Feb 2023"))
+    import os
+    os.utime(folder / "resume.pdf", ns=(1, 1))  # so the rebuild changes the version even on a coarse clock
+    assert client.post(f"/jobs/{jid}/rebuild", headers=SAME_ORIGIN, follow_redirects=False).status_code == 303
+    after = _tab_urls(client.get(f"/jobs/{jid}").text)
+    assert after["resume.pdf"] != before["resume.pdf"]  # a new address: the frame loads the new file
+    assert "Jul 2019 - Feb 2023" in pdf_text(folder / "resume.pdf")
+    fetched = client.get(after["resume.pdf"]).content
+    assert fetched == (folder / "resume.pdf").read_bytes()

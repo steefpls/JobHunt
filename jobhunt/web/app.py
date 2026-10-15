@@ -274,10 +274,13 @@ def create_app(port: int = 8765) -> FastAPI:
         target = (folder / name).resolve()
         if target.parent != folder or not target.is_file():
             return PlainTextResponse("not found", status_code=404)
+        # Rebuild PDFs rewrites these files under the same name: the browser (and its PDF viewer) must
+        # never show a copy it kept from before, so nothing here is cached.
+        fresh = {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", "Pragma": "no-cache", "Expires": "0"}
         if target.suffix == ".html":  # show the source as text; it's for editing, not for running here
-            return PlainTextResponse(target.read_text(encoding="utf-8"))
+            return PlainTextResponse(target.read_text(encoding="utf-8"), headers=fresh)
         media = {".pdf": "application/pdf", ".md": "text/plain; charset=utf-8"}.get(target.suffix, "application/octet-stream")
-        return FileResponse(str(target), media_type=media, content_disposition_type="inline")
+        return FileResponse(str(target), media_type=media, content_disposition_type="inline", headers=fresh)
 
     # ── profile ────────────────────────────────────────────────────────
     @app.get("/profile", response_class=HTMLResponse)

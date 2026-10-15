@@ -70,7 +70,7 @@
   {% if files %}
   <div class="tabs" id="tabs">
     {% for f in files if f.name.endswith(".pdf") or f.name.endswith(".md") %}
-    <button type="button" data-src="/files/{{ job.id }}/{{ f.name }}" data-name="{{ f.name }}" class="{{ 'on' if loop.first }}">{{ f.name }}</button>
+    <button type="button" data-src="/files/{{ job.id }}/{{ f.name }}?v={{ f.version }}" data-name="{{ f.name }}" class="{{ 'on' if loop.first }}">{{ f.name }}</button>
     {% endfor %}
   </div>
   {# report_html is built by render.report_html: every "<" from the file is escaped first #}
