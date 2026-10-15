@@ -63,6 +63,17 @@ def data_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_internet_lookups(monkeypatch):
+    """The company summary checks a website's address with DNS before opening it: never for real in tests.
+    A test that wants an address to "exist" sets company.resolve itself."""
+    from jobhunt import company
+
+    def offline(host, port):
+        raise OSError("no DNS in tests")
+    monkeypatch.setattr(company, "resolve", offline)
+
+
+@pytest.fixture(autouse=True)
 def memory_keyring():
     old = keyring.get_keyring()
     kr = MemoryKeyring()
@@ -172,6 +183,41 @@ TAILOR_REPLY = {
 SCOPE_DRAFT = ("# What I'm looking for\n\n## Target roles\n- Backend Engineer (Python)\n\n"
                "## Avoid (do NOT apply)\n- Sales roles\n\n## Notes for the filter\n- When unsure, skip.\n")
 
+SOURCE_RE = re.compile(r"<untrusted_source>\nSource (S\d+): (.*?)\nAddress: .*?\n\n(.*?)\n</untrusted_source>", re.S)
+
+
+def fact(text, sid, quote=None):
+    return {"text": text, "source": sid, "quote": quote if quote is not None else text}
+
+
+def company_brain(user_prompt: str) -> dict:
+    """A careful company-summary writer: every fact is a line it read in one of the sources."""
+    nf = {"text": "not found", "source": "", "quote": ""}
+    out = {k: dict(nf) for k in ("what_they_do", "industry", "job_location", "company_location", "hq_country", "size")}
+    out["notable"], out["agency"] = [], False
+    for sid, label, text in SOURCE_RE.findall(user_prompt):
+        m = re.search(r"^Location: (.+)$", text, re.M)
+        if sid == "S1" and m:
+            out["job_location"] = fact(m.group(1), sid)
+        m = re.search(r"^Company size: (.+)$", text, re.M)
+        if m:
+            out["size"] = fact(m.group(1) + " employees", sid, m.group(1))
+        m = re.search(r"^Primary location: (.+)$", text, re.M)
+        if m:
+            out["company_location"] = fact(m.group(1), sid)
+        m = re.search(r"(?i:headquartered) in ([A-Z][a-z]+(?:, [A-Z][a-z]+)?)", text)
+        if m:
+            out["hq_country"] = fact(m.group(1), sid, m.group(0))
+        if sid != "S1" and not out["what_they_do"]["source"]:
+            m = re.search(r"[A-Z][^.\n]{30,}\.", text.split("\n", 1)[-1])
+            if m:
+                out["what_they_do"] = fact(m.group(0), sid) | {"short": "Software company"}
+        if "recruitment agency" in text:
+            out["agency"] = True
+            out["notable"].append(fact("A recruitment agency", sid, "recruitment agency"))
+    return out
+
+
 ROW_RE = re.compile(r'\[(e\d+)\] (\S+) "([^"]*)"')
 
 
@@ -219,6 +265,7 @@ class FakeLLM:
         self.apply_brain = apply_brain
         self.tailor_reply = tailor_reply or TAILOR_REPLY
         self.filter_override = None  # callable(user prompt) -> raw reply text, or None for the normal verdict
+        self.company_brain = company_brain  # callable(user prompt) -> the company summary (a dict), or raises
         self.transport = httpx.MockTransport(self.handle)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -240,6 +287,8 @@ class FakeLLM:
             calls = self.apply_brain(user)
             message["tool_calls"] = [{"id": f"call{i}", "type": "function",
                                       "function": {"name": n, "arguments": json.dumps(a)}} for i, (n, a) in enumerate(calls)]
+        elif "factual company summary" in system:
+            message["content"] = json.dumps(self.company_brain(user))
         elif "draft a job-search scope" in system:
             message["content"] = json.dumps({"scope_markdown": SCOPE_DRAFT, "keywords": ["backend engineer", "python developer"],
                                              "avoid_words": ["intern", "sales"]})

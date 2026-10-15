@@ -22,7 +22,7 @@ rebuild publicly.
 |---|---|
 | One reused password in plain text in `credentials.txt`, read into the AI's context | Keys and passwords live in **Windows Credential Manager**, entered on the Accounts page. The AI only sees login *names*; the app types the values itself, only into real password boxes, and only on the sites you allow. Page text that echoes a secret is blanked before the AI sees it. |
 | Job-site text could steer the AI (prompt injection) | Everything from the web is fenced off as untrusted data in every prompt. The AI can act only through a small set of form-filling tools: no shell, no file access, uploads limited to this job's resume and cover letter. |
-| One huge Claude Code session re-reading whole page snapshots | Plain Python code searches the boards and extracts clean posting text. Each AI call is a fresh, short request (judge, tailor, or one apply step), with token and dollar caps per job and per run, and the cost shown per job. |
+| One huge Claude Code session re-reading whole page snapshots | Plain Python code searches the boards and extracts clean posting text. Each AI call is a fresh, short request (judge, tailor, company summary, or one apply step), with token and dollar caps per job and per run, and the cost shown per job. |
 | Needed Claude Code, Node and a hand-run `npm install` (and the README didn't match the package files) | No Claude Code and no Node. `setup.bat` installs everything into this folder. The AI is called over HTTP with your own key (OpenCode Go by default; OpenRouter, Anthropic or any OpenAI-compatible endpoint also work). |
 | `applications.csv` edited by the AI | A SQLite tracker that only code writes, with **Export CSV** on the Dashboard. |
 | Outputs scattered across folders | One folder per job, browsable from the Dashboard. |
@@ -101,8 +101,9 @@ never sent to the AI as text.
    once you pick sites yourself, your choice is kept. The estimate shows tokens, cost and expected speed before you start.
    When a hunt finishes, the Hunt page says what it found and how many packages are
    waiting for your approval (the browser tab shows that number too).
-5. **Dashboard**: every package, with the ones waiting for your approval at the top.
-   Open one to preview the PDFs and match report, approve it, open its folder, or set
+5. **Dashboard**: every package, with the ones waiting for your approval at the top,
+   each with a one-line note on the company (what it does, where, how big).
+   Open one to see the company summary first, preview the PDFs and match report, approve it, open its folder, or set
    Interview / Offer / Rejected. A job marked **Needs you** says why JobHunt stopped,
    links to the fix (a missing screening answer, a login, a cap) and, where it can,
    offers *Try again*. The Notes box is yours; what JobHunt did is listed under it.
@@ -115,6 +116,7 @@ data\jobs\2026-10-13_Lumen-Analytics_Backend-Software-Engineer-Python\
     resume.pdf             tailored resume      (resume.html = editable source)
     cover_letter.pdf       tailored cover letter (cover_letter.html)
     match_report.md        requirement-by-requirement audit, gaps, score
+    company.md             the company summary and the pages it came from
     apply_confirmation.pdf only after a confirmed submission
 ```
 
@@ -136,6 +138,41 @@ Everything personal (profile, CVs, tracker, job folders, browser profile) is in
 
 Pacing: 4–9 seconds between page loads and at most 15 applications per hour
 per site by default (Settings).
+
+### Company summaries
+
+Every package starts with a short summary of the company at the top of its job page:
+what it does, its industry, where the job is, where the company's office is, where
+it is headquartered, how big it is, and anything notable (for example a recruitment
+agency posting for a client it doesn't name). It is written from the pages JobHunt
+read, and only those:
+
+- the posting itself;
+- the job board's own company record, where it can be read without logging in:
+  MyCareersFuture's job record (company description, registered business, staff
+  count, workplace address) and JobStreet's company page (website, size, address,
+  overview). LinkedIn's company pages need a login and Indeed's sit behind its human
+  check, so for those jobs it reads only the posting and the company's website;
+- the company's own website (its home page and its contact or about page), when the
+  board or the posting names it, or when the company's name with .com.sg, .sg or .com
+  opens a page that names the company and Singapore (marked "check it is theirs").
+  Websites open in a separate browser with none of your logins, and a website that
+  tries to send JobHunt to your own PC or home network is not read.
+
+The AI must quote the exact words behind every fact, and JobHunt checks each quote
+against the page it names: a fact whose quote, numbers or place names aren't on that
+page is left out, so anything the pages don't say shows as **Not found**. A
+headquarters or size must also be called that on the page ("Headquartered in ...",
+"Company size: ..."), so a job's location can't pass for the headquarters. The sources
+are listed under the summary (point at a source mark to see the quoted words).
+
+It costs one small AI call per package on the filter model (counted in the job's AI
+use and in the hunt estimate) and two to four page loads, paced like the hunt. A page
+with a robot check or a sign-in wall is skipped, never worked around. A lookup that
+fails never holds up or fails the package: the job page says what went wrong, and
+**Look up this company** (or **Refresh**) on the job page tries again. A refresh that
+could read fewer pages than last time (one was blocked, say) keeps the fuller summary.
+Packages made before this have no summary until you press that button.
 
 ## Safety rules the app enforces
 
@@ -174,7 +211,7 @@ scripted fake, serve the practice board locally, and run a full draft hunt plus
 Approve & apply in headless Chromium. They check that no secret value reaches a
 prompt, a log line, the tracker or any file.
 
-Code map (`jobhunt\`): `sites.py` and `extract.py` (crawling), `prompts.py` (every
+Code map (`jobhunt\`): `sites.py` and `extract.py` (crawling), `company.py` (company summaries), `prompts.py` (every
 prompt), `llm.py` (HTTP client and spending caps), `hunt.py` (the hunt loop and
 background runner), `applyagent.py` (form filling), `render.py` and `documents\`
 (templates), `db.py` (tracker), `secrets_store.py` and `first_run.py` (keys),

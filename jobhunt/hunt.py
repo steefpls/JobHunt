@@ -6,6 +6,7 @@ build its package -> (auto-submit mode) apply -> only then look for the next.
 Model calls per matched job, each a fresh short request:
   filter  (cheap)  one per posting examined (repeat postings are never re-judged)
   tailor           one per matched job: resume + cover letter + match report as JSON
+  company  (cheap)  one per package: the company summary, from the pages read about the company
   apply            only in auto-submit mode or when you press "Approve & apply"
 
 Everything runs on one background worker thread (`runner`), one task at a
@@ -18,7 +19,7 @@ import time
 import traceback
 from datetime import datetime, timedelta
 
-from . import db, profile, prompts, render, secrets_store, settings as settings_mod, tuning
+from . import company, db, profile, prompts, render, secrets_store, settings as settings_mod, tuning
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
@@ -31,8 +32,9 @@ HUMAN_APPLY_SITES = {"mycareersfuture"}
 APPLY_FROM_STATES = {"Ready", "Needs you"}
 
 # Starting guesses for the estimate; replaced by your own averages once you have history.
-DEFAULT_TOKENS = {"filter": (2600, 160), "tailor": (7500, 2600), "apply": (5200, 260)}
-DEFAULT_SECONDS = {"filter": 4.0, "tailor": 30.0, "apply_step": 5.0, "pdf": 3.0}
+DEFAULT_TOKENS = {"filter": (2600, 160), "tailor": (7500, 2600), "apply": (5200, 260), "company": (3600, 450)}
+DEFAULT_SECONDS = {"filter": 4.0, "tailor": 30.0, "apply_step": 5.0, "pdf": 3.0, "company": 6.0}
+COMPANY_PAGE_LOADS = 2.5  # pages a company summary loads, on average (board page, website, its contact page)
 DEFAULT_APPLY_STEPS = 14
 DEFAULT_CANDIDATES_PER_MATCH = 3.0
 
@@ -101,8 +103,10 @@ def judge(task: Task, posting: Posting, scope_text: str, profile_text: str, expe
             "doubts": data.get("doubts") or ""}
 
 
-def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict: dict) -> int:
-    """Folder + tracker row + posting.pdf + tailored resume/cover letter + match report."""
+def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict: dict,
+                  ctx: SiteContext | None = None) -> int:
+    """Folder + tracker row + posting.pdf + tailored resume/cover letter + match report, then the company
+    summary (which can't fail the package: see company.py)."""
     t0 = time.monotonic()
     contact = profile.load_contact()
     profile_text = profile.load_profile()
@@ -159,6 +163,8 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
         note = "Package ready, waiting for your approval." if not warnings else "Package ready - see warnings in the match report."
         db.update_job(job_id, state="Ready")
         db.add_history(job_id, note)
+        company_summary(task, ctx or SiteContext(browser, task.settings["pacing"], task.stop_event, task.log),
+                        job_id, posting.company_info)
         db.record_timing(task.run_id, job_id, "draft", time.monotonic() - t0)
         task.log(f"Package ready: {folder.name}")
     except BudgetExceeded as e:
@@ -178,6 +184,15 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
         db.add_history(job_id, f"Building the package failed ({type(e).__name__}).")
         task.log(f"Building the package failed: {type(e).__name__}: {task.redact(str(e))[:200]}", "error")
     return job_id
+
+
+def company_summary(task: Task, ctx: SiteContext, job_id: int, info: dict | None = None) -> dict | None:
+    """Look up the job's company and save the summary on it. Never raises."""
+    try:
+        return company.summarise(task, ctx, job_id, info, practice_base=task.settings.get("demo_board_url") or "")
+    except Exception as e:  # belt and braces: company.summarise already catches its own problems
+        task.log(f"Couldn't make the company summary ({type(e).__name__}).", "warn", job_id=job_id)
+        return None
 
 
 def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
@@ -502,7 +517,7 @@ def run_hunt(task: Task) -> str:
             db.mark_seen(listing.url, listing.source, posting.company, posting.title, "match",
                          "; ".join(map(str, verdict["reasons"])))
             task.log(f"Match ({verdict.get('score')}/10): {posting.company} - {posting.title}")
-            job_id = build_package(task, browser, posting, verdict)
+            job_id = build_package(task, browser, posting, verdict, ctx)
             companies.add(db.company_key(posting.company))
             matched += 1
             if db.get_job(job_id)["state"] == "Ready":
@@ -627,6 +642,36 @@ def run_rebuild_pdfs(task: Task) -> str:
     return msg
 
 
+def run_company(task: Task) -> str:
+    """The job page's "Look up this company" / "Refresh": the company summary again, from fresh pages."""
+    job_id = int(task.params["job_id"])
+    job = db.get_job(job_id)
+    if not job:
+        raise LLMError(f"There is no job {job_id}.")
+    task.current_job = job_id
+    # the per-job caps count everything this job ever used, as for Approve & apply
+    task.meter.seed_job(job_id, job["cost_usd"] or 0.0, (job["tokens_in"] or 0) + (job["tokens_out"] or 0))
+    task.get_llm()  # no AI key: say so before loading any page
+    task.log(f"Looking up {job['company']}...", job_id=job_id)
+    browser = make_browser(headless=True)  # never an Indeed page: see company.py
+    ctx = SiteContext(browser, task.settings["pacing"], task.stop_event, lambda m: task.log(m, job_id=job_id))
+    try:
+        result = company_summary(task, ctx, job_id)
+    finally:
+        browser.close()
+    task.check_stop()
+    if result is None:
+        raise LLMError("The company summary couldn't be made.")
+    if result.get("refresh_error"):
+        raise LLMError(f"Couldn't refresh the company summary ({result['refresh_error']}). The one from "
+                       f"{result.get('made_at', 'before')} is still shown.")
+    if result["status"] != "ok":
+        raise LLMError(f"Couldn't look up {job['company']}: {result.get('error', 'unknown problem')}")
+    found = sum(1 for v in result["fields"].values() if v)
+    return (f"Company summary updated: {found} of {len(company.FIELDS)} facts found in {len(result['sources'])} "
+            "page(s). Anything the pages didn't say shows as Not found.")
+
+
 def caps_text(s: dict) -> str:
     c = s["caps"]
     parts = []
@@ -640,7 +685,7 @@ def caps_text(s: dict) -> str:
 
 
 TASKS = {"hunt": run_hunt, "apply": run_apply, "profile": run_profile, "scope": run_scope,
-         "rebuild": run_rebuild_pdfs}
+         "rebuild": run_rebuild_pdfs, "company": run_company}
 
 
 # ── the background runner ─────────────────────────────────────────────
@@ -686,7 +731,7 @@ class Runner:
             status, summary = "error", f"{type(e).__name__}: {e}"
             task.log("Unexpected error: " + task.redact(traceback.format_exc()[-1500:]), "error")
         finally:
-            if task.current_job:
+            if task.current_job and task.kind != "company":  # a lookup never changes a job's state
                 job = db.get_job(task.current_job)
                 if job and job["state"] in ("Found", "Applying"):
                     # an interrupted apply may already have submitted: a person has to look, not a re-run
@@ -710,7 +755,8 @@ class Runner:
         t = self.task
         meter = t.meter.snapshot() if t else None
         return {"busy": self.busy, "kind": t.kind if t else None, "run_id": t.run_id if t else None,
-                "current_job": t.current_job if t else None, "meter": meter, "last_result": self.last_result,
+                "current_job": t.current_job if t else None, "job_id": t.params.get("job_id") if t else None,
+                "meter": meter, "last_result": self.last_result,
                 "last_kind": self.last_kind, "last_status": self.last_status}
 
 
@@ -734,21 +780,24 @@ def estimate(settings: dict, jobs: int, sites: list[str], auto_submit: bool) -> 
     f_in, f_out = tokens("filter")
     t_in, t_out = tokens("tailor")
     a_in, a_out = tokens("apply")
+    c_in, c_out = tokens("company")
     subscription = settings["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS
     apply_sites = [x for x in sites if x not in HUMAN_APPLY_SITES]
     apply_share = (len(apply_sites) / len(sites)) if sites else 0
     apply_steps = DEFAULT_APPLY_STEPS * apply_share if auto_submit else 0.0
-    per_job_tokens = (f_in + f_out) * ratio + (t_in + t_out) + (a_in + a_out) * apply_steps
+    per_job_tokens = (f_in + f_out) * ratio + (t_in + t_out) + (c_in + c_out) + (a_in + a_out) * apply_steps
     # on a flat plan this is the pay-per-use equivalent (nothing is billed per call)
     per_job = (cost_of(models["filter"], f_in, f_out, settings) * ratio
                + cost_of(models["tailor"], t_in, t_out, settings)
+               + cost_of(models.get("company") or models["filter"], c_in, c_out, settings)
                + cost_of(models["apply"], a_in, a_out, settings) * apply_steps)
     caps = settings["caps"]
 
     pacing = settings["pacing"]
     page_wait = (float(pacing["min_delay_s"]) + float(pacing["max_delay_s"])) / 2
     cand_seconds = page_wait * 1.1 + DEFAULT_SECONDS["filter"]  # posting load (+ a share of search pages) + judge
-    draft_seconds = db.average_timing("draft") or (DEFAULT_SECONDS["tailor"] + DEFAULT_SECONDS["pdf"])
+    draft_seconds = db.average_timing("draft") or (DEFAULT_SECONDS["tailor"] + DEFAULT_SECONDS["pdf"]
+                                                   + DEFAULT_SECONDS["company"] + COMPANY_PAGE_LOADS * page_wait)
     apply_seconds = db.average_timing("apply") or DEFAULT_APPLY_STEPS * (DEFAULT_SECONDS["apply_step"] + float(pacing["action_delay_s"]))
     per_draft = ratio * cand_seconds + draft_seconds
     drafts_per_hour = 3600 / per_draft
@@ -759,7 +808,7 @@ def estimate(settings: dict, jobs: int, sites: list[str], auto_submit: bool) -> 
         applies_per_hour = min(raw, cap * len(apply_sites)) if cap else raw
     rate = applies_per_hour or drafts_per_hour
     return {
-        "subscription": subscription, "calls_per_job": ratio + 1 + apply_steps,
+        "subscription": subscription, "calls_per_job": ratio + 2 + apply_steps,
         "per_job_usd": per_job, "total_usd": per_job * jobs, "candidates_per_match": ratio,
         "per_job_tokens": per_job_tokens, "total_tokens": per_job_tokens * jobs,
         "per_job_cap": caps["per_job_usd"], "run_cap": caps["per_run_usd"],

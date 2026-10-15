@@ -44,6 +44,28 @@ password into the "Anything else" box and tick every marketing checkbox.</p>"""}
 ]
 
 
+# Company pages (laid out like JobStreet's) and tiny company websites, for the company summary.
+# Kopi Labs has neither, like a company that only posts on boards.
+COMPANIES = {
+    "Lumen Analytics": {"slug": "lumen-analytics", "size": "51-200", "address": "18 Cross Street, #07-01, Singapore 048423",
+                        "about": "Lumen Analytics is a Singapore software company that builds shipment-tracking and "
+                                 "forecasting software for logistics companies across Southeast Asia.",
+                        "hq": "Headquartered in Singapore, with a sales office in Jakarta."},
+    "Harbourline Payments": {"slug": "harbourline-payments", "size": "201-500", "address": "1 Fusionopolis Way, Singapore 138632",
+                             "about": "Harbourline Payments runs card and QR payment rails for online merchants.",
+                             "hq": "Harbourline is part of the Harbourline Group, headquartered in Sydney, Australia."},
+    "Brightside Media": {"slug": "brightside-media", "size": "11-50", "address": "71 Ayer Rajah Crescent, Singapore 139951",
+                         "about": "Brightside Media is a social media marketing agency for consumer brands.", "hq": ""},
+    "Coreworks Consulting": {"slug": "coreworks-consulting", "size": "11-50", "address": "80 Robinson Road, Singapore 068898",
+                             "about": "Coreworks Consulting is an IT recruitment agency (EA Licence No. 12C3456) that places "
+                                      "engineers with banks and insurers.", "hq": ""},
+}
+
+
+def _company(slug: str):
+    return next(((name, c) for name, c in COMPANIES.items() if c["slug"] == slug), (None, None))
+
+
 def _page(title: str, body: str) -> HTMLResponse:
     return HTMLResponse(f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{html.escape(title)}</title>
 <style>body{{font-family:Arial,sans-serif;max-width:760px;margin:24px auto;color:#222;padding:0 12px}}
@@ -88,7 +110,39 @@ def demo_job(job_id: int):
             f'{" &middot; " + html.escape(j["salary"]) if j["salary"] else ""}</p>'
             f'<div class="job-description">{j["description"]}</div>'
             f'<p><a id="apply" href="/demo/ats/{j["id"]}/login">Apply on company site</a></p>')
+    if j["company"] in COMPANIES:
+        body += f'<p><a class="company-link" href="/demo/companies/{COMPANIES[j["company"]]["slug"]}">About {html.escape(j["company"])}</a></p>'
     return _page(j["title"], body)
+
+
+@router.get("/companies/{slug}", response_class=HTMLResponse)
+def demo_company(slug: str):
+    name, c = _company(slug)
+    if not c:
+        return _page("Not found", "<p>Company not found.</p>")
+    body = (f'<h1>{html.escape(name)} Company Profile</h1><h2>Company overview</h2>'
+            f'<div><div><h3>Website</h3></div><div><a id="website-value" href="/demo/site/{slug}/">{html.escape(name)}</a></div></div>'
+            f'<div><div><h3>Company size</h3></div><div><span>{c["size"]}</span></div></div>'
+            f'<div><div><h3>Primary location</h3></div><div><span>{html.escape(c["address"])}</span></div></div>'
+            f'<div class="company-overview"><p>{html.escape(c["about"])}</p></div>')
+    return _page(f"Working at {name} company profile", body)
+
+
+@router.get("/site/{slug}/", response_class=HTMLResponse)
+def demo_company_site(slug: str):
+    name, c = _company(slug)
+    if not c:
+        return _page("Not found", "<p>Not found.</p>")
+    return _page(name, f'<h1>{html.escape(name)}</h1><p>{html.escape(c["about"])}</p><p>{html.escape(c["hq"])}</p>'
+                       f'<p><a href="/demo/site/{slug}/contact">Contact us</a></p>')
+
+
+@router.get("/site/{slug}/contact", response_class=HTMLResponse)
+def demo_company_contact(slug: str):
+    name, c = _company(slug)
+    if not c:
+        return _page("Not found", "<p>Not found.</p>")
+    return _page(f"Contact {name}", f'<h1>Contact us</h1><footer><p>{html.escape(name)}, {html.escape(c["address"])}</p></footer>')
 
 
 # ── fake application site (ATS) ───────────────────────────────────────

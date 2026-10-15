@@ -167,3 +167,23 @@ details.reject[open] > summary { background: #fdecea; border-color: #f5c2bd; }
 .chip span { border: 1px solid #d0d5dd; border-radius: 999px; padding: 3px 10px; font-size: 12.5px; background: #fff; }
 .chip input:checked + span { background: #fdecea; border-color: var(--bad); color: var(--bad); font-weight: 600; }
 .chip input:focus-visible + span { outline: 2px solid #c7d6ff; }
+
+/* Job page: the company summary, at the top */
+.card.company { border-left: 4px solid var(--brand); }
+.company-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.company-head h2 { margin: 0; }
+dl.facts { display: grid; grid-template-columns: 150px 1fr; gap: 6px 16px; margin: 12px 0 6px; }
+dl.facts dt { color: var(--muted); font-weight: 600; font-size: 13px; }
+dl.facts dd { margin: 0; }
+.company ul.notable { margin: 8px 0 4px; padding-left: 20px; }
+.company .sources { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.company .sources ul { margin: 4px 0 6px; padding-left: 0; list-style: none; }
+.company .sources details summary { cursor: pointer; }
+.company .sources details ul { padding-left: 18px; list-style: disc; }
+.src { display: inline-block; font-size: 10.5px; font-weight: 600; padding: 0 5px; border-radius: 6px; background: #eef2fe;
+  color: var(--brand); vertical-align: 1px; }
+a.src:hover { text-decoration: none; background: #dbe4ff; }
+.company .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3ddc97; margin-right: 6px;
+  box-shadow: 0 0 0 3px rgba(61,220,151,.2); }
+.badge.agency { background: #fff1e6; color: var(--warn); font-size: 11.5px; vertical-align: 2px; }
+.coline { color: var(--muted); font-size: 12.5px; margin-top: 2px; }

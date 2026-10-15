@@ -40,6 +40,9 @@ class Posting:
     apply_url: str = ""
     salary: str = ""
     salary_max_monthly: float = 0.0  # top of the stated range in SGD a month; 0 = not stated in a form code can read
+    # what the board says about the company, kept while reading the posting so the company summary needn't
+    # load the page again: {"board_page": url} or {"label", "url", "text", "website"} (see company.py)
+    company_info: dict = field(default_factory=dict)
 
 
 # ── salary ────────────────────────────────────────────────────────────

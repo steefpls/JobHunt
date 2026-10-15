@@ -19,8 +19,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import (achievements, db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store, tuning,
-               updates)
+from .. import (achievements, company, db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store,
+               tuning, updates)
 from .. import settings as settings_mod
 from ..sites import SITE_STATUS
 
@@ -38,6 +38,8 @@ def local_path(url: str, default: str) -> str:
 
 
 templates.env.filters["web_url"] = web_url
+templates.env.filters["link_label"] = render.link_label
+templates.env.globals["company_line"] = company.line_for  # the one-line company summary on job lists
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
 
@@ -186,7 +188,11 @@ def create_app(port: int = 8765) -> FastAPI:
         report_html = render.report_html(report.read_text(encoding="utf-8")) if report.exists() else ""
         has_package = (folder / "resume.pdf").is_file() if job["folder"] else False
         help_ = hunt.needs_you_fix(job)
-        return page(request, "job.html", job=job, decoder=achievements.DECODER, files=render.list_files(folder) if job["folder"] else [],
+        co = company.load(job)
+        st = hunt.runner.status()
+        return page(request, "job.html", job=job, company=co, company_fields=company.FIELDS,
+                    company_src={s_["id"]: s_ for s_ in (co or {}).get("sources", [])},
+                    company_busy=st["busy"] and st["kind"] == "company" and job_id in (st["current_job"], st.get("job_id")), decoder=achievements.DECODER, files=render.list_files(folder) if job["folder"] else [],
                     report_html=report_html, calls=db.job_calls(job_id), user_states=db.USER_STATES,
                     human_apply=job["source"] in hunt.HUMAN_APPLY_SITES, has_package=has_package,
                     why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
@@ -253,6 +259,20 @@ def create_app(port: int = 8765) -> FastAPI:
         if hunt.runner.last_kind == "rebuild" and hunt.runner.last_status not in ("", "done"):
             return back(f"/jobs/{job_id}", err=f"Rebuild didn't finish: {hunt.runner.last_result}")
         return back(f"/jobs/{job_id}", msg=hunt.runner.last_result)
+
+    @app.post("/jobs/{job_id}/company")
+    def company_lookup(job_id: int):
+        """Look up this job's company (again): a background task, so the page stays usable meanwhile."""
+        job = db.get_job(job_id)
+        if not job:
+            return back("/", err="No such job.")
+        try:
+            if profile_busy_reason():
+                raise RuntimeError(profile_busy_reason())
+            hunt.runner.start("company", {"job_id": job_id})
+        except RuntimeError as e:
+            return back(f"/jobs/{job_id}#company", err=str(e))
+        return back(f"/jobs/{job_id}#company", msg=f"Looking up {job['company']}: this takes under a minute.")
 
     @app.post("/jobs/{job_id}/open-folder")
     def open_folder(job_id: int):

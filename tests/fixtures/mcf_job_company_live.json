@@ -1,0 +1,48 @@
+{
+ "uuid": "61662a68782966e3ae83fe0aab0c36fc",
+ "title": "Research Engineer I (Computer Science / Artificial Intelligence / Software Engineering / Information Systems)",
+ "postedCompany": {
+  "uen": "200604393R",
+  "description": "<p>A research-intensive public university, Nanyang Technological University, Singapore (NTU Singapore) has 33,000 undergraduate and postgraduate students in the Engineering, Business, Science, Humanities, Arts, & Social Sciences, and Graduate colleges. It also has a medical school, the Lee Kong Chian School of Medicine, established jointly with Imperial College London.</p><p><br /></p><p>NTU is also home to world-class autonomous institutes \u2013 the National Institute of Education, S Rajaratnam School of International Studies, Earth Observatory of Singapore, and Singapore Centre for Environmental Life Sciences Engineering \u2013 and various leading research centres such as the Nanyang Environment & Water Research Institute (NEWRI) and Energy Research Institute @ NTU (ERI@N).</p><p><br /></p><p>Ranked amongst the world\u2019s top universities by QS, NTU has also been named the world\u2019s top young university for the past seven years. The University\u2019s main campus is frequently listed among the Top 15 most beautiful university campuses in the world and has 57 Green Mark-certified (equivalent to LEED-certified) buildings, of which 95% are certified Green Mark Platinum. Apart from its main campus, NTU also has a campus in Novena, Singapore\u2019s healthcare district.</p><p><br /></p><p>Under the NTU Smart Campus vision, the University harnesses the power of digital technology and tech-enabled solutions to support better learning and living experiences, the discovery of new knowledge, and the sustainability of resources.</p><p><br /></p><p>For more information, visit www.ntu.edu.sg</p>",
+  "name": "NANYANG TECHNOLOGICAL UNIVERSITY",
+  "ssicCode": "85302",
+  "employeeCount": null,
+  "companyUrl": null,
+  "lastSyncDate": "2026-10-15T00:22:55.000Z",
+  "ssicCode2020": "85402",
+  "ssicDescription2020": "UNIVERSITIES",
+  "responsiveEmployer": {
+   "isResponsive": false
+  }
+ },
+ "hiringCompany": null,
+ "address": {
+  "overseasCountry": null,
+  "foreignAddress1": null,
+  "foreignAddress2": null,
+  "block": "50",
+  "street": "NANYANG AVENUE",
+  "floor": null,
+  "unit": null,
+  "building": "NANYANG TECHNOLOGICAL UNIVERSITY",
+  "postalCode": "639798",
+  "isOverseas": false,
+  "districts": [
+   {
+    "id": 22,
+    "location": "D22 Jurong, Jurong Island, Tuas",
+    "region": "West",
+    "sectors": [
+     "60",
+     "61",
+     "62",
+     "63",
+     "64"
+    ],
+    "regionId": "West"
+   }
+  ],
+  "lat": 1.34660283482127,
+  "lng": 103.681355887293
+ }
+}

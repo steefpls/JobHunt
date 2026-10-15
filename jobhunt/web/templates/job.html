@@ -7,6 +7,54 @@
   · <span class="badge {{ job.state }}">{{ job.state }}</span>
   {% if job.date_applied %} · applied {{ job.date_applied }}{% endif %}</p>
 
+{# The company summary: every fact was checked against the page it quotes (company.py) #}
+<div class="card company" id="company">
+  <div class="company-head">
+    <h2>About {{ job.company or "this company" }}{% if company and company.agency %} <span class="badge agency">Recruiter posting</span>{% endif %}</h2>
+    {% if not company_busy %}
+    <form method="post" action="/jobs/{{ job.id }}/company" class="inline">
+      <button class="btn small" {{ 'disabled' if status.busy }}>{{ 'Refresh' if company else 'Look up this company' }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if company_busy %}
+    <p class="muted" id="companyBusy" data-job="{{ job.id }}"><span class="dot live"></span>Looking up {{ job.company }}:
+      reading the posting, the job board's company page and the company's website. This takes under a minute;
+      the summary shows here when it's done.</p>
+  {% elif company and company.status == "ok" %}
+    <dl class="facts">
+      {% for key, label in company_fields %}{% set f = (company.fields or {}).get(key) %}
+      <dt>{{ label }}</dt>
+      <dd>{% if f %}{{ f.text }}{% set s = company_src.get(f.source) %}
+        <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
+           title="{{ (s.label ~ ': ' if s) ~ '“' ~ f.quote ~ '”' }}">{{ f.source }}</a>
+        {% else %}<span class="muted">Not found</span>{% endif %}</dd>
+      {% endfor %}
+    </dl>
+    {% if company.notable %}
+    <ul class="notable">{% for n in company.notable %}{% set s = company_src.get(n.source) %}
+      <li>{{ n.text }} <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
+          title="{{ (s.label ~ ': ' if s) ~ '“' ~ n.quote ~ '”' }}">{{ n.source }}</a></li>{% endfor %}
+    </ul>
+    {% endif %}
+    <div class="sources"><b>Sources</b>
+      <ul>{% for s in company.sources %}<li><span class="src">{{ s.id }}</span> {{ s.label }}{% if s.url %}:
+        <a href="{{ s.url|web_url }}" target="_blank" rel="noopener noreferrer">{{ s.url|link_label }}</a>{% endif %}</li>{% endfor %}</ul>
+      {% if company.skipped %}<details><summary>Not read ({{ company.skipped|length }})</summary>
+        <ul>{% for line in company.skipped %}<li>{{ line }}</li>{% endfor %}</ul></details>{% endif %}
+      <p class="hint">Made {{ company.made_at.replace("T", " ") }} from these pages only. Every fact is quoted from the
+        page it cites (point at a source mark to see the words); what the pages don't say shows as Not found{% if company.dropped %},
+        and {{ company.dropped }} fact(s) the AI couldn't back with a quote were left out{% endif %}.</p>
+    </div>
+  {% elif company and company.status == "failed" %}
+    <div class="why">Couldn't look this company up: {{ company.error }}</div>
+    <p class="hint">The package isn't affected. Press Look up this company to try again.</p>
+  {% else %}
+    <p class="muted" style="margin-bottom:0">No company summary yet (packages made before JobHunt looked companies up
+      don't have one). Press <b>Look up this company</b> to read about it: one small AI call.</p>
+  {% endif %}
+</div>
+
 <div class="grid two">
   <div class="card">
     <h2>What next</h2>
@@ -69,7 +117,7 @@
   <h2>Files <span class="muted" style="font-weight:400;font-size:13px">data/jobs/{{ job.folder }}</span></h2>
   {% if files %}
   <div class="tabs" id="tabs">
-    {% for f in files if f.name.endswith(".pdf") or f.name.endswith(".md") %}
+    {% for f in files if (f.name.endswith(".pdf") or f.name.endswith(".md")) and f.name != "company.md" %}
     <button type="button" data-src="/files/{{ job.id }}/{{ f.name }}?v={{ f.version }}" data-name="{{ f.name }}" class="{{ 'on' if loop.first }}">{{ f.name }}</button>
     {% endfor %}
   </div>

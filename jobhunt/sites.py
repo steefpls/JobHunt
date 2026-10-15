@@ -26,6 +26,7 @@ from urllib.parse import quote, quote_plus, urljoin, urlparse, parse_qs
 import httpx
 from bs4 import BeautifulSoup
 
+from . import company
 from .extract import (Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, salary_top_monthly,
                       select_text)
 
@@ -49,6 +50,7 @@ class SiteContext:
         self.log = log or (lambda msg: None)
         self._sleep = sleep
         self._last_load = 0.0
+        self.blocked_hosts: set = set()  # boards that showed a robot check to a company lookup (company.py)
 
     def _pause_until(self, target: float) -> None:
         while (remaining := target - time.monotonic()) > 0:
@@ -68,11 +70,16 @@ class SiteContext:
         self.log(f"{urlparse(url).hostname} asked us to slow down (HTTP 429); waiting {wait:.0f}s before trying once more.")
         self._pause_until(time.monotonic() + wait)
 
-    def get_html(self, url: str, tab: str | None = None) -> str:
-        """`tab`: load it in a tab of the site's own, so the page stays open while other sites load theirs."""
+    def get_html(self, url: str, tab: str | None = None, isolated: bool = False, allow=None) -> str:
+        """`tab`: load it in a tab of the site's own, so the page stays open while other sites load theirs.
+        `isolated`: a page that isn't a job board (a company's website): a throwaway browser with no logins,
+        where every request and redirect must pass `allow(url)`."""
         for attempt in (1, 2):
             self.wait_turn()
-            html = self.browser.load_html(url, tab=tab) if tab else self.browser.load_html(url)
+            if isolated:
+                html = self.browser.load_isolated_html(url, allow=allow)
+            else:
+                html = self.browser.load_html(url, tab=tab) if tab else self.browser.load_html(url)
             status = getattr(self.browser, "last_status", 0) or 0
             if status == 429 and attempt == 1:
                 self._slow_down(url)
@@ -164,6 +171,7 @@ class DemoSite:
         p = generic_posting(html, self.key, listing.url, body_selectors=[".job-description"])
         apply = BeautifulSoup(html, "html.parser").select_one("a#apply")
         p.apply_url = _abs(listing.url, apply.get("href")) if apply else listing.url
+        p.company_info = company.board_company_info(html, listing.url)
         return _fill_from_listing(p, listing)
 
 
@@ -219,7 +227,7 @@ class MyCareersFutureSite:
         p = Posting(source=self.key, url=listing.url, title=r.get("title") or listing.title,
                     company=(r.get("hiringCompany") or {}).get("name") or (r.get("postedCompany") or {}).get("name") or listing.company,
                     location=listing.location, text="\n\n".join(parts), apply_url=listing.url, salary=salary,
-                    salary_max_monthly=salary_max)
+                    salary_max_monthly=salary_max, company_info=company.mcf_info(r, listing.url))
         return p
 
 
@@ -330,6 +338,7 @@ class JobStreetSite:
         if p.text and work_type:
             p.text += f"\n\nWork type: {work_type}"
         p.apply_url = listing.url
+        p.company_info = company.board_company_info(html, listing.url)
         return _fill_from_listing(p, listing)
 
 

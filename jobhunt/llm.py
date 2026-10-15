@@ -47,6 +47,8 @@ KNOWN_PRICES = {
     "claude-opus-5-5": (4.00, 20.00),
 }
 FALLBACK_PRICE = (1.00, 5.00)  # used for unknown models, deliberately on the high side
+# Steps with no model of their own on the Settings page use another step's (cheap) model.
+STAGE_MODEL_FALLBACK = {"company": "filter"}
 
 
 class LLMError(Exception):
@@ -297,7 +299,8 @@ class LLMClient:
         return f"<LLMClient provider={self.provider}>"
 
     def model_for(self, stage: str) -> str:
-        model = self.settings.get("models", {}).get(stage, "")
+        models = self.settings.get("models", {})
+        model = models.get(stage) or models.get(STAGE_MODEL_FALLBACK.get(stage, ""), "")
         if not model:
             raise LLMError(f"No model set for the '{stage}' step. Pick one on the Settings page.")
         return model

@@ -42,7 +42,8 @@ def test_draft_hunt_then_approve_and_apply(demo_server, secrets, candidate, fake
     folders = [p for p in paths.jobs_dir().iterdir() if p.is_dir()]
     assert len(folders) == 1 and folders[0].name == job["folder"]
     names = sorted(p.name for p in folders[0].iterdir())
-    assert names == ["cover_letter.html", "cover_letter.pdf", "match_report.md", "posting.pdf", "resume.html", "resume.pdf"]
+    assert names == ["company.md", "cover_letter.html", "cover_letter.pdf", "match_report.md", "posting.pdf", "resume.html",
+                     "resume.pdf"]
     for pdf in ("posting.pdf", "resume.pdf", "cover_letter.pdf"):
         text = "".join(p.extract_text() for p in PdfReader(str(folders[0] / pdf)).pages)
         assert len(text) > 100, pdf
@@ -50,11 +51,23 @@ def test_draft_hunt_then_approve_and_apply(demo_server, secrets, candidate, fake
     report = (folders[0] / "match_report.md").read_text(encoding="utf-8")
     assert "Tailoring score: 8" in report
 
-    # one fresh request per stage: one filter, one tailor; no apply in draft mode
-    stages = [("screen job postings" in r["messages"][0]["content"], "tailor a Harvard" in r["messages"][0]["content"])
-              for r in fake_llm.requests]
-    assert stages.count((True, False)) == 1 and stages.count((False, True)) == 1
-    assert len(fake_llm.requests) == 2
+    # the company summary, from the practice board's company page and the company's (practice) website
+    info = json.loads(job["company_info"])
+    assert info["status"] == "ok", info
+    assert [s["label"].split(" (")[0] for s in info["sources"]] == [
+        "The job posting", "The job board's company page", "The company's website", "The company's website"]
+    assert info["fields"]["size"]["text"] == "51-200 employees"
+    assert info["fields"]["company_location"]["text"] == "18 Cross Street, #07-01, Singapore 048423"
+    assert info["fields"]["hq_country"]["text"] == "Singapore"
+    assert "shipment-tracking" in info["fields"]["what_they_do"]["text"]
+    assert "About Lumen Analytics" in (folders[0] / "company.md").read_text(encoding="utf-8")
+    assert [c["stage"] for c in db.job_calls(job["id"])] == ["filter", "tailor", "company"]  # its cost counts
+
+    # one fresh request per stage: one filter, one tailor, one company summary; no apply in draft mode
+    kinds = [next((k for k, w in (("filter", "screen job postings"), ("tailor", "tailor a Harvard"),
+                                  ("company", "factual company summary")) if w in r["messages"][0]["content"]), "?")
+             for r in fake_llm.requests]
+    assert kinds == ["filter", "tailor", "company"]
 
     # approve & apply (what the job page's button does)
     demo_board.SUBMISSIONS.clear()

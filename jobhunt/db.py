@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     history TEXT NOT NULL DEFAULT '',      -- what JobHunt did with it, one line each (notes are yours)
     reject_reason TEXT NOT NULL DEFAULT '', -- why you rejected it: the quick picks, joined with '; '
     reject_note TEXT NOT NULL DEFAULT '',   -- ... and anything you typed
-    salary TEXT NOT NULL DEFAULT ''         -- the pay as the posting stated it
+    salary TEXT NOT NULL DEFAULT '',        -- the pay as the posting stated it
+    company_info TEXT NOT NULL DEFAULT ''   -- the company summary as JSON (company.py), '' = none yet
 );
 CREATE TABLE IF NOT EXISTS seen (
     url TEXT PRIMARY KEY,
@@ -126,7 +127,8 @@ def connect() -> sqlite3.Connection:
 # Columns added after the first release: a tracker made before them gets them on start-up.
 _ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": "TEXT NOT NULL DEFAULT ''",
                            "history": "TEXT NOT NULL DEFAULT ''", "reject_reason": "TEXT NOT NULL DEFAULT ''",
-                           "reject_note": "TEXT NOT NULL DEFAULT ''", "salary": "TEXT NOT NULL DEFAULT ''"}}
+                           "reject_note": "TEXT NOT NULL DEFAULT ''", "salary": "TEXT NOT NULL DEFAULT ''",
+                           "company_info": "TEXT NOT NULL DEFAULT ''"}}
 
 
 def init() -> None:
@@ -186,7 +188,8 @@ def add_job(*, source, url, company, role, location="", apply_url="", posting_te
 
 
 _JOB_FIELDS = {"company", "role", "location", "apply_url", "posting_text", "state", "date_applied",
-               "folder", "notes", "match_score", "reason", "reason_kind", "history", "reject_reason", "reject_note"}
+               "folder", "notes", "match_score", "reason", "reason_kind", "history", "reject_reason", "reject_note",
+               "company_info"}
 
 
 def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:
@@ -212,6 +215,13 @@ def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:
         if old and old[0]["state"] != fields["state"]:
             _exec("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,?)",
                   (job_id, fields["updated_at"], fields["state"], by))
+
+
+def set_company_info(job_id: int, info_json: str) -> None:
+    """Save a job's company summary. Leaves updated_at alone: the per-site apply cap counts Applied jobs by
+    it, so refreshing a summary must not make an old application look like one made today."""
+    with _lock:
+        _exec("UPDATE jobs SET company_info = ? WHERE id = ?", (info_json, job_id))
 
 
 def append_note(job_id: int, note: str) -> None:

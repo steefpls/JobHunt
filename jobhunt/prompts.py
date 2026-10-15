@@ -172,6 +172,48 @@ def tailor_prompt(profile_text: str, contact: dict, posting) -> tuple[str, str]:
     return system, user
 
 
+# ── 3b. company summary, from the pages JobHunt read ─────────────────
+
+COMPANY_SHAPE = """{
+ "what_they_do": {"text": "1-2 plain sentences: what the company does, its main products or services, who its customers are",
+                  "short": "at most 6 words, e.g. 'Engineering and robotics firm'", "source": "S2", "quote": "exact words from that source"},
+ "industry": {"text": "", "source": "", "quote": ""},
+ "job_location": {"text": "where THIS job is based: office area or address", "source": "", "quote": ""},
+ "company_location": {"text": "the company's office in Singapore: address or area", "source": "", "quote": ""},
+ "hq_country": {"text": "country of the company's headquarters", "source": "", "quote": ""},
+ "size": {"text": "number of employees, e.g. '51-100 employees'", "source": "", "quote": ""},
+ "notable": [{"text": "at most 3 things a job seeker should know, e.g. a recruitment agency posting for a client it doesn't name, a government body, a start-up, part of a larger group", "source": "", "quote": ""}],
+ "agency": false
+}"""
+
+
+def company_prompt(company: str, role: str, sources) -> tuple[str, str]:
+    """`sources`: company.Source items (id, label, url, text), all of it web text."""
+    system = (
+        "You write a short, factual company summary for a job seeker, using ONLY the source pages given.\n"
+        "Rules:\n"
+        "- Every fact must be stated in one of the sources. For each fact give the source id and a quote: words copied "
+        "exactly, character for character, from that source (a short phrase is fine). Facts without a matching quote "
+        "are thrown away.\n"
+        "- Never use your own knowledge of the company, and never guess. Do not work out a location, size or "
+        "headquarters from the company's name, a 'Pte Ltd' ending, the currency, the phone number or the job board. "
+        "If the sources don't say it, write \"not found\" with an empty source and quote.\n"
+        "- For locations and the headquarters, use the place names exactly as the quote has them.\n"
+        "- agency: true only if the sources say the posting is by a recruitment or employment agency (for example "
+        "'our client', an EA licence number); then say so in notable, and whether the client is named.\n"
+        "- Keep it short and plain: no marketing words.\n"
+        + UNTRUSTED_RULES
+        + "\nReply with one JSON object only."
+    )
+    blocks = "\n\n".join(untrusted("source", f"Source {s.id}: {s.label}\nAddress: {s.url}\n\n{s.text}") for s in sources)
+    user = (
+        "The job: " + untrusted("job", f"Company: {company}\nRole: {role}", 400) + "\n\n"
+        "Source pages:\n" + blocks + "\n\n"
+        "Return JSON in exactly this shape:\n" + COMPANY_SHAPE
+    )
+    return system, user
+
+
 # ── 4. the apply agent, one step at a time ────────────────────────────
 
 def apply_system_prompt(allow_register: bool) -> str:

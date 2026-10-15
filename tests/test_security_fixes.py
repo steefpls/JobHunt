@@ -406,7 +406,7 @@ def test_L3_filter_call_is_listed_on_the_job(demo_server, secrets, candidate, fa
     runner.wait(180)
     job = db.list_jobs()[0]
     calls = db.job_calls(job["id"])
-    assert {c["stage"] for c in calls} == {"filter", "tailor"}
+    assert {c["stage"] for c in calls} == {"filter", "tailor", "company"}
     assert sum(c["tokens_in"] + c["tokens_out"] for c in calls) == job["tokens_in"] + job["tokens_out"]
 
 

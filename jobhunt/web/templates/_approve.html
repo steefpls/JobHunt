@@ -1,7 +1,8 @@
 {# The packages waiting for your approval (Hunt page and Dashboard). Needs: ready, status, human_apply_sites. #}
 <table class="approve">
   {% for j in ready %}
-  <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a>{% if j.match_score is not none %}<span class="pill">fit {{ j.match_score|int }}/10</span>{% endif %}</td>
+  <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a>{% if j.match_score is not none %}<span class="pill">fit {{ j.match_score|int }}/10</span>{% endif %}
+    {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
     <td style="text-align:right;white-space:nowrap">
       <a class="btn small" href="/jobs/{{ j.id }}">Review</a>
       {% if j.source in human_apply_sites %}<a class="btn small" href="/jobs/{{ j.id }}">Apply yourself</a>

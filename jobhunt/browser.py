@@ -9,6 +9,7 @@ import html as htmlmod
 import json
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urljoin, urlparse
 
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import sync_playwright
@@ -144,6 +145,71 @@ class BrowserSession:
         except PlaywrightError:
             self.last_url, self.last_status = page.url, 0
             return page.content()
+
+    def load_isolated_html(self, url: str, timeout: int = 25000, allow=None) -> str:
+        """A page that isn't a job board (a company's own website), in a throwaway headless browser: none of
+        your job-site logins, no downloads. Sets last_url and last_status like load_html.
+        `allow(url) -> bool`: every request the page makes, and every redirect, must pass it (so a website
+        can't send JobHunt to this PC or the home network); anything else raises PermissionError."""
+        if self._pw is None:
+            self._pw = sync_playwright().start()
+        if self._pdf_browser is None:
+            self._pdf_browser = self._pw.chromium.launch(headless=True)
+        ctx = self._pdf_browser.new_context(user_agent=USER_AGENT, accept_downloads=False, service_workers="block",
+                                            viewport={"width": 1280, "height": 900})
+        refused = []
+        if allow is not None:
+            checked = {}
+
+            def ok(u: str) -> bool:
+                p = urlparse(u)
+                if p.scheme in ("data", "blob", "about"):
+                    return True
+                key = f"{p.scheme}://{p.netloc}"
+                if key not in checked:
+                    checked[key] = p.scheme in ("http", "https") and bool(allow(u))
+                return checked[key]
+
+            def guard(route):
+                req = route.request
+                if req.resource_type in ("image", "media", "font", "stylesheet"):  # only the words are read
+                    return route.abort()
+                if not ok(req.url):
+                    refused.append(req.url)
+                    return route.abort()
+                # A route sees only the first address of a redirect chain, so redirects are followed here,
+                # one hop at a time, each checked before it is asked for.
+                try:
+                    resp = route.fetch(max_redirects=0, timeout=timeout)
+                except PlaywrightError:
+                    return route.abort()
+                where = resp.headers.get("location")
+                if 300 <= resp.status < 400 and where:
+                    target = urljoin(req.url, where)
+                    if not ok(target):
+                        refused.append(target)
+                        return route.abort()
+                return route.fulfill(response=resp)
+            ctx.route("**/*", guard)
+        try:
+            page = ctx.new_page()
+            try:
+                response = page.goto(url, wait_until="domcontentloaded", timeout=timeout)
+            except PlaywrightError:
+                if refused:
+                    raise PermissionError(f"it sent JobHunt to {refused[0][:80]}") from None
+                raise
+            try:
+                page.wait_for_load_state("networkidle", timeout=5000)
+            except PlaywrightError:
+                pass
+            self.last_url = page.url
+            self.last_status = response.status if response else 0
+            if allow is not None and not ok(page.url):
+                raise PermissionError(f"it sent JobHunt to {page.url[:80]}")
+            return page.content()
+        finally:
+            ctx.close()
 
     # PDFs ----------------------------------------------------------------
     def render_pdf(self, html: str, out_path: Path) -> Path:
