@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -37,11 +38,40 @@ def local_path(url: str, default: str) -> str:
     return url if url.startswith("/") and not url.startswith("//") and "\\" not in url else default
 
 
+def ago_text(ts: str, now: datetime | None = None) -> str:
+    """A tracker timestamp in words: "just now", "30 minutes ago", "yesterday", "3 weeks ago".
+    "" when it isn't a time; the Dashboard puts the exact time in the tooltip."""
+    try:
+        when = datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return ""
+    secs = max(0, int(((now or datetime.now()) - when).total_seconds()))
+    if secs < 60:
+        return "just now"
+    if secs < 3600:
+        n, unit = secs // 60, "minute"
+    elif secs < 86400:
+        n, unit = secs // 3600, "hour"
+    elif secs < 2 * 86400:
+        return "yesterday"
+    elif secs < 7 * 86400:
+        n, unit = secs // 86400, "day"
+    elif secs < 30 * 86400:
+        n, unit = secs // (7 * 86400), "week"
+    elif secs < 365 * 86400:
+        n, unit = secs // (30 * 86400), "month"
+    else:
+        n, unit = secs // (365 * 86400), "year"
+    return f"{n} {unit}{'s' if n != 1 else ''} ago"
+
+
 templates.env.filters["web_url"] = web_url
 templates.env.filters["link_label"] = render.link_label
 templates.env.globals["company_line"] = company.line_for  # the one-line company summary on job lists
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
+templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Dashboard's Applied / rejected column
+templates.env.globals["ago_text"] = ago_text  # "2 days ago": when a job's state last changed
 
 # MyCareersFuture isn't here: its applications need Singpass, so you finish them in your own browser
 # and a login in JobHunt's browser would never be used.

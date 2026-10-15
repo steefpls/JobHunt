@@ -47,7 +47,7 @@
   </div>
   {% if jobs %}
   <table>
-    <thead><tr><th>#</th><th>Found</th><th>Company · Role</th><th>Site</th><th>State</th><th>Tokens</th><th>Cost</th><th>Set state</th></tr></thead>
+    <thead><tr><th>#</th><th>Found</th><th>Company · Role</th><th>Site</th><th>State</th><th>Applied / rejected</th><th>Last change</th><th>Tokens</th><th>Cost</th><th>Set state</th></tr></thead>
     <tbody>
     {% for j in jobs %}
       <tr>
@@ -57,6 +57,9 @@
           {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
         <td>{{ j.source }}</td>
         <td><span class="badge {{ j.state }}">{{ j.state }}</span></td>
+        {% set applied_label, applied_day = applied_or_rejected(j) %}
+        <td class="muted" style="white-space:nowrap">{% if applied_day %}{{ applied_label }} {{ applied_day }}{% else %}—{% endif %}</td>
+        <td class="muted" style="white-space:nowrap"{% if j.last_state_ts %} title="{{ j.last_state_ts.replace('T', ' ')[:16] }}"{% endif %}>{{ ago_text(j.last_state_ts) or "—" }}</td>
         <td class="mono">{{ "{:,}".format(j.tokens_in + j.tokens_out) }}</td>
         <td class="mono">${{ "%.4f"|format(j.cost_usd) }}</td>
         <td>

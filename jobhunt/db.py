@@ -288,9 +288,15 @@ def get_job(job_id: int) -> dict | None:
 
 
 def list_jobs(state: str | None = None) -> list[dict]:
+    """Jobs, newest first, each with the time of its last state change: last_state_ts and last_state
+    (the newest job_states row), for the Dashboard's dates and the CSV export."""
+    joined = ("SELECT j.*, ls.ts AS last_state_ts, ls.state AS last_state FROM jobs j"
+              " LEFT JOIN (SELECT s.job_id, s.ts, s.state FROM job_states s"
+              "  JOIN (SELECT job_id, MAX(id) AS mid FROM job_states GROUP BY job_id) m ON s.id = m.mid) ls"
+              "  ON ls.job_id = j.id")
     if state:
-        return _query("SELECT * FROM jobs WHERE state = ? ORDER BY id DESC", (state,))
-    return _query("SELECT * FROM jobs ORDER BY id DESC")
+        return _query(joined + " WHERE j.state = ? ORDER BY j.id DESC", (state,))
+    return _query(joined + " ORDER BY j.id DESC")
 
 
 def state_counts() -> dict:
@@ -337,9 +343,23 @@ def add_job_spend(job_id: int, tokens_in: int, tokens_out: int, cost: float) -> 
           (tokens_in, tokens_out, cost, job_id))
 
 
+def applied_or_rejected(job: dict) -> tuple[str, str]:
+    """(label, day) for the Dashboard's Applied / rejected column: the date applied, or for a job never
+    applied to, the day it was rejected (the employer said no) or turned down (Not for me).
+    ('', '') when no date was recorded: an old job shows a dash, never a guess."""
+    day = (job.get("date_applied") or "").strip()[:10]
+    if day:
+        return "Applied", day
+    if job.get("state") in ("Rejected", "Not for me") and job.get("last_state") == job.get("state"):
+        day = (job.get("last_state_ts") or "").strip()[:10]
+        if day:
+            return job["state"], day
+    return "", ""
+
+
 EXPORT_COLUMNS = ["id", "created_at", "source", "company", "role", "location", "url", "apply_url", "state",
-                  "date_applied", "folder", "notes", "reason", "reject_reason", "reject_note", "history", "match_score",
-                  "cost_usd", "tokens_in", "tokens_out"]
+                  "date_applied", "applied_or_rejected_date", "state_changed_at", "folder", "notes", "reason",
+                  "reject_reason", "reject_note", "history", "match_score", "cost_usd", "tokens_in", "tokens_out"]
 
 
 def export_csv() -> str:
@@ -347,7 +367,10 @@ def export_csv() -> str:
     w = csv.writer(buf)
     w.writerow(EXPORT_COLUMNS)
     for j in reversed(list_jobs()):
-        w.writerow([j[c] if j[c] is not None else "" for c in EXPORT_COLUMNS])
+        j = dict(j)
+        j["applied_or_rejected_date"] = applied_or_rejected(j)[1]
+        j["state_changed_at"] = j.get("last_state_ts") or ""
+        w.writerow(["" if j.get(c) is None else j[c] for c in EXPORT_COLUMNS])
     return buf.getvalue()
 
 
