@@ -421,3 +421,24 @@ def test_L4_browser_profile_saves_no_passwords_or_autofill(tmp_path):
 def test_L5_open_folder_of_missing_job_is_not_a_500(client):
     r = client.post("/jobs/999/open-folder", headers=SAME_ORIGIN, follow_redirects=False)
     assert r.status_code == 303
+
+
+def test_open_folder_raises_the_explorer_window(client, monkeypatch):
+    """Explorer opened from a browser click comes up minimized/behind; the app restores and raises it."""
+    from jobhunt.web import app as app_mod
+    job_id = db.add_job(source="demo", url="https://example.com/j/1", company="Acme", role="Engineer",
+                        folder="2026-10-15_Acme_Engineer")
+    (paths.jobs_dir() / "2026-10-15_Acme_Engineer").mkdir(parents=True, exist_ok=True)
+    opened, raised = [], []
+    monkeypatch.setattr(app_mod.os, "startfile", lambda p: opened.append(p), raising=False)
+    monkeypatch.setattr(app_mod, "bring_explorer_forward", lambda f: raised.append(f))
+    r = client.post(f"/jobs/{job_id}/open-folder", headers=SAME_ORIGIN, follow_redirects=False)
+    assert r.status_code == 303
+    assert opened and raised and raised[0].name == "2026-10-15_Acme_Engineer"
+
+
+def test_raise_explorer_gives_up_quietly_when_no_window_turns_up(tmp_path):
+    from jobhunt.web.app import _raise_explorer
+    start = time.monotonic()
+    _raise_explorer(tmp_path / "no-such-window-title-xyz", wait=0.3)  # must not raise, on any OS
+    assert time.monotonic() - start < 3

@@ -86,6 +86,58 @@ def start_pending_login_check() -> None:
                                    cwd=str(paths.APP_DIR))
 
 
+def bring_explorer_forward(folder: Path, wait: float = 3.0) -> None:
+    """Restores and raises the Explorer window os.startfile just opened for `folder`.
+
+    The click happens in the browser, so Windows' focus rules don't let JobHunt's own process hand
+    the new window the foreground: Explorer then opens minimized or behind the browser. This finds
+    the window by its title (the folder's name, or its full path with that Explorer option on),
+    restores it, and raises it. Runs on a thread; does nothing off Windows or if no window turns up.
+    """
+    if sys.platform != "win32":
+        return
+    import threading
+    threading.Thread(target=_raise_explorer, args=(folder, wait), daemon=True).start()
+
+
+def _raise_explorer(folder: Path, wait: float) -> None:
+    import ctypes
+    from ctypes import wintypes
+    try:
+        user32 = ctypes.windll.user32
+        titles = {folder.name.lower(), str(folder).lower()}
+        found: list[int] = []
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def visit(hwnd, _):
+            cls = ctypes.create_unicode_buffer(64)
+            user32.GetClassNameW(hwnd, cls, 64)
+            if cls.value == "CabinetWClass":
+                title = ctypes.create_unicode_buffer(1024)
+                user32.GetWindowTextW(hwnd, title, 1024)
+                if title.value.lower() in titles:
+                    found.append(hwnd)
+                    return False
+            return True
+
+        deadline = time.monotonic() + wait
+        while not found and time.monotonic() < deadline:
+            user32.EnumWindows(visit, 0)
+            if not found:
+                time.sleep(0.15)
+        if not found:
+            return
+        hwnd = found[0]
+        user32.ShowWindow(hwnd, 9)  # SW_RESTORE: un-minimizes it, which the focus rules allow
+        # A tap of Alt counts as fresh input to this process, which lets SetForegroundWindow raise
+        # the window instead of only flashing it on the taskbar.
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.keybd_event(0x12, 0, 2, 0)
+        user32.SetForegroundWindow(hwnd)
+    except Exception:  # noqa: BLE001 - raising the window is a nicety; the folder is already open
+        pass
+
+
 def create_app(port: int = 8765) -> FastAPI:
     app = FastAPI(title="JobHunt", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.port = port
@@ -282,6 +334,7 @@ def create_app(port: int = 8765) -> FastAPI:
         folder = paths.jobs_dir() / job["folder"]
         if folder.exists() and hasattr(os, "startfile"):
             os.startfile(str(folder))  # opens Explorer on this PC
+            bring_explorer_forward(folder)
             return back(f"/jobs/{job_id}", msg="Opened in File Explorer.")
         return back(f"/jobs/{job_id}", err=f"Folder: {folder}")
 
