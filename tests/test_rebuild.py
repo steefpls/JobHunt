@@ -1,5 +1,7 @@
 """Rebuild PDFs takes the facts from your Profile as it is now, and keeps the wording you edited."""
 import json
+import os
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -181,3 +183,106 @@ def test_rebuilt_pdf_shows_in_the_preview_not_a_cached_copy(client, candidate):
     assert "Jul 2019 - Feb 2023" in pdf_text(folder / "resume.pdf")
     fetched = client.get(after["resume.pdf"]).content
     assert fetched == (folder / "resume.pdf").read_bytes()
+
+
+# ── "Your Profile changed after these were made" ──────────────────────
+
+NOTICE = "changed after these were made"
+
+
+def made_an_hour_ago(jid):
+    """The package's PDFs as if built an hour ago, so a Profile save now is surely after them."""
+    folder = paths.jobs_dir() / db.get_job(jid)["folder"]
+    then = int((time.time() - 3600) * 1e9)
+    for name in ("resume.pdf", "cover_letter.pdf"):
+        os.utime(folder / name, ns=(then, then))
+    return folder
+
+
+def test_notice_after_a_profile_change_and_gone_after_rebuild(client, candidate):
+    """Zech's request: he updated his Profile after a package was built; the job page should say so,
+    with Rebuild right there, and stop saying so once he has rebuilt."""
+    jid = built_package()
+    made_an_hour_ago(jid)
+    assert NOTICE not in client.get(f"/jobs/{jid}").text  # nothing saved since
+
+    profile.save_profile(profile.load_profile().replace("CartNest Commerce - Singapore - Jul 2020 to Feb 2023",
+                                                        "CartNest Commerce - Singapore - Jul 2019 to Feb 2023"))
+    profile.save_contact(profile.load_contact() | {"phone": "+65 8111 2222"})
+    page = client.get(f"/jobs/{jid}").text
+    assert NOTICE in page and "Rebuild PDFs to use the new version" in page
+    assert "no AI, no tokens" in page  # what the button really does: it never re-runs the tailoring
+    assert "CartNest Commerce: dates Jul 2020 - Feb 2023 → Jul 2019 - Feb 2023" in page
+    assert "your contact details" in page
+    notice = page[page.index('id="profileChanged"'):]
+    notice = notice[:notice.index("</div>")]
+    assert f'action="/jobs/{jid}/rebuild"' in notice and ">Rebuild PDFs</button>" in notice
+    assert page.count(">Rebuild PDFs</button>") == 1  # the notice's button stands in for the usual one
+    assert ">Profile changed</span>" in client.get("/").text  # and the Dashboard row says so
+
+    client.post(f"/jobs/{jid}/rebuild", headers=SAME_ORIGIN, follow_redirects=False)
+    page = client.get(f"/jobs/{jid}").text
+    assert NOTICE not in page and ">Rebuild PDFs</button>" in page
+    assert ">Profile changed</span>" not in client.get("/").text
+
+
+def test_no_notice_when_a_save_changed_nothing_rebuild_uses(client, candidate):
+    """Saving the Profile page as it was, or changing what Rebuild can't bring in (skills, screening
+    answers), is no reason to rebuild."""
+    jid = built_package()
+    made_an_hour_ago(jid)
+    profile.save_profile(profile.load_profile())
+    profile.save_contact(profile.load_contact())
+    assert NOTICE not in client.get(f"/jobs/{jid}").text
+    profile.save_profile(profile.load_profile().replace("## Skills", "## Skills\n- Rust"))
+    profile.save_screening(profile.load_screening() | {"notice_period": "2 months"})
+    assert NOTICE not in client.get(f"/jobs/{jid}").text
+    assert ">Profile changed</span>" not in client.get("/").text
+
+
+@pytest.mark.parametrize("state", ["Applied", "Rejected", "Not for me", "Interview"])
+def test_no_notice_once_the_documents_were_sent(client, candidate, state):
+    jid = built_package()
+    made_an_hour_ago(jid)
+    profile.save_contact(profile.load_contact() | {"phone": "+65 8111 2222"})
+    assert NOTICE in client.get(f"/jobs/{jid}").text
+    db.update_job(jid, state=state)
+    assert NOTICE not in client.get(f"/jobs/{jid}").text
+    assert ">Profile changed</span>" not in client.get("/").text
+
+
+def test_no_notice_without_documents(client, candidate):
+    folder = render.make_job_folder("Lumen Analytics", "Backend Engineer")
+    (folder / "posting.pdf").write_bytes(b"%PDF-1.4")
+    jid = db.add_job(source="demo", url="https://x/none", company="Lumen Analytics", role="Backend Engineer",
+                     folder=folder.name, state="Ready")
+    nofolder = db.add_job(source="demo", url="https://x/nofolder", company="Lumen", role="Dev", state="Found")
+    profile.save_contact(profile.load_contact() | {"phone": "+65 8111 2222"})
+    for j in (jid, nofolder):
+        r = client.get(f"/jobs/{j}")
+        assert r.status_code == 200 and NOTICE not in r.text
+    assert refresh.profile_changes(db.get_job(jid), folder) == []
+
+
+def test_no_notice_when_the_profile_is_older_than_the_pdfs(client, candidate):
+    """A fact edited by hand in resume.html differs from the Profile, but the Profile wasn't saved after
+    the PDFs were made: no notice."""
+    jid = built_package()
+    folder = paths.jobs_dir() / db.get_job(jid)["folder"]
+    html = (folder / "resume.html").read_text(encoding="utf-8")
+    (folder / "resume.html").write_text(html.replace("Jul 2020 - Feb 2023", "Jul 2018 - Feb 2023"), encoding="utf-8")
+    then = int((time.time() - 3600) * 1e9)
+    for p in (paths.profile_path(), profile.contact_path()):
+        os.utime(p, ns=(then, then))
+    assert refresh.profile_changes(db.get_job(jid), folder) == []
+    assert NOTICE not in client.get(f"/jobs/{jid}").text
+
+
+def test_an_unreadable_document_costs_the_notice_not_the_page(client, candidate):
+    jid = built_package()
+    folder = made_an_hour_ago(jid)
+    profile.save_contact(profile.load_contact() | {"phone": "+65 8111 2222"})
+    (folder / "resume.html").write_bytes(bytes([0xff, 0xfe, 0x80]) + b" not utf-8")
+    assert client.get("/").status_code == 200
+    r = client.get(f"/jobs/{jid}")
+    assert r.status_code == 200 and NOTICE not in r.text

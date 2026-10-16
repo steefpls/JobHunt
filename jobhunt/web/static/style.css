@@ -86,6 +86,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #c7d6ff; border-c
 .muted { color: var(--muted); }
 .mono { font-family: Consolas, monospace; font-size: 12.5px; }
 .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #eef0f4; color: #475467; margin-left: 6px; }
+.pill.warn { background: #fff8eb; color: #8a5a00; }
 .posting { white-space: pre-wrap; font-size: 13px; max-height: 420px; overflow-y: auto; background: #fafbfc; padding: 12px; border-radius: 8px; border: 1px solid var(--line); }
 .sitelist label.check { align-items: flex-start; }
 .sitelist .hint { margin: 0; }

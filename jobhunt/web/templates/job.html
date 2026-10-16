@@ -131,6 +131,14 @@
 <div class="card">
   <h2>Files <span class="muted" style="font-weight:400;font-size:13px">data/jobs/{{ job.folder }}</span></h2>
   {% if files %}
+  {% if profile_changes %}
+  <div class="notice todo" id="profileChanged" style="margin:0 0 12px">
+    <b>Your <a href="/profile">Profile</a> changed after these were made.</b> Rebuild PDFs to use the new version.
+    It brings in your name, contact details, employers, job titles and dates (no AI, no tokens). Other wording stays as it is: to change it, edit <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder first.
+    <ul>{% for c in profile_changes %}<li>{{ c }}</li>{% endfor %}</ul>
+    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small">Rebuild PDFs</button></form>
+  </div>
+  {% endif %}
   <div class="tabs" id="tabs">
     {% for f in files if (f.name.endswith(".pdf") or f.name.endswith(".md")) and f.name != "company.md" %}
     <button type="button" data-src="/files/{{ job.id }}/{{ f.name }}?v={{ f.version }}" data-name="{{ f.name }}" class="{{ 'on' if loop.first }}">{{ f.name }}</button>
@@ -139,12 +147,14 @@
   {# report_html is built by render.report_html: every "<" from the file is escaped first #}
   <div id="reportView" class="report" style="display:none">{{ report_html|safe }}</div>
   <iframe id="preview" class="preview" title="file preview"></iframe>
+  {% if not profile_changes %}{# when the notice is up, its button is the one #}
   <div class="actions" style="align-items:center;flex-wrap:nowrap">
     <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small" style="white-space:nowrap">Rebuild PDFs</button></form>
     <span class="hint">Changed your Profile? This re-makes the PDFs with your name, contact details,
       employers, job titles and dates as your <a href="/profile">Profile</a> has them now. Other wording stays as it is: to change it, edit
       <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder (Notepad is fine) first.</span>
   </div>
+  {% endif %}
   {% else %}
   <p class="muted">No files yet.</p>
   {% endif %}

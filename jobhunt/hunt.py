@@ -626,20 +626,12 @@ def run_rebuild_pdfs(task: Task) -> str:
     from .browser import render_pdfs
     job = db.get_job(int(task.params["job_id"]))
     folder = _folder(job)
-    contact, changes, unmatched, pairs = profile.load_contact(), [], [], []
-    for name in ("resume", "cover_letter"):
-        path = folder / f"{name}.html"
-        if not path.exists():
-            continue
-        html = path.read_text(encoding="utf-8")
-        if name == "resume":
-            new, done, missed = refresh.refresh_resume(html, contact, profile.load_profile())
-            unmatched += missed
-        else:
-            new, done = refresh.refresh_cover_letter(html, contact, job["company"], job["role"])
-        changes += [c for c in done if c not in changes]
+    docs, changes, unmatched = refresh.refresh_package(folder, job["company"], job["role"], profile.load_contact(),
+                                                       profile.load_profile())
+    pairs = []
+    for name, html, new in docs:
         if new != html:
-            path.write_text(new, encoding="utf-8")  # the HTML stays the source you can edit
+            (folder / f"{name}.html").write_text(new, encoding="utf-8")  # the HTML stays the source you can edit
         pairs.append((new, folder / f"{name}.pdf"))
     render_pdfs(pairs)
     if changes:

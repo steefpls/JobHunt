@@ -8,12 +8,16 @@ each school and its dates) and leaves every other word as it is. No AI call.
 A resume entry is matched to a line in your Profile's Experience or Education section
 by its employer (or school), or else by its title and dates. One it can't match surely
 is left alone and named in the result, so you know to check it.
+
+profile_changes() is the job page's "Your Profile changed after these were made" notice: what a
+Rebuild would change, when the Profile was saved after the PDFs were made.
 """
 import html as htmlmod
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
-from . import render
+from . import paths, profile, render
 
 _MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
 _DATE = rf"(?:{_MONTH}\s+)?(?:19|20)\d{{2}}|(?:0?[1-9]|1[0-2])/(?:19|20)\d{{2}}"
@@ -187,3 +191,47 @@ def _retitle(html: str, fresh: str, changes: list[str]) -> str:
     if old and new and old.group(1) != new.group(1):
         html = html[:old.start(1)] + new.group(1) + html[old.end(1):]
     return html
+
+
+def refresh_package(folder: Path, company: str, role: str, contact: dict,
+                    profile_text: str) -> tuple[list[tuple[str, str, str]], list[str], list[str]]:
+    """Each document in the folder as (name, html now, html with your Profile's facts), what would change,
+    and the resume entries it couldn't match to the Profile. Writes nothing."""
+    docs, changes, unmatched = [], [], []
+    for name in ("resume", "cover_letter"):
+        path = folder / f"{name}.html"
+        if not path.exists():
+            continue
+        html = path.read_text(encoding="utf-8")
+        if name == "resume":
+            new, done, missed = refresh_resume(html, contact, profile_text)
+            unmatched += missed
+        else:
+            new, done = refresh_cover_letter(html, contact, company, role)
+        changes += [c for c in done if c not in changes]
+        docs.append((name, html, new))
+    return docs, changes, unmatched
+
+
+# A job in one of these has had its documents sent (or is sending them): they're history, so no notice.
+SENT_STATES = ("Applying", "Applied", "Interview", "Offer", "Rejected", "Not for me")
+
+
+def profile_changes(job: dict, folder: Path, contact: dict | None = None, profile_text: str | None = None) -> list[str]:
+    """What Rebuild PDFs would change in this job's PDFs because you changed your Profile after they were
+    made ([] = nothing). Only the Profile text and contact details feed the documents (the screening
+    answers don't), and a save that changed none of the facts Rebuild brings in counts for nothing.
+    (It compares with the Profile as it is now, so a fact you edited by hand in resume.html shows here too
+    once the Profile is saved again: Rebuild would put the Profile's version back, so that's worth knowing.)"""
+    if not job.get("folder") or job.get("state") in SENT_STATES:
+        return []
+    try:
+        built = [p.stat().st_mtime_ns for p in (folder / "resume.pdf", folder / "cover_letter.pdf") if p.is_file()]
+        saved = [p.stat().st_mtime_ns for p in (paths.profile_path(), profile.contact_path()) if p.is_file()]
+        if not built or not saved or max(saved) <= min(built):
+            return []  # no documents yet, or nothing saved since they were made
+        return refresh_package(folder, job["company"], job["role"],
+                               profile.load_contact() if contact is None else contact,
+                               profile.load_profile() if profile_text is None else profile_text)[1]
+    except Exception:  # an unreadable file costs the notice, never the page
+        return []

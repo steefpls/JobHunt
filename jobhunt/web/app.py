@@ -20,8 +20,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import (achievements, company, db, demo_board, hunt, llm, login_check, paths, profile, render, secrets_store,
-               tuning, updates)
+from .. import (achievements, company, db, demo_board, hunt, llm, login_check, paths, profile, refresh, render,
+               secrets_store, tuning, updates)
 from .. import settings as settings_mod
 from ..sites import SITE_STATUS
 
@@ -250,7 +250,11 @@ def create_app(port: int = 8765) -> FastAPI:
         checklist = [("Add your AI key", "/accounts" not in todo, "/accounts"),
                      ("Build your profile", "/profile" not in todo, "/profile"),
                      ("Set your search scope", "/scope" not in todo, "/scope")]
-        return page(request, "dashboard.html", jobs=db.list_jobs(state or None), counts=db.state_counts(),
+        jobs = db.list_jobs(state or None)
+        contact, profile_text = profile.load_contact(), profile.load_profile()  # once, not per row
+        profile_changed = {j["id"] for j in jobs
+                           if refresh.profile_changes(j, paths.jobs_dir() / j["folder"], contact, profile_text)}
+        return page(request, "dashboard.html", jobs=jobs, counts=db.state_counts(), profile_changed=profile_changed,
                     states=db.STATES, user_states=db.USER_STATES, state=state, checklist=checklist,
                     ready=db.list_jobs("Ready") if not state else [],
                     spend=db.total_spend(), runs=db.list_runs(5))
@@ -279,6 +283,7 @@ def create_app(port: int = 8765) -> FastAPI:
                     human_apply=job["source"] in hunt.HUMAN_APPLY_SITES, has_package=has_package,
                     why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
                     reject_why=db.reject_text(job),
+                    profile_changes=refresh.profile_changes(job, folder),
                     history=[l for l in (job.get("history") or "").splitlines() if l.strip()])
 
     @app.post("/jobs/{job_id}/state")
