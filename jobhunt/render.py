@@ -155,11 +155,14 @@ def _letter_paragraphs(cl: dict) -> list[str]:
     return paras
 
 
+LETTER_DATE = "%d %B %Y"  # the cover letter's date line: "16 October 2026" (refresh.letter_date reads it back)
+
+
 def cover_letter_html(contact: dict, company: str, role: str, cl: dict) -> str:
     cl = dict(cl or {})
     cl["paragraphs"] = _letter_paragraphs(cl)
     return _env.get_template("cover_letter.html.j2").render(
-        contact=contact, company=company, role=role, cl=cl, date=datetime.now().strftime("%d %B %Y"))
+        contact=contact, company=company, role=role, cl=cl, date=datetime.now().strftime(LETTER_DATE))
 
 
 def posting_html(posting) -> str:

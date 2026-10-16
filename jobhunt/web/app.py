@@ -277,6 +277,9 @@ def create_app(port: int = 8765) -> FastAPI:
         help_ = hunt.needs_you_fix(job)
         co = company.load(job)
         st = hunt.runner.status()
+        dated = refresh.stale_letter_date(job, folder)  # "13 October" (with the year when it isn't this year's)
+        letter_dated = (f"{dated.day} {dated:%B}" + (f" {dated.year}" if dated.year != refresh.today().year else "")
+                        if dated else "")
         return page(request, "job.html", job=job, company=co, company_fields=company.FIELDS,
                     company_src={s_["id"]: s_ for s_ in (co or {}).get("sources", [])},
                     company_busy=st["busy"] and st["kind"] == "company" and job_id in (st["current_job"], st.get("job_id")), decoder=achievements.DECODER, files=render.list_files(folder) if job["folder"] else [],
@@ -284,7 +287,7 @@ def create_app(port: int = 8765) -> FastAPI:
                     human_apply=apply_site(job["source"], job["apply_url"]) in hunt.HUMAN_APPLY_SITES, has_package=has_package,
                     why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
                     reject_why=db.reject_text(job),
-                    profile_changes=refresh.profile_changes(job, folder),
+                    profile_changes=refresh.profile_changes(job, folder), letter_dated=letter_dated,
                     history=[l for l in (job.get("history") or "").splitlines() if l.strip()])
 
     @app.post("/jobs/{job_id}/state")

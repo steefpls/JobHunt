@@ -11,10 +11,15 @@ is left alone and named in the result, so you know to check it.
 
 profile_changes() is the job page's "Your Profile changed after these were made" notice: what a
 Rebuild would change, when the Profile was saved after the PDFs were made.
+
+The cover letter's date is the day it was made, read back from its date line (letter_date). Rebuild dates it
+today, and so does Approve & apply just before the agent can attach it (hunt.date_letter_today); stale_letter_date()
+is the job page's "The cover letter is dated ..." notice.
 """
 import html as htmlmod
 import re
 from dataclasses import dataclass
+from datetime import date, datetime
 from pathlib import Path
 
 from . import paths, profile, render
@@ -176,6 +181,35 @@ def refresh_cover_letter(html: str, contact: dict, company: str, role: str) -> t
     return _retitle(html, fresh, changes), sorted(set(changes), key=changes.index)
 
 
+_DATE_LINE_RE = re.compile(r'(<div class="date">)(.*?)(</div>)', re.S)
+
+
+def today() -> date:
+    return date.today()  # (tests move the clock here)
+
+
+def letter_date(html: str) -> date | None:
+    """The day a cover letter is dated, from its date line ("13 October 2026"). None when there's no line,
+    or it was edited into something that isn't a date."""
+    m = _DATE_LINE_RE.search(html or "")
+    text = " ".join(htmlmod.unescape(m.group(2)).split()) if m else ""
+    for fmt in (render.LETTER_DATE, "%d %b %Y", "%B %d, %Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
+def redate(html: str, on: date) -> str:
+    """The cover letter dated `on` when it's dated before then; every other word as it was. A letter with no
+    date line, one you edited into something that isn't a date, or one dated later is left as it is."""
+    made = letter_date(html)
+    if not made or made >= on:
+        return html
+    return _DATE_LINE_RE.sub(lambda m: m.group(1) + on.strftime(render.LETTER_DATE) + m.group(3), html, count=1)
+
+
 def _swap(html: str, fresh: str, pattern: str, changes: list[str], what: str) -> str:
     """Put the freshly rendered block where the old one is (when the file still has it)."""
     old, new = _block(html, pattern), _block(fresh, pattern)
@@ -235,3 +269,16 @@ def profile_changes(job: dict, folder: Path, contact: dict | None = None, profil
                                profile.load_profile() if profile_text is None else profile_text)[1]
     except Exception:  # an unreadable file costs the notice, never the page
         return []
+
+
+def stale_letter_date(job: dict, folder: Path) -> date | None:
+    """The day this job's cover letter is dated, when that's before today and it hasn't been sent (else None)."""
+    if not job.get("folder") or job.get("state") in SENT_STATES:
+        return None
+    try:
+        if not (folder / "cover_letter.pdf").is_file():
+            return None
+        made = letter_date((folder / "cover_letter.html").read_text(encoding="utf-8"))
+        return made if made and made < today() else None
+    except Exception:  # as above: never the page
+        return None

@@ -19,7 +19,7 @@ import time
 import traceback
 from datetime import datetime, timedelta
 
-from . import company, db, profile, prompts, render, secrets_store, settings as settings_mod, sites, tuning
+from . import company, db, profile, prompts, refresh, render, secrets_store, settings as settings_mod, sites, tuning
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
@@ -219,6 +219,7 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
     hunt_mode = (browser.headless, browser.minimized)
     needs_window = job["source"] in settings_mod.SITES and getattr(get_site(job["source"], task.settings), "needs_window", False)
     browser.set_headless(not (task.settings["apply"].get("show_browser", True) or needs_window))
+    date_letter_today(task, browser, folder, job_id)
     agent = ApplyAgent(browser=browser, llm=task.get_llm(), settings=task.settings, contact=profile.load_contact(),
                        profile_text=profile.load_profile(), screening=profile.load_screening(), job=job,
                        folder=folder, redactor=task.redact,
@@ -247,6 +248,32 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
     db.record_timing(task.run_id, job_id, "apply", time.monotonic() - t0)
     task.log(f"Apply result: {state} - {result.summary}", "info" if state == "Applied" else "warn")
     return state
+
+
+def date_letter_today(task: Task, browser: BrowserSession, folder, job_id: int) -> None:
+    """A cover letter made on an earlier day still says that day: re-make it dated today before the agent can
+    attach it. Only the date line changes (no AI); if that fails, the letter goes as it is."""
+    html_path, pdf = folder / "cover_letter.html", folder / "cover_letter.pdf"
+    tmp = folder / "cover_letter.new.pdf"
+    try:
+        if not html_path.is_file() or not pdf.is_file():
+            return
+        html = html_path.read_text(encoding="utf-8")
+        new = refresh.redate(html, refresh.today())
+        if new == html:
+            return
+        browser.render_pdf(new, tmp)
+        tmp.replace(pdf)  # the old PDF stays whole until the new one is
+        html_path.write_text(new, encoding="utf-8")
+        task.log(f"Dated the cover letter today ({refresh.today().strftime(render.LETTER_DATE)}); it said "
+                 f"{refresh.letter_date(html).strftime(render.LETTER_DATE)}.", job_id=job_id)
+    except Exception as e:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        task.log(f"Couldn't date the cover letter today ({type(e).__name__}), so it goes with the date it has.",
+                 "warn", job_id=job_id)
 
 
 # ── why a job needs you, and what to do about it ─────────────────────
@@ -623,15 +650,18 @@ def run_scope(task: Task) -> str:
 
 def run_rebuild_pdfs(task: Task) -> str:
     """Re-make resume/cover letter PDFs from their (hand-edited) HTML, with the facts from your Profile
-    as it is now: name, contact details, employers, titles and dates (see refresh.py). No AI call."""
-    from . import refresh
+    as it is now: name, contact details, employers, titles and dates (see refresh.py), and the cover letter
+    dated today. No AI call."""
     from .browser import render_pdfs
     job = db.get_job(int(task.params["job_id"]))
     folder = _folder(job)
     docs, changes, unmatched = refresh.refresh_package(folder, job["company"], job["role"], profile.load_contact(),
                                                        profile.load_profile())
-    pairs = []
+    pairs, redated = [], None
     for name, html, new in docs:
+        if (name == "cover_letter" and job["state"] not in refresh.SENT_STATES  # a sent letter keeps its date
+                and (dated := refresh.redate(new, refresh.today())) != new):
+            new, redated = dated, refresh.letter_date(dated)
         if new != html:
             (folder / f"{name}.html").write_text(new, encoding="utf-8")  # the HTML stays the source you can edit
         pairs.append((new, folder / f"{name}.pdf"))
@@ -640,6 +670,8 @@ def run_rebuild_pdfs(task: Task) -> str:
         db.add_history(job["id"], "Rebuilt the PDFs with your Profile: " + "; ".join(changes))
     msg = f"Rebuilt {len(pairs)} PDF(s). " + ("Updated from your Profile: " + "; ".join(changes) + "."
                                              if changes else "They already matched your Profile.")
+    if redated:
+        msg += f" The cover letter is now dated {redated.strftime(render.LETTER_DATE)}."
     if unmatched:
         msg += (f" Couldn't find {', '.join(dict.fromkeys(unmatched))} in your Profile's Experience or Education, "
                 "so check those by hand (edit resume.html, then Rebuild).")

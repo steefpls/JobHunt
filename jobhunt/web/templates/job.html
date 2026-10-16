@@ -131,11 +131,13 @@
 <div class="card">
   <h2>Files <span class="muted" style="font-weight:400;font-size:13px">data/jobs/{{ job.folder }}</span></h2>
   {% if files %}
-  {% if profile_changes %}
-  <div class="notice todo" id="profileChanged" style="margin:0 0 12px">
-    <b>Your <a href="/profile">Profile</a> changed after these were made.</b> Rebuild PDFs to use the new version.
+  {% if profile_changes or letter_dated %}
+  <div class="notice todo" id="pdfsStale" style="margin:0 0 12px">
+    {% if letter_dated %}<p style="margin:0 0 8px"><b>The cover letter is dated {{ letter_dated }}.</b> Rebuild PDFs to date it today{% if not profile_changes %} (no AI, no tokens){% endif %}.
+      {% if (job.state == "Ready" and not human_apply) or can_retry %}JobHunt does this by itself when it applies.{% endif %}</p>{% endif %}
+    {% if profile_changes %}<b>Your <a href="/profile">Profile</a> changed after these were made.</b> Rebuild PDFs to use the new version.
     It brings in your name, contact details, employers, job titles and dates (no AI, no tokens). Other wording stays as it is: to change it, edit <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder first.
-    <ul>{% for c in profile_changes %}<li>{{ c }}</li>{% endfor %}</ul>
+    <ul>{% for c in profile_changes %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
     <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small">Rebuild PDFs</button></form>
   </div>
   {% endif %}
@@ -147,11 +149,11 @@
   {# report_html is built by render.report_html: every "<" from the file is escaped first #}
   <div id="reportView" class="report" style="display:none">{{ report_html|safe }}</div>
   <iframe id="preview" class="preview" title="file preview"></iframe>
-  {% if not profile_changes %}{# when the notice is up, its button is the one #}
+  {% if not (profile_changes or letter_dated) %}{# when the notice is up, its button is the one #}
   <div class="actions" style="align-items:center;flex-wrap:nowrap">
     <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small" style="white-space:nowrap">Rebuild PDFs</button></form>
     <span class="hint">Changed your Profile? This re-makes the PDFs with your name, contact details,
-      employers, job titles and dates as your <a href="/profile">Profile</a> has them now. Other wording stays as it is: to change it, edit
+      employers, job titles and dates as your <a href="/profile">Profile</a> has them now, and dates the cover letter today if it hasn't been sent. Other wording stays as it is: to change it, edit
       <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder (Notepad is fine) first.</span>
   </div>
   {% endif %}

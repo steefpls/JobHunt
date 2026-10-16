@@ -1,7 +1,10 @@
 """Rebuild PDFs takes the facts from your Profile as it is now, and keeps the wording you edited."""
 import json
 import os
+import re
+import threading
 import time
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -214,7 +217,7 @@ def test_notice_after_a_profile_change_and_gone_after_rebuild(client, candidate)
     assert "no AI, no tokens" in page  # what the button really does: it never re-runs the tailoring
     assert "CartNest Commerce: dates Jul 2020 - Feb 2023 → Jul 2019 - Feb 2023" in page
     assert "your contact details" in page
-    notice = page[page.index('id="profileChanged"'):]
+    notice = page[page.index('id="pdfsStale"'):]
     notice = notice[:notice.index("</div>")]
     assert f'action="/jobs/{jid}/rebuild"' in notice and ">Rebuild PDFs</button>" in notice
     assert page.count(">Rebuild PDFs</button>") == 1  # the notice's button stands in for the usual one
@@ -286,3 +289,190 @@ def test_an_unreadable_document_costs_the_notice_not_the_page(client, candidate)
     assert client.get("/").status_code == 200
     r = client.get(f"/jobs/{jid}")
     assert r.status_code == 200 and NOTICE not in r.text
+
+
+# ── the cover letter's date ───────────────────────────────────────────
+# Zech, 2026-10-16: a letter built on Monday and sent on Friday said Monday.
+
+MADE, TODAY = date(2026, 10, 13), date(2026, 10, 16)
+DATED = "The cover letter is dated"
+
+
+def monday(html: str) -> str:
+    """A letter built today, as if built on Monday 13 October 2026."""
+    return re.sub(r'(<div class="date">).*?(</div>)', r"\g<1>13 October 2026\g<2>", html, count=1)
+
+
+def dated_on_monday(jid, monkeypatch):
+    """The package's cover letter as if built on Monday 13 October 2026, and today Friday the 16th."""
+    from jobhunt.browser import render_pdfs
+    folder = paths.jobs_dir() / db.get_job(jid)["folder"]
+    html = monday((folder / "cover_letter.html").read_text(encoding="utf-8"))
+    (folder / "cover_letter.html").write_text(html, encoding="utf-8")
+    render_pdfs([(html, folder / "cover_letter.pdf")])
+    monkeypatch.setattr(refresh, "today", lambda: TODAY)
+    return folder
+
+
+def test_the_letters_date_reads_back_and_redating_changes_nothing_else():
+    html = monday(render.cover_letter_html({"name": "Alex Tan"}, "Lumen", "Dev", {"paragraphs": ["I like Lumen."]}))
+    assert refresh.letter_date(html) == MADE
+    new = refresh.redate(html, TODAY)
+    assert refresh.letter_date(new) == TODAY and new == html.replace("13 October 2026", "16 October 2026")
+    assert refresh.redate(new, TODAY) == new
+    assert refresh.redate(html, date(2026, 10, 1)) == html  # dated later than that (you set it ahead): kept
+    edited = html.replace("13 October 2026", "Monday")
+    assert refresh.letter_date(edited) is None and refresh.redate(edited, TODAY) == edited  # not a date: kept
+    assert refresh.letter_date("<p>no date line</p>") is None
+    assert refresh.redate("<p>no date line</p>", TODAY) == "<p>no date line</p>"
+
+
+def test_job_page_says_the_letter_is_dated_before_today_and_rebuild_dates_it_today(client, candidate, monkeypatch):
+    jid = built_package()
+    folder = dated_on_monday(jid, monkeypatch)
+    letter = (folder / "cover_letter.html").read_text(encoding="utf-8")
+    assert "13 October 2026" in pdf_text(folder / "cover_letter.pdf")
+
+    page = client.get(f"/jobs/{jid}").text
+    assert "The cover letter is dated 13 October.</b> Rebuild PDFs to date it today (no AI, no tokens)." in page
+    assert "JobHunt does this by itself when it applies." in page
+    assert NOTICE not in page  # the Profile didn't change: only the date is old
+    notice = page[page.index('id="pdfsStale"'):]
+    notice = notice[:notice.index("</div>")]
+    assert f'action="/jobs/{jid}/rebuild"' in notice and page.count(">Rebuild PDFs</button>") == 1
+    assert "Profile changed" not in client.get("/").text  # Approve & apply re-dates it: no Dashboard pill
+
+    r = client.post(f"/jobs/{jid}/rebuild", headers=SAME_ORIGIN, follow_redirects=False)
+    assert "now%20dated%2016%20October%202026" in r.headers["location"]
+    assert "16 October 2026" in pdf_text(folder / "cover_letter.pdf")
+    new = (folder / "cover_letter.html").read_text(encoding="utf-8")
+    assert new == letter.replace("13 October 2026", "16 October 2026")  # the tailored text is untouched
+    assert DATED not in client.get(f"/jobs/{jid}").text
+
+
+def test_a_letter_from_last_year_says_the_year(client, candidate, monkeypatch):
+    jid = built_package()
+    dated_on_monday(jid, monkeypatch)
+    monkeypatch.setattr(refresh, "today", lambda: date(2027, 1, 4))
+    assert "The cover letter is dated 13 October 2026.</b>" in client.get(f"/jobs/{jid}").text
+
+
+def test_both_notices_together_with_one_button(client, candidate, monkeypatch):
+    jid = built_package()
+    dated_on_monday(jid, monkeypatch)
+    made_an_hour_ago(jid)
+    profile.save_contact(profile.load_contact() | {"phone": "+65 8111 2222"})
+    page = client.get(f"/jobs/{jid}").text
+    assert "The cover letter is dated 13 October.</b> Rebuild PDFs to date it today." in page
+    assert NOTICE in page and "your contact details" in page
+    assert page.count(">Rebuild PDFs</button>") == 1
+    assert ">Profile changed</span>" in client.get("/").text
+
+
+@pytest.mark.parametrize("state", ["Applied", "Rejected", "Not for me", "Applying"])
+def test_no_date_notice_once_the_letter_was_sent(client, candidate, monkeypatch, state):
+    jid = built_package()
+    dated_on_monday(jid, monkeypatch)
+    assert DATED in client.get(f"/jobs/{jid}").text
+    db.update_job(jid, state=state)
+    assert DATED not in client.get(f"/jobs/{jid}").text
+
+
+def test_no_date_notice_on_the_day_it_was_made_or_when_the_date_line_was_edited(client, candidate, monkeypatch):
+    jid = built_package()
+    assert DATED not in client.get(f"/jobs/{jid}").text  # made today
+    folder = dated_on_monday(jid, monkeypatch)
+    html = (folder / "cover_letter.html").read_text(encoding="utf-8")
+    (folder / "cover_letter.html").write_text(html.replace("13 October 2026", "Monday"), encoding="utf-8")
+    assert refresh.stale_letter_date(db.get_job(jid), folder) is None
+    assert DATED not in client.get(f"/jobs/{jid}").text
+    client.post(f"/jobs/{jid}/rebuild", headers=SAME_ORIGIN, follow_redirects=False)
+    assert "Monday" in (folder / "cover_letter.html").read_text(encoding="utf-8")  # Rebuild keeps your edit
+
+
+def test_rebuild_keeps_the_date_on_a_letter_already_sent(client, candidate, monkeypatch):
+    jid = built_package()
+    folder = dated_on_monday(jid, monkeypatch)
+    db.update_job(jid, state="Applied")
+    r = client.post(f"/jobs/{jid}/rebuild", headers=SAME_ORIGIN, follow_redirects=False)
+    assert "now%20dated" not in r.headers["location"]
+    assert "13 October 2026" in pdf_text(folder / "cover_letter.pdf")
+
+
+def test_singpass_jobs_are_not_promised_an_automatic_date(client, candidate, monkeypatch):
+    jid = built_package()
+    dated_on_monday(jid, monkeypatch)
+    db._exec("UPDATE jobs SET source = 'mycareersfuture' WHERE id = ?", (jid,))
+    page = client.get(f"/jobs/{jid}").text
+    assert DATED in page and "JobHunt does this by itself" not in page
+
+
+# ── Approve & apply dates the letter today before the agent can attach it ──
+
+class _Agent:
+    """Stands in for the apply agent: notes the cover letter it would attach."""
+    seen = []
+
+    def __init__(self, folder, **kw):
+        self.folder = folder
+
+    def run(self, url):
+        from jobhunt.applyagent import ApplyResult
+        _Agent.seen.append(((self.folder / "cover_letter.html").read_text(encoding="utf-8"),
+                            pdf_text(self.folder / "cover_letter.pdf")))
+        return ApplyResult("submitted", "sent", url)
+
+
+def _apply(jid, monkeypatch, browser=None):
+    from jobhunt import hunt, settings
+    from jobhunt.browser import BrowserSession
+    settings.update({"apply": {"show_browser": False}})
+    monkeypatch.setattr(hunt, "ApplyAgent", _Agent)
+    monkeypatch.setattr(hunt.Task, "get_llm", lambda self: None)
+    _Agent.seen = []
+    task = hunt.Task("apply", {}, threading.Event())
+    browser = browser or BrowserSession(headless=True)
+    try:
+        state = hunt.apply_job(task, browser, jid)
+    finally:
+        browser.close()
+    return state, [(e["level"], e["message"]) for e in db.events_since(0) if e["run_id"] == task.run_id]
+
+
+def test_approve_and_apply_dates_the_letter_today_before_the_agent_attaches_it(data_dir, candidate, monkeypatch):
+    jid = built_package()
+    folder = dated_on_monday(jid, monkeypatch)
+    letter = (folder / "cover_letter.html").read_text(encoding="utf-8")
+    state, log = _apply(jid, monkeypatch)
+    assert state == "Applied"
+    html, text = _Agent.seen[0]
+    assert html == letter.replace("13 October 2026", "16 October 2026")  # only the date changed
+    assert "16 October 2026" in text and "13 October 2026" not in text  # and the PDF it attaches says so
+    assert ("info", "Dated the cover letter today (16 October 2026); it said 13 October 2026.") in log
+    assert not (folder / "cover_letter.new.pdf").exists()
+
+
+def test_a_letter_already_dated_today_is_left_alone(data_dir, candidate, monkeypatch):
+    jid = built_package()
+    folder = paths.jobs_dir() / db.get_job(jid)["folder"]
+    before = (folder / "cover_letter.pdf").read_bytes()
+    state, log = _apply(jid, monkeypatch)
+    assert state == "Applied" and (folder / "cover_letter.pdf").read_bytes() == before
+    assert not any("cover letter" in m for _, m in log)
+
+
+def test_a_failed_redate_never_blocks_the_apply(data_dir, candidate, monkeypatch):
+    from jobhunt.browser import BrowserSession
+    jid = built_package()
+    folder = dated_on_monday(jid, monkeypatch)
+    letter, pdf = (folder / "cover_letter.html").read_text(encoding="utf-8"), (folder / "cover_letter.pdf").read_bytes()
+
+    class Broken(BrowserSession):
+        def render_pdf(self, html, out_path):
+            out_path.write_bytes(b"half a pdf")
+            raise RuntimeError("chromium crashed")
+    state, log = _apply(jid, monkeypatch, Broken(headless=True))
+    assert state == "Applied"
+    assert _Agent.seen[0][0] == letter  # it went with Monday's letter, whole
+    assert (folder / "cover_letter.pdf").read_bytes() == pdf and not (folder / "cover_letter.new.pdf").exists()
+    assert ("warn", "Couldn't date the cover letter today (RuntimeError), so it goes with the date it has.") in log
