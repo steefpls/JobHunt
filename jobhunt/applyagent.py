@@ -22,6 +22,10 @@ How it keeps tokens and risk down:
 - "Applied" is decided by code, not by the model's say-so: the confirmation
   text the model quotes must be on the page now, and must have appeared after
   a button click (not been there all along).
+- A human check (Cloudflare's "Just a moment...", Indeed's security check, a
+  captcha page) is spotted by code before the model is asked anything: it gets
+  a short wait to clear by itself, then the run stops as "Needs you" without
+  spending tokens on it.
 """
 import ipaddress
 import json
@@ -33,11 +37,12 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import Error as PlaywrightError
 
-from . import prompts, secrets_store
+from . import prompts, secrets_store, sites
 from .llm import BudgetExceeded, LLMError
 
 MAX_ELEMENTS = 120
 MAX_LINKS = 40
+HUMAN_CHECK_WAIT_S = 15  # a check in a real window often clears by itself in a few seconds
 
 # Screening topics, matched against a form field's label, its group question and its name.
 SCREENING_PATTERNS = {
@@ -273,7 +278,13 @@ class ApplyAgent:
         cap = prompts.CAPS["page_text"]
         if len(text) > cap:
             text = text[:cap] + "\n[...more text below, cut...]"
-        view = (f"URL: {page.url}\nTitle: {page.title()}\nElements:\n" + ("\n".join(lines) or "(none)") +
+        try:
+            title = page.title()
+        except PlaywrightError as e:  # mid-navigation; but a closed window ends the run
+            if self.browser.is_closed_error(e):
+                raise
+            title = ""
+        view = (f"URL: {page.url}\nTitle: {title}\nElements:\n" + ("\n".join(lines) or "(none)") +
                 "\n\nVisible text:\n" + text)
         return prompts.untrusted("web_page", self.redact(view))
 
@@ -441,6 +452,44 @@ class ApplyAgent:
             return ApplyResult("failed", summary, url, steps, None, self.action_log)
         return ApplyResult("needs_you", summary or "Needs you to finish.", url, steps, None, self.action_log)
 
+    # ── human checks ───────────────────────────────────────────────────
+    def _human_check_title(self) -> str | None:
+        """The page's title if it is a human check or block page (sites.is_human_check), '' if it isn't,
+        None if the page couldn't be read just now (a check page redirecting as it clears)."""
+        try:
+            title = self._page().title()
+        except PlaywrightError as e:
+            if self.browser.is_closed_error(e):
+                raise
+            return None
+        return title if sites.is_human_check(title) else ""
+
+    def _wait_out_human_check(self, step: int) -> ApplyResult | None:
+        """None when the page is not a human check, or one cleared within HUMAN_CHECK_WAIT_S;
+        otherwise the result to stop with. Never asks the model."""
+        title = self._human_check_title()
+        if not title:
+            return None
+        self.log(f"The site is showing a human check; waiting up to {HUMAN_CHECK_WAIT_S} seconds for it to clear.")
+        for _ in range(HUMAN_CHECK_WAIT_S):
+            if self.stop_event is not None and self.stop_event.is_set():
+                return ApplyResult("stopped", "Stopped by you.", self._page().url, step - 1, None, self.action_log)
+            self.sleep(1)
+            if self._human_check_title() == "":  # read, and not a check any more (None: look again)
+                self.log("The human check cleared by itself.")
+                self._settle()
+                return None
+        url = self._page().url
+        done = "before filling anything in" if not self.action_log else "there"
+        summary = (f"The site showed a human check (\"{self.redact(title.strip())[:80]}\") that didn't clear by "
+                   f"itself, so JobHunt stopped {done}.")
+        if site_of(urlparse(url).hostname or "").startswith("indeed."):
+            summary += f" {sites.INDEED_CHECK_STEPS}, then press Try again."
+        else:
+            summary += " Open the apply page and finish it yourself, then press I applied."
+        self.action_log.append(f"step {step}: STOPPED: human check page")
+        return ApplyResult("needs_you", summary, url, step - 1, None, self.action_log, kind="verify")
+
     # ── main loop ──────────────────────────────────────────────────────
     def run(self, start_url: str) -> ApplyResult:
         max_steps = int(self.settings.get("apply", {}).get("max_steps", 30))
@@ -455,6 +504,9 @@ class ApplyAgent:
         for step in range(1, max_steps + 1):
             if self.stop_event is not None and self.stop_event.is_set():
                 return ApplyResult("stopped", "Stopped by you.", self._page().url, step - 1, None, self.action_log)
+            stopped = self._wait_out_human_check(step)  # code, not the model, deals with a human check
+            if stopped:
+                return stopped
             view = self.scan()
             user = prompts.apply_step_prompt(contact=self.contact, profile_text=self.profile_text, job=self.job,
                                              logins=self.logins, files=files, action_log=self.action_log,

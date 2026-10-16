@@ -61,6 +61,7 @@ class BrowserSession:
         self._ctx = None
         self._page = None
         self._tabs = {}  # name -> page: a site that keeps its search page open between steps (Indeed)
+        self._gone = None  # a profile browser context that has closed
         self._pdf_browser = None
         self.last_url = ""  # where the last load_html ended up (after redirects)
         self.last_status = 0  # its HTTP status (0 = unknown)
@@ -83,8 +84,13 @@ class BrowserSession:
                 if "user data directory is already in use" in str(e).lower() or "lock" in str(e).lower():
                     raise BrowserBusy("The job-site browser is already open (close the login window first).") from None
                 raise
+            self._ctx.on("close", self._on_close)
             self._ctx.set_default_timeout(15000)
             self._page = self._ctx.pages[0] if self._ctx.pages else self._ctx.new_page()
+
+    def _on_close(self, ctx) -> None:
+        self._gone = ctx  # e.g. you closed its window. Not reopened by itself (an apply must not carry on in a
+        # fresh window you didn't ask for): reset() or set_headless() starts the next one.
 
     @property
     def page(self):
@@ -94,13 +100,40 @@ class BrowserSession:
         return self._page
 
     def set_headless(self, headless: bool, minimized: bool = False) -> None:
+        """Switch window mode; also replaces a browser whose window you closed, so the next use gets a fresh one."""
         if (headless, minimized) != (self.headless, self.minimized):
             self.headless, self.minimized = headless, minimized
-            if self._ctx is not None:
+            self.reset()
+        elif self.gone():
+            self.reset()
+
+    def reset(self) -> None:
+        """Close the profile browser (if it isn't closed already: you may have closed its window yourself),
+        so the next page use starts a fresh one."""
+        if self._ctx is not None:
+            try:
                 self._ctx.close()
-                self._ctx = None
-                self._page = None
-                self._tabs = {}
+            except Exception:
+                pass
+        self._ctx = self._page = None
+        self._tabs = {}
+
+    def gone(self) -> bool:
+        """The profile browser was started and has since closed (e.g. you closed its window)."""
+        if self._ctx is None:
+            return False
+        if self._ctx is self._gone:
+            return True
+        try:
+            self._ctx.cookies()  # a cheap round trip: fails once the browser has gone
+            return False
+        except Exception:
+            return True
+
+    def is_closed_error(self, e: BaseException) -> bool:
+        """Did `e` happen because the browser window was closed under us? (A site closing one of its own
+        popups raises "Target page ... has been closed" too, but leaves the browser running: not this.)"""
+        return isinstance(e, PlaywrightError) and self.gone()
 
     def tab(self, name: str | None = None):
         """The shared page, or a named tab of its own that other sites' page loads don't move."""

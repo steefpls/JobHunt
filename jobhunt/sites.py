@@ -130,11 +130,17 @@ _LOGIN_URL_RE = re.compile(r"/(login|signin|sign-in|authwall|uas/login|checkpoin
 _LOGIN_TITLE_MARKERS = ["log in or sign up", "sign in |", "sign in to", "log in to", "login |"]
 
 
+def is_human_check(title: str) -> bool:
+    """A page with this title is a captcha, a "verify you are human" check or a block page."""
+    title = (title or "").lower()
+    return any(m in title for m in _BLOCK_MARKERS)
+
+
 def check_blocked(html: str, final_url: str = "") -> None:
     head = (html or "")[:6000].lower()
     soup_title = re.search(r"<title[^>]*>(.*?)</title>", head, re.S)
     title = soup_title.group(1).strip() if soup_title else ""
-    if any(m in title for m in _BLOCK_MARKERS) or ("captcha" in head and "g-recaptcha" in head and len(html) < 20000):
+    if is_human_check(title) or ("captcha" in head and "g-recaptcha" in head and len(html) < 20000):
         raise SiteBlocked(f"block page: {title[:80]!r}")
     path = urlparse(final_url or "").path
     if _LOGIN_URL_RE.search(path) or any(title.startswith(m) or m in title for m in _LOGIN_TITLE_MARKERS):
@@ -352,8 +358,9 @@ class JobStreetSite:
 # profile): one fetches viewjob?jk=...&viewtype=embedded (JSON), the other asks apis.indeed.com/graphql
 # for "Viewjob". Both are read.
 
-INDEED_HELP = ("Indeed wants a human check. On the Accounts page press Log in next to Indeed, tick 'Verify you "
-               "are human' in the Indeed tab yourself (logging in helps too), close the window, then hunt again")
+INDEED_CHECK_STEPS = ("On the Accounts page press Log in next to Indeed, tick 'Verify you are human' in the Indeed "
+                      "tab yourself (logging in helps too), close the window")
+INDEED_HELP = f"Indeed wants a human check. {INDEED_CHECK_STEPS}, then hunt again"
 # Each search page carries one hidden trap card for robots, with a made-up key. Seen live:
 # abcdef0123456789, 789abcdef0123456 (runs of hex digits) and a1b2c3d4e5f67890.
 _DECOY_RUN = "0123456789abcdef" * 2

@@ -19,7 +19,7 @@ import time
 import traceback
 from datetime import datetime, timedelta
 
-from . import company, db, profile, prompts, render, secrets_store, settings as settings_mod, tuning
+from . import company, db, profile, prompts, render, secrets_store, settings as settings_mod, sites, tuning
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
@@ -225,11 +225,17 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
     try:
         result = agent.run(job["apply_url"] or job["url"])
     except Exception as e:  # browser trouble etc. — hand it to the person, never guess
-        db.needs_you(job_id, "broke", f"The apply attempt broke ({type(e).__name__}) before it finished.")
-        task.log(f"Apply attempt broke: {type(e).__name__}: {str(e)[:200]}", "error")
+        if browser.is_closed_error(e):  # you closed the window: it may or may not have been sent
+            browser.reset()  # the next job (or the rest of the hunt) gets a fresh browser
+            db.needs_you(job_id, "interrupted", "The browser window was closed before the application finished. "
+                                                "Check the site to see whether it was sent.")
+            task.log("The browser window was closed before the application finished.", "warn", job_id=job_id)
+        else:
+            db.needs_you(job_id, "broke", f"The apply attempt broke ({type(e).__name__}) before it finished.")
+            task.log(f"Apply attempt broke: {type(e).__name__}: {str(e)[:200]}", "error")
         return "Needs you"
     finally:
-        browser.set_headless(*hunt_mode)
+        browser.set_headless(*hunt_mode)  # never raises, even with the window already closed
     state = {"submitted": "Applied", "failed": "Error", "stopped": "Ready"}.get(result.status, "Needs you")
     if state == "Needs you":
         db.needs_you(job_id, result.kind or needs_you_kind(result.summary), result.summary)
@@ -271,6 +277,10 @@ def needs_you_fix(job: dict) -> dict:
     elif kind == "singpass":
         out.update(retry=False, advice="Open the apply page, log in with Singpass, attach the resume and cover letter "
                                        "from Files below, then press I applied.")
+    elif kind == "verify" and sites.INDEED_CHECK_STEPS in (job.get("reason") or ""):
+        # the apply agent stopped on Indeed's own human check: passing it once in the Accounts login window
+        # lets the next try through (a captcha or code on an employer's site is for you, below)
+        out["fix"] = ("Pass Indeed's human check on Accounts", "/accounts#sitelogins")
     elif kind == "verify":
         out.update(retry=False, advice="It needs a human check (a captcha or a code). Open the apply page and finish "
                                        "it yourself, then press I applied.")
