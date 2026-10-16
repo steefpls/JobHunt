@@ -39,6 +39,7 @@ from playwright.sync_api import Error as PlaywrightError
 
 from . import prompts, secrets_store, sites
 from .llm import BudgetExceeded, LLMError
+from .sites import is_mcf_url
 
 MAX_ELEMENTS = 120
 MAX_LINKS = 40
@@ -499,6 +500,11 @@ class ApplyAgent:
         self.allowed_sites.add(site_of(urlparse(start_url).hostname or ""))
         self._page().goto(start_url, wait_until="domcontentloaded", timeout=45000)
         self._settle()
+        landed = self._page().url  # a job board's apply link can redirect to the company's own site
+        self.allowed_sites.add(site_of(urlparse(landed).hostname or ""))
+        if is_mcf_url(landed):  # e.g. an Indeed job whose Apply button leads there
+            return ApplyResult("needs_you", "This site needs Singpass to apply, so you apply yourself.", landed, 0,
+                               None, self.action_log, kind="singpass")
         no_tool_turns = 0
         last_sig, repeats = None, 0
         for step in range(1, max_steps + 1):

@@ -5,7 +5,7 @@
     {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
     <td style="text-align:right;white-space:nowrap">
       <a class="btn small" href="/jobs/{{ j.id }}">Review</a>
-      {% if j.source in human_apply_sites %}<a class="btn small" href="/jobs/{{ j.id }}">Apply yourself</a>
+      {% if apply_site(j.source, j.apply_url) in human_apply_sites %}<a class="btn small" href="/jobs/{{ j.id }}">Apply yourself</a>
       {% with next = request.url.path, cls = "" %}{% include "_applied.html" %}{% endwith %}
       {% else %}<form method="post" action="/jobs/{{ j.id }}/apply" class="inline"
             data-confirm="Let JobHunt fill in and SUBMIT this application now?">

@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 from .. import (achievements, company, db, demo_board, hunt, llm, login_check, paths, profile, refresh, render,
                secrets_store, tuning, updates)
 from .. import settings as settings_mod
-from ..sites import SITE_STATUS
+from ..sites import SITE_STATUS, apply_site
 
 HERE = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -67,6 +67,7 @@ def ago_text(ts: str, now: datetime | None = None) -> str:
 
 templates.env.filters["web_url"] = web_url
 templates.env.filters["link_label"] = render.link_label
+templates.env.globals["apply_site"] = apply_site  # MyCareersFuture for an Indeed job that applies there
 templates.env.globals["company_line"] = company.line_for  # the one-line company summary on job lists
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
@@ -280,7 +281,7 @@ def create_app(port: int = 8765) -> FastAPI:
                     company_src={s_["id"]: s_ for s_ in (co or {}).get("sources", [])},
                     company_busy=st["busy"] and st["kind"] == "company" and job_id in (st["current_job"], st.get("job_id")), decoder=achievements.DECODER, files=render.list_files(folder) if job["folder"] else [],
                     report_html=report_html, calls=db.job_calls(job_id), user_states=db.USER_STATES,
-                    human_apply=job["source"] in hunt.HUMAN_APPLY_SITES, has_package=has_package,
+                    human_apply=apply_site(job["source"], job["apply_url"]) in hunt.HUMAN_APPLY_SITES, has_package=has_package,
                     why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
                     reject_why=db.reject_text(job),
                     profile_changes=refresh.profile_changes(job, folder),

@@ -108,9 +108,11 @@ class SiteContext:
         except ValueError:
             raise PageUnavailable("not the data we expected") from None
 
-    def get_json(self, url: str, method: str = "GET", body: dict | None = None) -> dict:
+    def get_json(self, url: str, method: str = "GET", body: dict | None = None, pace: bool = True) -> dict:
+        """`pace=False`: a quick lookup on another site's public API, not a page of the board being read."""
         for attempt in (1, 2):
-            self.wait_turn()
+            if pace:
+                self.wait_turn()
             with httpx.Client(headers={"User-Agent": UA, "Accept": "application/json"}, timeout=30) as c:
                 r = c.post(url, json=body) if method == "POST" else c.get(url)
             if r.status_code == 429 and attempt == 1:
@@ -357,6 +359,15 @@ class JobStreetSite:
 # into its right-hand pane. Indeed runs two versions of the page (which one depends on the browser
 # profile): one fetches viewjob?jk=...&viewtype=embedded (JSON), the other asks apis.indeed.com/graphql
 # for "Viewjob". Both are read.
+#
+# Where a job's Apply button goes (checked live on 2026-10-16, logged out, embedded JSON): an "Apply now"
+# job (Indeed's own Easy Apply) carries indeedApplyButtonContainer and is applied for on Indeed. An "Apply
+# on company site" job carries viewJobButtonLinkContainerModel.viewJobButtonLinkModel.href, Indeed's own
+# /applystart?jk=... redirect. The destination isn't written in that link, but /applystart?jk=<key> alone
+# answers with a plain 302 to it (no human check, no session needed), so that short link is kept. A job
+# Indeed got from MyCareersFuture says so in jobMetadataFooterModel.source ("MyCareersFuture.SG"); its
+# /applystart leads to the job's MyCareersFuture page, found by title and company in MyCareersFuture's
+# public search (see fetch). The search cards say indeedApplyEnabled too, for the graphql version.
 
 INDEED_CHECK_STEPS = ("On the Accounts page press Log in next to Indeed, tick 'Verify you are human' in the Indeed "
                       "tab yourself (logging in helps too), close the window")
@@ -373,6 +384,18 @@ def indeed_job_key(jk) -> str:
     if not re.fullmatch(r"[0-9a-f]{16}", jk) or jk in _DECOY_RUN or _DECOY_RE.match(jk):
         return ""
     return jk
+
+
+def _outside_link(url: str) -> str:
+    """Where an apply link goes when the link itself says: the link when it isn't Indeed's, or the address an
+    Indeed redirect names as ?url= or ?dest=; '' when only following it would tell."""
+    def outside(u):
+        host = (urlparse(u).hostname or "").lower()
+        return urlparse(u).scheme in ("http", "https") and host != "indeed.com" and not host.endswith(".indeed.com")
+    if outside(url):
+        return url
+    query = parse_qs(urlparse(url).query)
+    return next((v for name in ("url", "dest") for v in query.get(name, []) if outside(v)), "")
 
 
 def _mosaic_results(html: str):
@@ -397,6 +420,7 @@ class IndeedSite:
 
     def __init__(self):
         self.logged_in = False
+        self.mcf_down = False  # MyCareersFuture's search failed once this hunt: don't wait on it again
 
     @property
     def page_limit(self) -> int:
@@ -438,7 +462,8 @@ class IndeedSite:
                        title=clean_whitespace(r.get("displayTitle") or r.get("title") or ""),
                        company=clean_whitespace(r.get("company") or ""),
                        location=clean_whitespace(r.get("formattedLocation") or ""),
-                       salary=salary, salary_max_monthly=salary_top_monthly(salary))
+                       salary=salary, salary_max_monthly=salary_top_monthly(salary),
+                       extra={"easy_apply": r["indeedApplyEnabled"]} if "indeedApplyEnabled" in r else {})
 
     def fetch(self, ctx, listing):
         jk = indeed_job_key((parse_qs(urlparse(listing.url).query).get("jk") or [""])[0])
@@ -451,7 +476,13 @@ class IndeedSite:
             raise PageUnavailable("no longer on the open search page") from None
         except SiteBlocked as e:
             raise SiteBlocked(f"{e}. {INDEED_HELP}") from None
-        return self.posting_from_job(data, listing)
+        p = self.posting_from_job(data, listing)
+        if p.apply_url.startswith(MCF_SEARCH) and not self.mcf_down:
+            try:
+                p.apply_url = mcf_job_url(ctx, p.title, p.company) or p.apply_url
+            except (SiteBlocked, PageUnavailable, httpx.HTTPError, ValueError):
+                self.mcf_down = True
+        return p
 
     def posting_from_job(self, data, listing: Listing) -> Posting:
         """The job a card click fetched, in either of Indeed's two shapes, as a Posting."""
@@ -466,6 +497,9 @@ class IndeedSite:
             title, company, location = head.get("jobTitle"), head.get("companyName"), head.get("formattedLocation")
             html, job_type = info.get("sanitizedJobDescription"), (info.get("jobMetadataHeaderModel") or {}).get("jobType")
             salary = (body.get("salaryInfoModel") or {}).get("salaryText")
+            easy = bool(body.get("indeedApplyButtonContainer"))
+            link = ((body.get("viewJobButtonLinkContainerModel") or {}).get("viewJobButtonLinkModel") or {}).get("href")
+            from_board = (body.get("jobMetadataFooterModel") or {}).get("source")
         elif graph is not None and graph.get("key") == jk:  # graphql "Viewjob"
             job, details = graph.get("job") or {}, graph.get("details") or {}
             title, company = job.get("title"), job.get("sourceEmployerName")
@@ -473,6 +507,7 @@ class IndeedSite:
             html = details.get("sanitizedJobDescription") or (job.get("description") or {}).get("html")
             job_type = ", ".join((details.get("jobTypeAndShiftSchedule") or {}).get("jobTypes") or [])
             salary = (job.get("compensation") or {}).get("formattedText")
+            easy, link, from_board = False, None, None  # not seen live in this version: the card's word only
         else:  # not this card's job: never read another job as this one
             raise PageUnavailable("not the job data we expected")
         text = html_to_text(html or "")
@@ -482,7 +517,45 @@ class IndeedSite:
         p = Posting(source=self.key, url=listing.url, title=clean_whitespace(title or ""),
                     company=clean_whitespace(company or ""), location=clean_whitespace(location or ""), text=text,
                     apply_url=listing.url, salary=salary, salary_max_monthly=salary_top_monthly(salary))
-        return _fill_from_listing(p, listing)
+        p = _fill_from_listing(p, listing)
+        if str(from_board or "").strip().lower() == "mycareersfuture.sg":
+            p.apply_url = MCF_SEARCH + quote(f"{p.title} {p.company}") + "&sortBy=relevancy&page=0"
+        elif not easy and (link or listing.extra.get("easy_apply") is False):
+            p.apply_url = _outside_link(urljoin(self.BASE, link or "")) or f"{self.BASE}/applystart?jk={quote(jk)}"
+        return p
+
+
+MCF_HOST = "mycareersfuture.gov.sg"
+MCF_SEARCH = f"https://www.{MCF_HOST}/search?search="
+
+
+def mcf_job_url(ctx, title: str, company: str) -> str:
+    """A job's own MyCareersFuture page, from MyCareersFuture's public search by its title and company (the
+    employer's or the posting agency's name); '' unless exactly one job matches both. Raises the search's
+    own errors (SiteBlocked, PageUnavailable, httpx.HTTPError, ValueError) so a hunt can stop asking."""
+    def same(a, b):
+        return clean_whitespace(str(a or "")).casefold() == clean_whitespace(b).casefold()
+    data = ctx.get_json(f"{MyCareersFutureSite.API}/search?limit=20&page=0", method="POST",
+                        body={"search": f"{title} {company}"}, pace=False)
+    mcf = MyCareersFutureSite()
+    try:
+        hits = {mcf.listing_from_result(r).url for r in data.get("results") or []
+                if r.get("uuid") and same(r.get("title"), title)
+                and any(same((r.get(k) or {}).get("name"), company) for k in ("hiringCompany", "postedCompany"))}
+    except (AttributeError, TypeError):  # not the shape we know
+        return ""
+    return hits.pop() if len(hits) == 1 and is_mcf_url(next(iter(hits))) else ""
+
+
+def is_mcf_url(url: str) -> bool:
+    host = (urlparse(url or "").hostname or "").lower()
+    return host == MCF_HOST or host.endswith("." + MCF_HOST)
+
+
+def apply_site(source: str, apply_url: str) -> str:
+    """The site an application is made on: MyCareersFuture when the apply link goes there (an Indeed job
+    whose Apply button leads to MyCareersFuture), else the board the job was found on."""
+    return "mycareersfuture" if is_mcf_url(apply_url) else source
 
 
 def _fill_from_listing(p: Posting, listing: Listing) -> Posting:

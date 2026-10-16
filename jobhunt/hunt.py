@@ -24,9 +24,10 @@ from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
 from .llm import BudgetExceeded, LLMClient, LLMError, Meter, RateLimited, cost_of
-from .sites import SiteBlocked, SiteContext, get_site
+from .sites import SiteBlocked, SiteContext, apply_site, get_site
 
-# Sites where applying needs a government login (Singpass) the app must not touch.
+# Sites where applying needs a government login (Singpass) the app must not touch. Checked against
+# apply_site(), so an Indeed job whose Apply button goes to MyCareersFuture counts too.
 HUMAN_APPLY_SITES = {"mycareersfuture"}
 # The apply agent only starts on a job in one of these states (never on one already Applied or Applying).
 APPLY_FROM_STATES = {"Ready", "Needs you"}
@@ -204,7 +205,7 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
         task.log(f"Not applying to {job['company']} - {job['role']}: it is {job['state']}.", "warn")
         return job["state"]
     task.current_job = job_id
-    if job["source"] in HUMAN_APPLY_SITES:
+    if apply_site(job["source"], job["apply_url"]) in HUMAN_APPLY_SITES:
         db.needs_you(job_id, "singpass", "This site needs Singpass to apply, so you apply yourself.")
         task.log("This site needs Singpass to apply, so it is handed to you (no tokens spent).")
         return "Needs you"
@@ -287,7 +288,7 @@ def needs_you_fix(job: dict) -> dict:
     elif kind in ("interrupted", "unconfirmed"):
         out.update(retry=False, advice="Open the apply page and check whether it went through. If it did, press the "
                                        "I applied button; if not, finish it there yourself.")
-    if job.get("source") in HUMAN_APPLY_SITES:
+    if apply_site(job.get("source") or "", job.get("apply_url") or "") in HUMAN_APPLY_SITES:
         out["retry"] = False
     return out
 
@@ -533,7 +534,8 @@ def run_hunt(task: Task) -> str:
             if db.get_job(job_id)["state"] == "Ready":
                 ready += 1
                 if auto_submit:
-                    wait_for_rate_limit(task, posting.source)
+                    if apply_site(posting.source, posting.apply_url) not in HUMAN_APPLY_SITES:
+                        wait_for_rate_limit(task, posting.source)  # a job handed to you doesn't wait
                     apply_job(task, browser, job_id)
         task.current_job = None
         summary = f"{ready} package(s) built from {examined} posting(s) examined ({skipped_known} already known)."

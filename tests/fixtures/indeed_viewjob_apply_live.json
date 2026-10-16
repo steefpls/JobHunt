@@ -1,0 +1,136 @@
+{
+ "company_site": {
+  "status": "success",
+  "body": {
+   "jobKey": "7451975960105ec7",
+   "loggedIn": false,
+   "jobTitle": "Director of Product",
+   "jobInfoWrapperModel": {
+    "jobInfoModel": {
+     "jobInfoHeaderModel": {
+      "jobTitle": "Director of Product",
+      "companyName": "Electronic Arts",
+      "formattedLocation": "Singapore"
+     },
+     "jobMetadataHeaderModel": {
+      "jobType": ""
+     },
+     "sanitizedJobDescription": "<div>\n <div>\n  <div>\n   <div>\n    <h3><b>General Information</b></h3>\n   </div>\n  </div>\n  <div>\n   <div>\n    <div>\n     <div>\n      <b>Locations</b>: Singapore, Singapore \n      <br>\n     </div>\n    </div>\n    <div>\n     <div>\n      Role ID\n     </div>\n     <div>\n      213767\n     </div>\n    </div>\n    <div>\n     <div>\n      Worker Type\n     </div>\n     <div>\n      Regular Employee\n     </div>\n    </div>\n    <div>\n     <div>\n      Studio/Department\n     </div>\n     <div>\n      Global Publishing - APAC\n     </div>\n    </div>\n    <div>\n     <div>\n      Work Model\n     </div>\n     <div>\n      Hybrid\n     </div>\n    </div>\n   </div>\n  </div>\n </div>\n <div>\n  <div>\n   <div>\n    <h3><b>Description &amp; Requirements</b></h3>\n   </div>\n  </div>\n  <div>\n   <div>\n    <div>\n     <div>\n      Electronic Arts creates next-level entertainment experiences that inspire players and fans around the world. Here, everyone is part of the story. Part of a community that connects across the globe. A place where creativity thrives, new perspectives are invited, and ideas matter. A team where everyone makes play happen.\n     </div>\n    </div>\n    <div></div>\n    <div>\n     <div>\n      <p>Director Of Produ"
+    }
+   },
+   "salaryInfoModel": null,
+   "indeedApplyButtonContainer": null,
+   "viewJobButtonLinkContainerModel": {
+    "jobKey": "7451975960105ec7",
+    "viewJobButtonLinkModel": {
+     "contentHtml": "Apply on company site",
+     "disclaimer": "You must create an Indeed account before continuing to the company website to apply",
+     "href": "https://sg.indeed.com/applystart?jk=7451975960105ec7&from=vj&pos=bottom&mvj=0&jobsearchTk=1k525ehk4i8l6800&spon=0&xkcb=SoBd67M2diC14lSIIJ0JbzkdCdPP&xfps=7ca744e7-7a4e-4a27-821a-95fbe8e816cd&vjfrom=vjs&asub=mob&astse=6121948b43cf2e28&assa=5557"
+    }
+   },
+   "jobMetadataFooterModel": {
+    "originalJobLink": null,
+    "source": "Electronic Arts"
+   }
+  }
+ },
+ "easy_apply": {
+  "status": "success",
+  "body": {
+   "jobKey": "ffdf80ff67885c9b",
+   "loggedIn": false,
+   "jobTitle": "Data Scientist",
+   "jobInfoWrapperModel": {
+    "jobInfoModel": {
+     "jobInfoHeaderModel": {
+      "jobTitle": "Data Scientist",
+      "companyName": "User Experience Researchers Pte Ltd",
+      "formattedLocation": "Singapore"
+     },
+     "jobMetadataHeaderModel": {
+      "jobType": "Full-time"
+     },
+     "sanitizedJobDescription": "<p><b>Key Responsibilities: </b></p>\n<ul>\n <li>Analyse large operational datasets to identify patterns, anomalies, outliers and risk indicators.</li>\n <li>Develop approaches for anomaly detection, clustering, segmentation and risk scoring.</li>\n <li>Build supervised machine-learning models where historical outcomes or labelled cases are available.</li>\n <li>Perform feature engineering using structured and unstructured data.</li>\n <li>Design evaluation approaches to assess model performance, including precision, recall, false positives and false negatives.</li>\n <li>Work with domain experts to determine how analytical outputs should be incorporated into operational workflows.</li>\n <li>Build and maintain data-processing and feature pipelines to support modelling at scale.</li>\n <li>Develop production-ready model or scoring pipelines and integrate them with applications built by the delivery teams.</li>\n <li>Monitor model performance, data quality and data drift after deployment.</li>\n <li>Conduct exploratory analysis to identify new opportunities for workflow redesign and automation.</li>\n <li>Support the use of LLMs and other AI techniques alongside traditional statistical and mach"
+    }
+   },
+   "salaryInfoModel": {
+    "featureTokens": [],
+    "matchingSalary": false,
+    "minimumPayPreferencePresent": false,
+    "salaryCurrency": "SGD",
+    "salaryLabel": {
+     "scope": null,
+     "usefulPercent": null
+    },
+    "salaryMax": 7000,
+    "salaryMin": 2500,
+    "salarySource": "EXTRACTION",
+    "salaryText": "$2,500 - $7,000 a month",
+    "salaryTextFormatted": false,
+    "salaryType": "MONTHLY",
+    "userMinimumPayAmount": null,
+    "userMinimumPaySalaryType": null
+   },
+   "indeedApplyButtonContainer": {
+    "indeedApplyUrl": "https://smartapply.indeed.com/beta/indeedapply/applybyapplyablejobid?indeedApplyableJobId=f1b258aa-614a-4976-bbbc-4f62cc46f86f-bnJ0cHJvZDE&iaUid=1k525f2ibgi2g801"
+   },
+   "viewJobButtonLinkContainerModel": null,
+   "jobMetadataFooterModel": {
+    "originalJobLink": null,
+    "source": null
+   }
+  }
+ },
+ "mycareersfuture": {
+  "status": "success",
+  "body": {
+   "jobKey": "0df04dc908d6a540",
+   "loggedIn": false,
+   "jobTitle": "Data Developer",
+   "jobInfoWrapperModel": {
+    "jobInfoModel": {
+     "jobInfoHeaderModel": {
+      "jobTitle": "Data Developer",
+      "companyName": "BCW DLT TECHNOLOGIES PTE. LTD.",
+      "formattedLocation": "Outram"
+     },
+     "jobMetadataHeaderModel": {
+      "jobType": "Full-time"
+     },
+     "sanitizedJobDescription": "This Job Description outlines skill &amp; experience requirements necessary to fulfill a Data Developer role with the Anseta Data Team. We are seeking out a self-driven individual to handle analytical, software development, and process development surrounding the ingestion, analysis, and reporting of financial data covering decentralized assets to traditional financial instruments to internal cost reporting. \n<br>\n<br>\n Role &amp; Responsibilities Summary \n<br>\n<br>\n This role of Data Developer is a hybrid role between data analyst and developer. An understanding of how data analytics and product development intersect will be essential for fulfilling the duties of the role. Our team is international and primarily communicates in English. The Anseta team is a highly diverse team which means this role requires a level of flexibility in both work hours and communication styles. \n<br>\n<br>\n Day-to-day, the data developer role reports to the Anseta data lead and will be responsible for the following activities: \n<br>\n<br>\n ETL development and maintenance for platform core data acquisition for consumption by API’s and dashboards \n<br>\n<br>\n Assisting with architecting data strategy and s"
+    }
+   },
+   "salaryInfoModel": {
+    "featureTokens": [],
+    "matchingSalary": false,
+    "minimumPayPreferencePresent": false,
+    "salaryCurrency": "SGD",
+    "salaryLabel": {
+     "scope": null,
+     "usefulPercent": null
+    },
+    "salaryMax": 7500,
+    "salaryMin": 5500,
+    "salarySource": "EXTRACTION",
+    "salaryText": "$5,500 - $7,500 a month",
+    "salaryTextFormatted": false,
+    "salaryType": "MONTHLY",
+    "userMinimumPayAmount": null,
+    "userMinimumPaySalaryType": null
+   },
+   "indeedApplyButtonContainer": null,
+   "viewJobButtonLinkContainerModel": {
+    "jobKey": "0df04dc908d6a540",
+    "viewJobButtonLinkModel": {
+     "contentHtml": "Apply on company site",
+     "disclaimer": "You must create an Indeed account before continuing to the company website to apply",
+     "href": "https://sg.indeed.com/applystart?jk=0df04dc908d6a540&from=vj&pos=bottom&mvj=0&jobsearchTk=1k525h5h7ikl5801&spon=0&xkcb=SoBB67M2diDLbVTdpx0GbzkdCdPP&xfps=c6d5063a-56fc-41cb-a43e-e0f81c78ac21&vjfrom=vjs&asub=mob&astse=c72edb1fad1c9d9f&assa=8846"
+    }
+   },
+   "jobMetadataFooterModel": {
+    "originalJobLink": null,
+    "source": "MyCareersFuture.SG"
+   }
+  }
+ }
+}

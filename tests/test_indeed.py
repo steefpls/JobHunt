@@ -318,3 +318,224 @@ def test_applying_on_indeed_uses_a_window_even_with_show_browser_off(source, sho
     hunt.apply_job(task, browser, jid)
     assert seen == [shown]
     assert (browser.headless, browser.minimized) == (True, False)  # back as it was
+
+
+# ── where the Apply button goes ───────────────────────────────────────
+# indeed_viewjob_apply_live.json: three jobs cut from real embedded viewjob responses (2026-10-16, logged
+# out): one whose Apply button goes to the company's site, one with Indeed's own Easy Apply, and one Indeed
+# got from MyCareersFuture. mcf_search_indeed_job_live.json is MyCareersFuture's public search answering
+# for that last job's title and company. /applystart?jk=<key> was seen to 302 to the company's page.
+
+APPLY_JOBS = json.loads((FIX / "indeed_viewjob_apply_live.json").read_text(encoding="utf-8"))
+MCF_FOUND = json.loads((FIX / "mcf_search_indeed_job_live.json").read_text(encoding="utf-8"))
+MCF_PAGE = ("https://www.mycareersfuture.gov.sg/job/others/"
+            "data-developer-bcw-dlt-technologies-d4bd2d166c14cb46dc20d1c94ae2cf40")
+
+
+class ApplyCtx(IndeedCtx):
+    """IndeedCtx that also answers MyCareersFuture's search (or fails it with `mcf_error`)."""
+
+    def __init__(self, job, mcf=MCF_FOUND, mcf_error=None):
+        super().__init__(job=job)
+        self.mcf, self.mcf_error, self.json_calls = mcf, mcf_error, []
+
+    def get_json(self, url, method="GET", body=None, pace=True):
+        self.json_calls.append((url, method, body, pace))
+        if self.mcf_error:
+            raise self.mcf_error
+        return self.mcf
+
+
+def apply_listing(kind, **extra):
+    jk = APPLY_JOBS[kind]["body"]["jobKey"]
+    return Listing("indeed", f"https://sg.indeed.com/viewjob?jk={jk}", "t", "c", "SG", extra=extra)
+
+
+def test_a_company_site_job_applies_through_indeeds_redirect_and_keeps_its_posting():
+    ctx = ApplyCtx(APPLY_JOBS["company_site"])
+    p = sites.IndeedSite().fetch(ctx, apply_listing("company_site"))
+    assert p.title == "Director of Product" and p.company == "Electronic Arts"
+    assert p.url == "https://sg.indeed.com/viewjob?jk=7451975960105ec7"  # Open posting: where it was found
+    # the button's own link carries tracking for one visit; the bare key goes straight to jobs.ea.com
+    assert p.apply_url == "https://sg.indeed.com/applystart?jk=7451975960105ec7"
+    assert ctx.json_calls == [] and ctx.loads == []  # nothing else fetched
+    assert sites.apply_site("indeed", p.apply_url) == "indeed"
+
+
+@pytest.mark.parametrize("card_says", [True, False])
+def test_an_easy_apply_job_keeps_the_indeed_link(card_says):
+    p = sites.IndeedSite().fetch(ApplyCtx(APPLY_JOBS["easy_apply"]), apply_listing("easy_apply", easy_apply=card_says))
+    assert p.apply_url == p.url == "https://sg.indeed.com/viewjob?jk=ffdf80ff67885c9b"  # the job's own word wins
+
+
+def test_a_job_from_mycareersfuture_applies_on_its_mycareersfuture_page():
+    ctx = ApplyCtx(APPLY_JOBS["mycareersfuture"])
+    p = sites.IndeedSite().fetch(ctx, apply_listing("mycareersfuture", easy_apply=False))
+    assert p.url == "https://sg.indeed.com/viewjob?jk=0df04dc908d6a540"
+    assert p.apply_url == MCF_PAGE
+    # one quick call to MyCareersFuture's own API: no page-load pause, Indeed isn't asked for anything more
+    assert ctx.json_calls == [("https://api.mycareersfuture.gov.sg/v2/search?limit=20&page=0", "POST",
+                               {"search": "Data Developer BCW DLT TECHNOLOGIES PTE. LTD."}, False)]
+    assert ctx.loads == [] and len(ctx.clicks) == 1
+    assert sites.apply_site("indeed", p.apply_url) == "mycareersfuture"
+
+
+@pytest.mark.parametrize("mcf, error", [
+    (None, sites.PageUnavailable("HTTP 500")),
+    ({"results": []}, None),
+    ({"results": [dict(MCF_FOUND["results"][0], title="Data Engineer")]}, None),  # not the same job
+    ({"results": [MCF_FOUND["results"][0], dict(MCF_FOUND["results"][0], uuid="0" * 32,
+                                                metadata={"jobDetailsUrl": "https://www.mycareersfuture.gov.sg/job/x"})]},
+     None),  # two jobs match: can't tell which
+    ({"results": [dict(MCF_FOUND["results"][0], metadata={"jobDetailsUrl": "https://elsewhere.example/job"})]},
+     None),  # a link off MyCareersFuture is never taken for it
+    ({"results": "not a list"}, None),
+])
+def test_a_mycareersfuture_job_not_found_there_opens_its_search_and_still_needs_you(mcf, error):
+    p = sites.IndeedSite().fetch(ApplyCtx(APPLY_JOBS["mycareersfuture"], mcf=mcf, mcf_error=error),
+                                 apply_listing("mycareersfuture"))
+    assert p.apply_url == ("https://www.mycareersfuture.gov.sg/search?search="
+                           "Data%20Developer%20BCW%20DLT%20TECHNOLOGIES%20PTE.%20LTD.&sortBy=relevancy&page=0")
+    assert sites.apply_site("indeed", p.apply_url) == "mycareersfuture"
+
+
+def test_after_mycareersfuture_fails_once_the_hunt_stops_asking_it():
+    site = sites.IndeedSite()
+    ctx = ApplyCtx(APPLY_JOBS["mycareersfuture"], mcf_error=sites.SiteBlocked("HTTP 429"))
+    for _ in range(2):
+        assert site.fetch(ctx, apply_listing("mycareersfuture")).apply_url.startswith(sites.MCF_SEARCH)
+    assert len(ctx.json_calls) == 1 and site.mcf_down
+
+
+def test_the_agency_name_also_finds_the_mycareersfuture_job():
+    hit = dict(MCF_FOUND["results"][0], hiringCompany={"name": "Client Co"})
+    assert sites.mcf_job_url(ApplyCtx(None, mcf={"results": [hit]}), "Data Developer",
+                             "bcw dlt technologies pte. ltd.") == MCF_PAGE
+
+
+def test_search_cards_say_whether_indeed_takes_the_application_itself():
+    listings = sites.IndeedSite().parse_search(SEARCH)
+    assert [l.extra for l in listings] == [{"easy_apply": False}] * 3
+
+
+@pytest.mark.parametrize("extra, apply_url", [
+    ({"easy_apply": False}, "https://sg.indeed.com/applystart?jk=172c202acb267581"),
+    ({"easy_apply": True}, "https://sg.indeed.com/viewjob?jk=172c202acb267581"),
+    ({}, "https://sg.indeed.com/viewjob?jk=172c202acb267581"),  # not known: the posting
+])
+def test_the_graphql_version_goes_by_what_the_search_card_said(extra, apply_url):
+    job = json.loads((FIX / "indeed_viewjob_graphql.json").read_text(encoding="utf-8"))
+    listing = Listing("indeed", "https://sg.indeed.com/viewjob?jk=172c202acb267581", "t", "c", "", extra=extra)
+    assert sites.IndeedSite().posting_from_job(job, listing).apply_url == apply_url
+
+
+@pytest.mark.parametrize("href, apply_url", [
+    ("https://careers.acme.example/jobs/7", "https://careers.acme.example/jobs/7"),  # the link itself
+    ("/rc/clk?jk=7451975960105ec7&url=https%3A%2F%2Fcareers.acme.example%2Fjobs%2F7",
+     "https://careers.acme.example/jobs/7"),  # a redirect that names where it goes
+    ("/rc/clk?jk=7451975960105ec7&from=vj", "https://sg.indeed.com/applystart?jk=7451975960105ec7"),
+    ("/applystart?jk=7451975960105ec7&ref=https%3A%2F%2Fwww.google.com",
+     "https://sg.indeed.com/applystart?jk=7451975960105ec7"),  # any other address in it is tracking
+    ("https://evilindeed.com/x", "https://evilindeed.com/x"),  # not Indeed's, whatever it's called
+    ("javascript:alert(1)", "https://sg.indeed.com/applystart?jk=7451975960105ec7"),
+])
+def test_an_apply_link_that_shows_its_destination_is_stored_as_that(href, apply_url):
+    job = copy.deepcopy(APPLY_JOBS["company_site"])
+    job["body"]["viewJobButtonLinkContainerModel"]["viewJobButtonLinkModel"]["href"] = href
+    assert sites.IndeedSite().posting_from_job(job, apply_listing("company_site")).apply_url == apply_url
+
+
+def test_apply_site_only_moves_jobs_whose_link_goes_to_mycareersfuture():
+    assert sites.apply_site("indeed", MCF_PAGE) == "mycareersfuture"
+    assert sites.apply_site("indeed", "https://mycareersfuture.gov.sg/job/x") == "mycareersfuture"
+    assert sites.apply_site("indeed", "https://notmycareersfuture.gov.sg/job/x") == "indeed"
+    assert sites.apply_site("indeed", "https://sg.indeed.com/viewjob?jk=1") == "indeed"
+    assert sites.apply_site("indeed", "") == "indeed"  # older jobs: the Indeed link, as before
+    assert sites.apply_site("mycareersfuture", "") == "mycareersfuture"
+
+
+MCF_INDEED_JOB = dict(source="indeed", url="https://sg.indeed.com/viewjob?jk=0df04dc908d6a540", company="BCW",
+                      role="Data Developer", apply_url=MCF_PAGE, folder="f", state="Ready")
+
+
+def test_an_indeed_job_that_applies_on_mycareersfuture_is_handed_over_without_tokens(secrets, fake_llm, data_dir,
+                                                                                      monkeypatch):
+    from jobhunt import db
+    jid = db.add_job(**MCF_INDEED_JOB)
+    monkeypatch.setattr(hunt, "ApplyAgent", lambda **kw: pytest.fail("the apply agent must not start"))
+    task = hunt.Task("apply", {"job_id": jid}, __import__("threading").Event())
+    assert hunt.apply_job(task, browser=None, job_id=jid) == "Needs you"
+    job = db.get_job(jid)
+    assert job["reason_kind"] == "singpass" and fake_llm.requests == []
+    assert hunt.needs_you_fix(job)["retry"] is False
+
+
+def test_the_job_page_opens_the_apply_destination_and_the_posting_where_it_was_found(data_dir):
+    from fastapi.testclient import TestClient
+    from jobhunt import db
+    from jobhunt.web.app import create_app
+    jid = db.add_job(**MCF_INDEED_JOB)
+    other = db.add_job(**dict(MCF_INDEED_JOB, apply_url="https://sg.indeed.com/applystart?jk=7451975960105ec7",
+                              url="https://sg.indeed.com/viewjob?jk=7451975960105ec7", company="EA"))
+    with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as c:
+        page = c.get(f"/jobs/{jid}").text
+        assert f'href="{MCF_PAGE}"' in page and "Open apply page" in page
+        assert 'href="https://sg.indeed.com/viewjob?jk=0df04dc908d6a540"' in page and "Open posting" in page
+        assert f'action="/jobs/{jid}/apply"' not in page and "needs Singpass" in page
+        assert f'action="/jobs/{other}/apply"' in c.get(f"/jobs/{other}").text
+        card = c.get("/").text.split('id="readyToApprove"', 1)[1].split("</table>", 1)[0]
+        assert card.count("Apply yourself") == 1 and card.count("Approve &amp; apply") == 1
+
+
+class RedirectPage:
+    """Just enough of a Playwright page for the apply agent's first load: goto follows `redirects`."""
+
+    def __init__(self, redirects):
+        self.redirects, self.url, self.context = redirects, "about:blank", self
+        self.pages = [self]
+
+    def is_closed(self):
+        return False
+
+    def route(self, pattern, handler):
+        pass
+
+    def goto(self, url, **kw):
+        self.url = self.redirects.get(url, url)
+
+    def wait_for_load_state(self, *a, **kw):
+        pass
+
+
+def redirect_agent(redirects, fake, stop=False):
+    import threading
+    from jobhunt import secrets_store, settings
+    from jobhunt.applyagent import ApplyAgent
+    from jobhunt.llm import LLMClient, Meter
+    s = settings.load()
+    s["pacing"]["action_delay_s"] = 0
+    ev = threading.Event()
+    if stop:
+        ev.set()  # stop before the first look at the page: only the start is tested
+    return ApplyAgent(browser=type("B", (), {"page": RedirectPage(redirects)})(),
+                      llm=LLMClient(s, "sk-test", meter=Meter.from_settings(s), transport=fake.transport),
+                      settings=s, contact={}, profile_text="", job={"id": None, "role": "R", "company": "C"},
+                      folder=Path("."), redactor=secrets_store.Redactor.from_store(s), sleep=lambda s: None,
+                      stop_event=ev)
+
+
+def test_the_apply_agent_may_come_back_to_the_site_an_apply_link_led_to(secrets, fake_llm, data_dir):
+    start = "https://sg.indeed.com/applystart?jk=7451975960105ec7"
+    agent = redirect_agent({start: "https://jobs.ea.com/en_US/careers/JobDetail/Director-of-Product/213767"},
+                           fake_llm, stop=True)
+    assert agent.run(start).status == "stopped"
+    assert agent.allowed_sites == {"indeed.com", "ea.com"}
+    assert fake_llm.requests == []
+
+
+def test_the_apply_agent_hands_over_when_an_apply_link_leads_to_mycareersfuture(secrets, fake_llm, data_dir):
+    start = "https://sg.indeed.com/applystart?jk=0df04dc908d6a540"
+    result = redirect_agent({start: "https://www.mycareersfuture.gov.sg/job/d4bd2d166c14cb46dc20d1c94ae2cf40"},
+                            fake_llm).run(start)
+    assert (result.status, result.kind, result.steps) == ("needs_you", "singpass", 0)
+    assert "Singpass" in result.summary and fake_llm.requests == []
