@@ -121,3 +121,16 @@ document.addEventListener('keydown', function (ev) {
 document.addEventListener('change', function (ev) {
   if (ev.target.matches && ev.target.matches('select[data-autosubmit]') && ev.target.value) ev.target.form.submit();
 });
+
+// The theme switch under the menu: auto (follows Windows) -> dark -> light -> auto.
+(function () {
+  var btn = document.getElementById('themeBtn'), order = ['auto', 'dark', 'light'];
+  if (!btn) return;
+  function label() { btn.textContent = { auto: '◐ Theme: auto', dark: '☾ Theme: dark', light: '☀ Theme: light' }[localStorage.getItem('jh-theme') || 'auto']; }
+  label();
+  btn.addEventListener('click', function () {
+    var now = localStorage.getItem('jh-theme') || 'auto';
+    localStorage.setItem('jh-theme', order[(order.indexOf(now) + 1) % order.length]);
+    window.jhTheme(); label();
+  });
+})();

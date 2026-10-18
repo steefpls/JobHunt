@@ -43,6 +43,8 @@ def test_grouped_by_day_with_your_version_and_whats_not_installed():
     assert [ch["installed"] for ch in changes] == [False, True, True]
     assert [ch["current"] for ch in changes] == [False, True, False]
     assert sum(len(d["changes"]) for d in log["days"]) == 3 and len(log["days"]) >= 2
+    # the tags sit on the day, not on each change
+    assert sum(d["current"] for d in log["days"]) == 1 and sum(d["coming"] for d in log["days"]) == 1
 
 
 def test_a_version_github_doesnt_list_counts_everything_as_installed(monkeypatch):
@@ -97,6 +99,7 @@ def test_page_renders_in_the_menu_and_escapes_notes(data_dir):
     assert "Middle change" in r.text and "your version" in r.text and "not installed yet" in r.text
     assert "&lt;b&gt;not&lt;/b&gt;" in r.text and "<b>not</b>" not in r.text
     assert "1 newer change is out" in r.text
+    assert '<li class="coming"><span class="badge' not in r.text  # no tag on the change line itself
 
 
 def test_page_offline_with_nothing_yet(data_dir):

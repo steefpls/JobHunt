@@ -13,14 +13,15 @@
 {% endif %}
 {% for day in log.days %}
 <div class="card changelog">
-  <h2>{{ day.label }}</h2>
+  <h2>{{ day.label }}
+    {% if day.current %}<span class="badge Applied">your version</span>{% endif %}
+    {% if day.coming %}<span class="badge Ready">{{ day.coming ~ ' ' if day.coming < day.changes|length }}not installed yet</span>{% endif %}</h2>
   <ul>
   {% for ch in day.changes %}
-    {% set tag %}{% if ch.current %}<span class="badge Applied">your version</span> {% elif not ch.installed %}<span class="badge Ready">not installed yet</span> {% endif %}{% endset %}
-    <li class="{{ 'coming' if not ch.installed }}">{% if ch.more %}<details><summary>{{ tag }}{{ ch.note }}</summary>
+    <li class="{{ 'coming' if not ch.installed }}">{% if ch.more %}<details><summary>{{ ch.note }}</summary>
       <div class="more">{% for para in ch.more.split("\n") if para.strip() %}<p style="margin:0 0 4px">{{ para }}</p>{% endfor %}
         <span class="hint ver">{{ ch.sha }}</span></div></details>
-      {% else %}<span class="bullet">•</span>{{ tag }}{{ ch.note }} <span class="hint ver">{{ ch.sha }}</span>{% endif %}</li>
+      {% else %}<span class="bullet">•</span>{{ ch.note }} <span class="hint ver">{{ ch.sha }}</span>{% endif %}</li>
   {% endfor %}
   </ul>
 </div>

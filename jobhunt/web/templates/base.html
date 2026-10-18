@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% if waiting %}({{ waiting }}) {% endif %}{% block title %}JobHunt{% endblock %} · JobHunt</title>
 <link rel="stylesheet" href="/static/style.css">
+<script src="/static/theme.js"></script>
 </head>
 <body data-party="{{ party }}" data-name="{{ first_name }}">
 <div class="layout">
@@ -26,6 +27,7 @@
       {% elif updates.check_ok %}Checked for updates {{ updates.checked_at }}
       {% else %}Couldn't check for updates ({{ updates.checked_at }}): offline?{% endif %}
     </div>
+    <button type="button" class="themebtn" id="themeBtn">Theme: auto</button>
     {% if trophies %}<a href="/achievements" class="trophies {{ 'on' if nav == 'achievements' }}">🏆 {{ trophies }} achievement{{ 's' if trophies != 1 }}</a>{% endif %}
   </nav>
   <main>

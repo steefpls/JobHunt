@@ -233,6 +233,9 @@ def changelog() -> dict:
         line, more = headline(c.get("note", ""), c.get("body", ""))
         days[-1]["changes"].append({"sha": sha[:7], "note": line, "more": more, "installed": installed,
                                     "current": have and sha == version})
+    for d in days:  # the day header carries the tags: "your version", and how many aren't installed yet
+        d["current"] = any(ch["current"] for ch in d["changes"])
+        d["coming"] = sum(1 for ch in d["changes"] if not ch["installed"])
     return {"days": days, "fetched_at": fetched.replace("T", " ")[:16], "ok": ok,
             "coming": sum(1 for d in days for ch in d["changes"] if not ch["installed"]),
             "version": version[:7] or "dev"}
