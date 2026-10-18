@@ -82,6 +82,69 @@
 </div>
 {% endif %}
 
+{# The company summary: every fact was checked against the page it quotes (company.py) #}
+{% macro fact(f, posting_tag="") %}{% if f %}{{ f.text }}{% set s = company_src.get(f.source) %}
+        <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
+           title="{{ (s.label ~ ': ' if s) ~ '“' ~ f.quote ~ '”' }}">{{ f.source }}</a>
+        {%- if f.from_posting or posting_tag %} <span class="tag">{{ posting_tag or ("From the job posting only" if f.posting_only else "From the job posting") }}</span>{% endif %}
+        {% else %}<span class="muted">Not found</span>{% endif %}{% endmacro %}
+{% set agency = company and company.status == "ok" and company.agency %}
+<div class="card company" id="company">
+  <div class="company-head">
+    <h2>{{ icon("building-2") }}{% if agency %}Posted by: {{ job.company or "a recruiter" }}{% else %}About {{ job.company or "this company" }}{% endif %}{% if company and company.agency %} <span class="badge agency">Recruiter posting</span>{% endif %}</h2>
+    {% if not company_busy %}
+    <form method="post" action="/jobs/{{ job.id }}/company" class="inline">
+      <button class="btn small" {{ 'disabled' if status.busy }}>{{ icon("refresh-cw" if company else "search") }}{{ 'Refresh' if company else 'Look up this company' }}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% if company_busy %}
+    <div class="busyline mt3" id="companyBusy" data-job="{{ job.id }}">{{ icon("loader-circle", "spin") }}<span>Looking up {{ job.company }}:
+      reading the posting, the job board's company page, Singapore's company registry, Wikipedia and the company's
+      website. About a minute; the summary shows here when it's done.</span></div>
+    <div class="skel-lines" aria-hidden="true"><i class="shimmer"></i><i class="shimmer"></i><i class="shimmer"></i></div>
+  {% elif company and company.status == "ok" %}
+    {% if agency %}<p class="hint">A recruitment agency posted this job for an employer it doesn't name. These facts are
+      about the agency; what the posting says about the employer is under Hiring for.</p>{% endif %}
+    <dl class="facts">
+      {% set posting_id = company.sources[0].id if company.sources else "S1" %}
+      {% for key, label in company_fields if not (agency and key == "job_location") %}{% set f = (company.fields or {}).get(key) %}
+      {% if agency and f and f.source == posting_id %}{% set f = none %}{% endif %}{# the client's, from the posting #}
+      <div class="{{ 'lead' if key == 'what_they_do' }}"><dt>{{ "What the agency does" if agency and key == "what_they_do" else label }}</dt>
+      <dd>{{ fact(f) }}</dd></div>
+      {% endfor %}
+    </dl>
+    {% if agency %}
+    <h3 class="hiring">Hiring for: {{ company.client_name or "unnamed client" }}</h3>
+    <dl class="facts">
+      <div class="lead"><dt>What the posting says</dt><dd>{{ fact(company.client, "From the job posting") }}</dd></div>
+      <div><dt>Where the job is</dt><dd>{{ fact((company.fields or {}).get("job_location")) }}</dd></div>
+    </dl>
+    {% endif %}
+    {% if company.notable %}
+    <ul class="notable">{% for n in company.notable %}{% set s = company_src.get(n.source) %}
+      <li>{{ n.text }} <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
+          title="{{ (s.label ~ ': ' if s) ~ '“' ~ n.quote ~ '”' }}">{{ n.source }}</a></li>{% endfor %}
+    </ul>
+    {% endif %}
+    <details class="sources"><summary>Sources ({{ company.sources|length }})</summary>
+      <ul>{% for s in company.sources %}<li><span class="src">{{ s.id }}</span> {{ s.label }}{% if s.url %}:
+        <a href="{{ s.url|web_url }}" target="_blank" rel="noopener noreferrer">{{ s.url|link_label }}</a>{% endif %}</li>{% endfor %}</ul>
+      {% if company.skipped %}<details><summary>Not read ({{ company.skipped|length }})</summary>
+        <ul>{% for line in company.skipped %}<li>{{ line }}</li>{% endfor %}</ul></details>{% endif %}
+      <p class="hint">Made {{ company.made_at.replace("T", " ") }} from these pages only. Every fact is quoted from the
+        page it cites (point at a source mark to see the words); what the pages don't say shows as Not found{% if company.dropped %},
+        and {{ company.dropped }} fact(s) the AI couldn't back with a quote were left out{% endif %}.</p>
+    </details>
+  {% elif company and company.status == "failed" %}
+    <div class="why mt3">Couldn't look this company up: {{ company.error }}</div>
+    <p class="hint">The package isn't affected. Press Look up this company to try again.</p>
+  {% else %}
+    <p class="muted mb0 mt3">No company summary yet (packages made before JobHunt looked companies up
+      don't have one). Press <b>Look up this company</b> to read about it: one small AI call.</p>
+  {% endif %}
+</div>
+
 <div class="card files">
   <div class="cardhead"><h2>{{ icon("file-text") }}Files</h2>
     {% if files and not (profile_changes or letter_dated) %}{# when the notice is up, its button is the one #}
@@ -120,71 +183,7 @@
   {% endif %}
 </div>
 
-{# The company summary: every fact was checked against the page it quotes (company.py) #}
-{% macro fact(f, posting_tag="") %}{% if f %}{{ f.text }}{% set s = company_src.get(f.source) %}
-        <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
-           title="{{ (s.label ~ ': ' if s) ~ '“' ~ f.quote ~ '”' }}">{{ f.source }}</a>
-        {%- if f.from_posting or posting_tag %} <span class="tag">{{ posting_tag or ("From the job posting only" if f.posting_only else "From the job posting") }}</span>{% endif %}
-        {% else %}<span class="muted">Not found</span>{% endif %}{% endmacro %}
-{% set agency = company and company.status == "ok" and company.agency %}
-<div class="grid wide-right">
-<div class="stack">
-<div class="card company" id="company">
-  <div class="company-head">
-    <h2>{{ icon("building-2") }}{% if agency %}Posted by: {{ job.company or "a recruiter" }}{% else %}About {{ job.company or "this company" }}{% endif %}{% if company and company.agency %} <span class="badge agency">Recruiter posting</span>{% endif %}</h2>
-    {% if not company_busy %}
-    <form method="post" action="/jobs/{{ job.id }}/company" class="inline">
-      <button class="btn small" {{ 'disabled' if status.busy }}>{{ icon("refresh-cw" if company else "search") }}{{ 'Refresh' if company else 'Look up this company' }}</button>
-    </form>
-    {% endif %}
-  </div>
-  {% if company_busy %}
-    <div class="busyline mt3" id="companyBusy" data-job="{{ job.id }}">{{ icon("loader-circle", "spin") }}<span>Looking up {{ job.company }}:
-      reading the posting, the job board's company page, Singapore's company registry, Wikipedia and the company's
-      website. About a minute; the summary shows here when it's done.</span></div>
-    <div class="skel-lines" aria-hidden="true"><i class="shimmer"></i><i class="shimmer"></i><i class="shimmer"></i></div>
-  {% elif company and company.status == "ok" %}
-    {% if agency %}<p class="hint">A recruitment agency posted this job for an employer it doesn't name. These facts are
-      about the agency; what the posting says about the employer is under Hiring for.</p>{% endif %}
-    <dl class="facts">
-      {% set posting_id = company.sources[0].id if company.sources else "S1" %}
-      {% for key, label in company_fields if not (agency and key == "job_location") %}{% set f = (company.fields or {}).get(key) %}
-      {% if agency and f and f.source == posting_id %}{% set f = none %}{% endif %}{# the client's, from the posting #}
-      <dt>{{ "What the agency does" if agency and key == "what_they_do" else label }}</dt>
-      <dd>{{ fact(f) }}</dd>
-      {% endfor %}
-    </dl>
-    {% if agency %}
-    <h3 class="hiring">Hiring for: {{ company.client_name or "unnamed client" }}</h3>
-    <dl class="facts">
-      <dt>What the posting says</dt><dd>{{ fact(company.client, "From the job posting") }}</dd>
-      <dt>Where the job is</dt><dd>{{ fact((company.fields or {}).get("job_location")) }}</dd>
-    </dl>
-    {% endif %}
-    {% if company.notable %}
-    <ul class="notable">{% for n in company.notable %}{% set s = company_src.get(n.source) %}
-      <li>{{ n.text }} <a class="src" href="{{ (s.url if s else '')|web_url }}" target="_blank" rel="noopener noreferrer"
-          title="{{ (s.label ~ ': ' if s) ~ '“' ~ n.quote ~ '”' }}">{{ n.source }}</a></li>{% endfor %}
-    </ul>
-    {% endif %}
-    <details class="sources"><summary>Sources ({{ company.sources|length }})</summary>
-      <ul>{% for s in company.sources %}<li><span class="src">{{ s.id }}</span> {{ s.label }}{% if s.url %}:
-        <a href="{{ s.url|web_url }}" target="_blank" rel="noopener noreferrer">{{ s.url|link_label }}</a>{% endif %}</li>{% endfor %}</ul>
-      {% if company.skipped %}<details><summary>Not read ({{ company.skipped|length }})</summary>
-        <ul>{% for line in company.skipped %}<li>{{ line }}</li>{% endfor %}</ul></details>{% endif %}
-      <p class="hint">Made {{ company.made_at.replace("T", " ") }} from these pages only. Every fact is quoted from the
-        page it cites (point at a source mark to see the words); what the pages don't say shows as Not found{% if company.dropped %},
-        and {{ company.dropped }} fact(s) the AI couldn't back with a quote were left out{% endif %}.</p>
-    </details>
-  {% elif company and company.status == "failed" %}
-    <div class="why mt3">Couldn't look this company up: {{ company.error }}</div>
-    <p class="hint">The package isn't affected. Press Look up this company to try again.</p>
-  {% else %}
-    <p class="muted mb0 mt3">No company summary yet (packages made before JobHunt looked companies up
-      don't have one). Press <b>Look up this company</b> to read about it: one small AI call.</p>
-  {% endif %}
-</div>
-
+<div class="grid two">
 <div class="card pay" id="pay">
   <div class="company-head">
     <h2>{{ icon("banknote") }}Market pay</h2>
@@ -207,7 +206,6 @@
     <p class="muted mb0 mt3">Not checked yet. <b>Check market pay</b> compares it with what similar jobs
       on MyCareersFuture pay right now: a few seconds, no AI.</p>
   {% endif %}
-</div>
 </div>
 
 <div class="card">

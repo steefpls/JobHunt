@@ -505,11 +505,15 @@ details.history ul { margin: 6px 0 0; padding-left: 18px; }
 .company-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .company-head h2 { margin: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .company-head h2 > .i { color: var(--muted); }
-dl.facts { display: grid; grid-template-columns: 150px 1fr; gap: 8px 16px; margin: 14px 0 6px; }
-@media (max-width: 600px) { dl.facts { grid-template-columns: 1fr; gap: 2px; } dl.facts dd { margin-bottom: 8px; } }
+/* the company's facts flow in columns across the page; "What they do" leads, full width */
+dl.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px 32px; margin: 16px 0 6px; }
+dl.facts > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+dl.facts > div.lead { grid-column: 1 / -1; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+dl.facts > div.lead dd { font-size: var(--fs-lg); line-height: 1.55; max-width: 75ch; }
 dl.facts dt { color: var(--muted); font-weight: 600; font-size: var(--fs-sm); }
-dl.facts dd { margin: 0; }
-.company ul.notable { margin: 8px 0 4px; padding-left: 20px; }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+.company ul.notable { margin: 8px 0 4px; padding-left: 20px; columns: 2 300px; column-gap: 52px; }
+.company ul.notable li { break-inside: avoid; }
 .company .sources { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: var(--fs-sm); color: var(--muted); }
 .company .sources ul { margin: 4px 0 6px; padding-left: 0; list-style: none; }
 .company .sources details ul { padding-left: 18px; list-style: disc; }
