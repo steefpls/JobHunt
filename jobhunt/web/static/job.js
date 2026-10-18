@@ -2,15 +2,32 @@
 (function () {
   const tabs = document.querySelectorAll('#tabs button');
   const frame = document.getElementById('preview');
+  const box = document.getElementById('previewBox');
   const report = document.getElementById('reportView');
   if (!frame || !report) return;
   function reveal(el) { if (window.jhMotion) window.jhMotion.reveal(el); }
+  // While a PDF loads, a placeholder page shimmers where it will be, instead of a white flash.
+  frame.addEventListener('load', function () { box.classList.remove('loading'); });
   function show(btn) {
-    tabs.forEach(b => b.classList.toggle('on', b === btn));
-    if (btn.dataset.name === 'match_report.md') { frame.style.display = 'none'; report.style.display = 'block'; reveal(report); }
-    else { report.style.display = 'none'; frame.style.display = 'block'; frame.src = btn.dataset.src; reveal(frame); }
+    tabs.forEach(b => { b.classList.toggle('on', b === btn); b.setAttribute('aria-selected', b === btn ? 'true' : 'false'); });
+    if (btn.dataset.name === 'match_report.md') { box.style.display = 'none'; report.style.display = 'block'; reveal(report); }
+    else {
+      report.style.display = 'none'; box.style.display = 'block';
+      if (frame.getAttribute('src') !== btn.dataset.src) {
+        box.classList.add('loading'); frame.src = btn.dataset.src;
+        setTimeout(() => box.classList.remove('loading'), 4000);  // a PDF viewer that never says it loaded
+      }
+      reveal(box);
+    }
   }
   tabs.forEach(b => b.addEventListener('click', () => show(b)));
+  // Arrow keys move between the tabs, as in any tab bar.
+  document.getElementById('tabs').addEventListener('keydown', function (ev) {
+    const list = Array.from(tabs), i = list.indexOf(document.activeElement);
+    if (i < 0 || (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft')) return;
+    const next = list[(i + (ev.key === 'ArrowRight' ? 1 : list.length - 1)) % list.length];
+    next.focus(); show(next); ev.preventDefault();
+  });
   if (tabs.length) show(tabs[0]);
 })();
 

@@ -1,16 +1,20 @@
-{# The packages waiting for your approval (Hunt page and Dashboard). Needs: ready, status, human_apply_sites. #}
-<table class="approve">
-  {% for j in ready %}
-  <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a>{% if j.match_score is not none %}<span class="pill">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">pay {{ p.verdict }} market</span>{% endif %}
-    {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
-    <td style="text-align:right;white-space:nowrap">
-      <a class="btn small" href="/jobs/{{ j.id }}">Review</a>
-      {% if apply_site(j.source, j.apply_url) in human_apply_sites %}<a class="btn small" href="/jobs/{{ j.id }}">Apply yourself</a>
+{# The packages waiting for your approval (Hunt page and the To review page). Needs: ready, status, human_apply_sites. #}
+<div class="queue rise approve">
+  {% for j in ready %}{% set human = apply_site(j.source, j.apply_url) in human_apply_sites %}
+  <div class="qcard" data-row>
+    <span class="logo" aria-hidden="true">{{ initials(j.company) }}</span>
+    <div class="what"><a class="role" href="/jobs/{{ j.id }}">{{ j.role }}</a><span class="co">{{ j.company }}</span>
+      <div class="pills">{% if j.match_score is not none %}<span class="pill fit {{ 'hi' if j.match_score >= 8 }}" title="How well it matches your profile and preferences">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ icon("map-pin") }}{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">{{ icon("banknote") }}pay {{ p.verdict }} market</span>{% endif %}{% if human %}<span class="pill" title="This site needs you to apply yourself (Singpass)">{{ icon("hand") }}you apply</span>{% endif %}</div>
+      {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</div>
+    <div class="acts">
+      {% if human %}<a class="btn small primary" href="/jobs/{{ j.id }}">{{ icon("eye") }}Apply yourself</a>
       {% with next = request.url.path, cls = "" %}{% include "_applied.html" %}{% endwith %}
-      {% else %}<form method="post" action="/jobs/{{ j.id }}/apply" class="inline"
-            data-confirm="Let JobHunt fill in and SUBMIT this application now?">
-        <button class="btn small primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button></form>{% endif %}
+      {% else %}<a class="btn small" href="/jobs/{{ j.id }}">{{ icon("eye") }}Review</a>
+      <form method="post" action="/jobs/{{ j.id }}/apply" class="inline" data-confirm="JobHunt fills in the application for {{ j.role }} at {{ j.company }} and submits it, with the resume and cover letter in its package. It stops and hands it to you if anything needs a person."
+            data-confirm-title="Send this application?" data-confirm-ok="Submit application" data-confirm-icon="send">
+        <button class="btn small primary" {{ 'disabled title="Waiting for the current task to finish"' if status.busy }}>{{ icon("send") }}Approve &amp; apply</button></form>{% endif %}
       {% with next = request.url.path %}{% include "_reject.html" %}{% endwith %}
-    </td></tr>
+    </div>
+  </div>
   {% endfor %}
-</table>
+</div>

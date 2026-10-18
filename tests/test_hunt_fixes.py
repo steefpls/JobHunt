@@ -149,13 +149,13 @@ def test_saving_the_example_scope_warns_and_leaves_the_checklist_open(data_dir):
     with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as c:
         r = c.post("/scope", data={"keywords": "engineer", "scope_text": example}, headers=SAME_ORIGIN,
                    follow_redirects=False)
-        assert "err=" in r.headers["location"]
-        assert "✓</span>Set your search scope" not in c.get("/").text
+        assert "warn=" in r.headers["location"]
+        assert "</svg></span>Set your search scope" not in c.get("/").text
         mine = "## Target roles\n- Backend engineer (Python)\n"
         r = c.post("/scope", data={"keywords": "engineer", "scope_text": mine}, headers=SAME_ORIGIN,
                    follow_redirects=False)
         assert "msg=" in r.headers["location"]
-        assert "✓</span>Set your search scope" in c.get("/").text
+        assert "</svg></span>Set your search scope" in c.get("/").text
 
 
 # ── incomplete packages ───────────────────────────────────────────────
@@ -319,7 +319,7 @@ def test_flat_plan_pages_show_dollars(data_dir):
     db.record_llm_call(run_id=run_id, job_id=job_id, stage="tailor", model="deepseek-v4.1-flash",
                        tokens_in=2000, tokens_out=1000, cost=0.0, seconds=1)
     with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as c:  # starting the app backfills
-        dashboard, job, hunt_page = c.get("/").text, c.get(f"/jobs/{job_id}").text, c.get("/hunt").text
+        dashboard, job, hunt_page = c.get("/applications").text, c.get(f"/jobs/{job_id}").text, c.get("/hunt").text
     assert "incl." not in dashboard and "$0.0007" in dashboard
     assert "included in your subscription" not in job and "at API prices" in job
     assert "cost at API prices" in hunt_page

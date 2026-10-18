@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Applications{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <div><h1>Applications</h1>
+    <p class="sub">Every job JobHunt prepared for you. Open one to see its resume, cover letter and match report.</p></div>
+  <a class="btn" href="/export.csv">{{ icon("download") }}Export CSV</a>
+</div>
+
+<div class="filters" role="navigation" aria-label="Filter by status">
+  <a class="filter {{ 'on' if not state }}" href="/applications">All <b>{{ counts.values()|sum }}</b></a>
+  {% for s in states %}{% if counts.get(s) %}
+  <a class="filter {{ 'on' if state == s }}" href="/applications?state={{ s|urlencode }}">{{ state_label(s) }} <b>{{ counts[s] }}</b></a>
+  {% endif %}{% endfor %}
+</div>
+
+<div class="card">
+  {% if jobs %}
+  <div class="tablewrap cards">
+  <table class="apps">
+    <thead><tr><th>Job</th><th>Status</th><th>Applied / rejected</th><th>Last change</th><th><span class="sr">Actions</span></th></tr></thead>
+    <tbody class="rise">
+    {% for j in jobs %}
+      <tr class="clickable" data-href="/jobs/{{ j.id }}" data-row>
+        <td><a class="title" href="/jobs/{{ j.id }}">{{ j.company }}</a> <span class="muted">· {{ j.role }}</span>
+          <div class="pills">{% if j.match_score is not none %}<span class="pill fit {{ 'hi' if j.match_score >= 8 }}">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ icon("map-pin") }}{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">{{ icon("banknote") }}pay {{ p.verdict }} market</span>{% endif %}{% if j.id in profile_changed %}<span class="pill warn" title="Your Profile changed after its PDFs were made: open it to rebuild them">Profile changed</span>{% endif %}</div>
+          {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
+        <td>{{ state_badge(j.state) }}</td>
+        {% set applied_label, applied_day = applied_or_rejected(j) %}
+        <td class="muted nowrap {{ 'nodate' if not applied_day }}">{% if applied_day %}{{ state_label(applied_label) }} {{ applied_day }}{% else %}—{% endif %}</td>
+        <td class="muted nowrap"{% if j.last_state_ts %} title="{{ j.last_state_ts.replace('T', ' ')[:16] }}"{% endif %}>{{ ago_text(j.last_state_ts) or "—" }}</td>
+        <td class="right">
+          <details class="menu">
+            <summary class="btn small ghost icon-only" aria-label="Change the status of {{ j.company }}" title="Change status">{{ icon("ellipsis") }}</summary>
+            <div class="menupanel" role="menu">
+              <a class="mitem" role="menuitem" href="/jobs/{{ j.id }}">{{ icon("eye") }}Open</a>
+              <hr><div class="mlabel">Move to</div>
+              <form method="post" action="/jobs/{{ j.id }}/state">
+                <input type="hidden" name="next" value="/applications{{ '?state=' ~ state|urlencode if state }}">
+                {% for s in user_states %}<button class="mitem {{ 'on' if s == j.state }}" role="menuitem" name="state" value="{{ s }}" {{ 'disabled' if s == j.state }}>{{ icon(state_icons.get(s, "circle-dot")) }}{{ state_label(s) }}</button>{% endfor %}
+              </form>
+            </div>
+          </details>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% elif state %}
+  <div class="empty">
+    <div class="art">{{ icon("search", "xl") }}</div>
+    <h2>Nothing marked {{ state_label(state) }}</h2>
+    <p>No application has this status right now.</p>
+    <div class="actions"><a class="btn" href="/applications">Show all</a></div>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="art">{{ icon("briefcase-business", "xl") }}</div>
+    <h2>No applications yet</h2>
+    <p>Run a hunt and every package it builds is listed here, with where it stands.</p>
+    <div class="actions"><a class="btn primary" href="/hunt">{{ icon("search") }}Start a hunt</a></div>
+  </div>
+  {% endif %}
+</div>
+
+{% if runs or spend.tin + spend.tout %}
+<details class="card" id="aiuse">
+  <summary><b>AI use and recent runs</b> <span class="muted">· {{ "{:,}".format((spend.tin + spend.tout)|int) }} tokens all time{% if spend.cost > 0 %} · ${{ ("%.4f" if spend.cost < 1 else "%.2f")|format(spend.cost) }}{% if subscription %} at API prices (covered by your plan){% endif %}{% endif %}</span></summary>
+  {% if jobs %}
+  <div class="tablewrap mt3"><table>
+    <thead><tr><th>Job</th><th>Tokens</th><th>Cost</th></tr></thead>
+    {% for j in jobs if j.tokens_in + j.tokens_out %}
+    <tr><td>{{ j.company }} <span class="muted">· {{ j.role }}</span></td><td class="mono">{{ "{:,}".format(j.tokens_in + j.tokens_out) }}</td>
+      <td class="mono">${{ "%.4f"|format(j.cost_usd) }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+  {% if runs %}
+  <h3>Recent runs</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>What</th><th>Started</th><th>Result</th><th>Tokens</th><th>Cost</th></tr></thead>
+    {% for r in runs %}
+    <tr><td>{{ r.kind }}</td><td class="muted nowrap">{{ r.started_at.replace("T", " ")[:16] }}</td>
+      <td><span class="badge">{{ r.status }}</span> {{ r.summary }}</td>
+      <td class="mono">{{ "{:,}".format(r.tokens_in + r.tokens_out) }}</td>
+      <td class="mono">${{ "%.4f"|format(r.cost_usd) }}</td></tr>
+    {% endfor %}
+  </table></div>
+  {% endif %}
+</details>
+{% endif %}
+{% endblock %}

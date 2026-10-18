@@ -122,7 +122,7 @@ def test_one_save_keeps_contact_screening_and_profile_together(client):
     page = client.get("/profile").text
     form = page.split('<form method="post" action="/profile/save"', 1)[1].split("</form>", 1)[0]
     assert 'id="f_name"' in form and 'id="s_notice_period"' in form and 'id="f_profile_text"' in form
-    assert form.count("Save profile") == 2 and "data-guard" in form
+    assert form.count("Save profile") == 1 and "data-guard" in form  # in the bar that stays on screen
     for n in ("1. Upload your CVs", "2. Once a CV is uploaded", "3. Contact details", "4. Screening answers",
               "5. Check your profile"):
         assert n in page

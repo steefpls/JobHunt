@@ -20,6 +20,7 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 
 from .. import (achievements, company, db, demo_board, hunt, llm, login_check, marketpay, paths, profile, refresh,
                render, secrets_store, tuning, updates)
@@ -81,8 +82,45 @@ def static_url(name: str) -> str:
     return f"/static/{name}?v={_static_hashes[name]}"
 
 
+def icon(name: str, cls: str = "", label: str = "") -> Markup:
+    """An icon from the sprite (static/icons.svg, Lucide): decorative unless it has a label."""
+    a11y = f' role="img" aria-label="{escape(label)}"' if label else ' aria-hidden="true"'
+    return Markup(f'<svg class="i{" " + escape(cls) if cls else ""}"{a11y} focusable="false">'
+                  f'<use href="{static_url("icons.svg")}#{escape(name)}"></use></svg>')
+
+
+# What a state is called on screen (the stored names stay as they are: the CSV export and old data use them)
+STATE_LABELS = {"Not for me": "Not interested", "Rejected": "Employer said no", "Found": "Found", "Applying": "Applying now"}
+STATE_ICONS = {"Ready": "circle-dot", "Needs you": "hand", "Applied": "send", "Interview": "calendar-check",
+               "Offer": "party-popper", "Rejected": "circle-x", "Not for me": "circle-pause", "Error": "triangle-alert",
+               "Applying": "loader-circle", "Found": "search"}
+
+
+def state_label(state: str) -> str:
+    return STATE_LABELS.get(state, state)
+
+
+def state_badge(state: str) -> Markup:
+    """The coloured status chip, with its icon."""
+    spin = " spin" if state == "Applying" else ""
+    return Markup(f'<span class="badge {escape(state)}">{icon(STATE_ICONS.get(state, "circle-dot"), "sm" + spin)}'
+                  f'{escape(state_label(state))}</span>')
+
+
+def initials(name: str) -> str:
+    """'Lumen Analytics' -> 'LA', 'ALTAX' -> 'A': the letters on a job's tile."""
+    words = [w for w in "".join(c if c.isalnum() else " " for c in (name or "")).split()
+             if w.lower() not in ("pte", "ltd", "the", "sg", "singapore")]
+    return "".join(w[0] for w in words[:2]).upper() or "?"
+
+
 templates.env.filters["web_url"] = web_url
 templates.env.globals["static_url"] = static_url
+templates.env.globals["icon"] = icon
+templates.env.globals["state_label"] = state_label
+templates.env.globals["state_badge"] = state_badge
+templates.env.globals["state_icons"] = STATE_ICONS
+templates.env.globals["initials"] = initials
 templates.env.filters["link_label"] = render.link_label
 templates.env.globals["apply_site"] = apply_site  # MyCareersFuture for an Indeed job that applies there
 templates.env.globals["company_line"] = company.line_for  # the one-line company summary on job lists
@@ -244,24 +282,38 @@ def create_app(port: int = 8765) -> FastAPI:
         name_ = (profile.load_contact().get("name") or "").split()
         tune = request.query_params.get("tune", "")  # just rejected a job: offer one change to the Scope
         ctx.update(suggestion=tuning.suggest(db.get_job(int(tune))) if tune.isdigit() else None)
-        ctx.update(request=request, nav=name.split(".")[0], status=hunt.runner.status(), settings=s,
+        undo = request.query_params.get("undo", "")  # "12:Ready": the job just changed, and the state to put back
+        undo_id, _, undo_state = undo.partition(":")
+        counts = db.state_counts()
+        ctx.setdefault("nav", {"job": "applications"}.get(name.split(".")[0], name.split(".")[0]))
+        ctx.update(request=request, status=hunt.runner.status(), settings=s,
                    msg=request.query_params.get("msg", ""), err=request.query_params.get("err", ""),
+                   warn=request.query_params.get("warn", ""), nav_counts=counts,
+                   undo={"job_id": int(undo_id), "state": undo_state}
+                   if undo_id.isdigit() and undo_state in db.STATES else None,
                    subscription=s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS,
                    key_saved=secrets_store.has_secret(secrets_store.api_key_name(s["provider"])),
-                   updates=updates.info(), here=request.url.path, waiting=db.state_counts().get("Ready", 0),
+                   updates=updates.info(), here=request.url.path, waiting=counts.get("Ready", 0),
                    human_apply_sites=hunt.HUMAN_APPLY_SITES, toasts=toasts, trophies=achievements.earned_count(),
                    first_name=name_[0] if name_ else "",
                    party=request.query_params.get("party", "") if request.query_params.get("party") in
                    ("offer", "interview") else "")
         return templates.TemplateResponse(request, name, ctx)
 
-    def back(url: str, msg: str = "", err: str = "", party: str = "") -> RedirectResponse:
+    def back(url: str, msg: str = "", err: str = "", party: str = "", warn: str = "",
+             undo: tuple[int, str] | None = None) -> RedirectResponse:
+        """Back to a page, with a message for its toast (the page's script takes it out of the address again).
+        undo=(job_id, state) adds an Undo button to the toast that puts the job back in that state."""
         url, hash_, fragment = url.partition("#")  # the message goes before any #fragment, or it never shows
         sep = "&" if "?" in url else "?"
         if msg:
             url += f"{sep}msg={quote(msg)}"
         elif err:
             url += f"{sep}err={quote(err)}"
+        elif warn:
+            url += f"{sep}warn={quote(warn)}"
+        if undo:
+            url += f"{'&' if '?' in url else '?'}undo={undo[0]}:{quote(undo[1])}"
         if party:
             url += f"{'&' if '?' in url else '?'}party={party}"
         return RedirectResponse(url + hash_ + fragment, status_code=303)
@@ -269,17 +321,26 @@ def create_app(port: int = 8765) -> FastAPI:
     # ── dashboard & jobs ───────────────────────────────────────────────
     @app.get("/", response_class=HTMLResponse)
     def dashboard(request: Request, state: str = ""):
+        """Home: what needs you now (packages to approve, applications handed back), and the setup steps."""
+        if state:  # an old link to a filtered list
+            return RedirectResponse(f"/applications?state={quote(state)}", status_code=303)
         todo = {href.split("#")[0] for _, href in hunt.readiness()}  # the same test the Hunt page's Start uses
         checklist = [("Add your AI key", "/accounts" not in todo, "/accounts"),
                      ("Build your profile", "/profile" not in todo, "/profile"),
                      ("Set your search scope", "/scope" not in todo, "/scope")]
+        return page(request, "dashboard.html", counts=db.state_counts(), checklist=checklist,
+                    ready=db.list_jobs("Ready"), needs_you=db.list_jobs("Needs you"),
+                    last_hunt=db.last_run("hunt"))
+
+    @app.get("/applications", response_class=HTMLResponse)
+    def applications(request: Request, state: str = ""):
+        """Every job JobHunt prepared, filterable by state."""
         jobs = db.list_jobs(state or None)
         contact, profile_text = profile.load_contact(), profile.load_profile()  # once, not per row
         profile_changed = {j["id"] for j in jobs
                            if refresh.profile_changes(j, paths.jobs_dir() / j["folder"], contact, profile_text)}
-        return page(request, "dashboard.html", jobs=jobs, counts=db.state_counts(), profile_changed=profile_changed,
-                    states=db.STATES, user_states=db.USER_STATES, state=state, checklist=checklist,
-                    ready=db.list_jobs("Ready") if not state else [],
+        return page(request, "applications.html", jobs=jobs, counts=db.state_counts(), profile_changed=profile_changed,
+                    states=db.STATES, user_states=db.USER_STATES, state=state,
                     spend=db.total_spend(), runs=db.list_runs(5))
 
     @app.get("/export.csv")
@@ -316,23 +377,41 @@ def create_app(port: int = 8765) -> FastAPI:
     def set_state(job_id: int, state: str = Form(...), next: str = Form("")):
         if state not in db.USER_STATES:
             return back(f"/jobs/{job_id}", err="Not a state you can set by hand.")
+        before = db.get_job(job_id)
         db.update_job(job_id, state=state, by="you")
         cheer = {"Offer": " Congratulations! 🎉", "Interview": " Nice one. Go get it!"}.get(state, "")
-        done = {"Not for me": "Rejected: JobHunt won't suggest this job again. Changed your mind? Open it from the Dashboard.",
-                "Applied": "Marked as Applied today. Nice one, good luck! It's on your Dashboard under Applied."}
-        return back(local_path(next, f"/jobs/{job_id}"), msg=done.get(state, f"Marked as {state}.{cheer}"),
-                    party={"Offer": "offer", "Interview": "interview"}.get(state, ""))
+        done = {"Not for me": "Rejected: JobHunt won't suggest this job again.",
+                "Applied": "Marked as Applied today. Good luck!"}
+        undo = (job_id, before["state"]) if before and before["state"] != state else None
+        return back(local_path(next, f"/jobs/{job_id}"), msg=done.get(state, f"Marked as {state_label(state)}.{cheer}"),
+                    party={"Offer": "offer", "Interview": "interview"}.get(state, ""), undo=undo)
 
     @app.post("/jobs/{job_id}/reject")
     def reject_job(job_id: int, reasons: list[str] = Form([]), note: str = Form(""), next: str = Form("")):
-        if not db.get_job(job_id):
+        before = db.get_job(job_id)
+        if not before:
             return back("/", err="No such job.")
         db.reject(job_id, reasons, note)
         url, hash_, fragment = local_path(next, f"/jobs/{job_id}").partition("#")
         if tuning.suggest(db.get_job(job_id)):
             url += f"{'&' if '?' in url else '?'}tune={job_id}"
-        return back(url + hash_ + fragment,
-                    msg="Rejected: JobHunt won't suggest this job again. Changed your mind? Open it from the Dashboard.")
+        return back(url + hash_ + fragment, msg="Rejected: JobHunt won't suggest this job again.",
+                    undo=(job_id, before["state"]) if before["state"] != "Not for me" else None)
+
+    @app.post("/jobs/{job_id}/undo")
+    def undo_state(job_id: int, state: str = Form(...), next: str = Form("")):
+        """The toast's Undo: puts a job back in the state it had before the last click."""
+        job = db.get_job(job_id)
+        if not job or state not in db.STATES or state == "Applying":
+            return back(local_path(next, "/"), err="That can't be undone now.")
+        fields = {"state": state}
+        if job["state"] == "Not for me":
+            fields.update(reject_reason="", reject_note="")
+        if job["state"] == "Applied" and state != "Applied":
+            fields["date_applied"] = ""
+        db.update_job(job_id, by="you", **fields)
+        db.add_history(job_id, f"You undid that: back to {state_label(state)}.")
+        return back(local_path(next, f"/jobs/{job_id}"), msg=f"Undone: {job['company']} is back in {state_label(state)}.")
 
     @app.post("/tune")
     def tune_scope(job_id: int = Form(0), next: str = Form("")):
@@ -360,7 +439,7 @@ def create_app(port: int = 8765) -> FastAPI:
             hunt.runner.start("apply", {"job_id": job_id})
         except RuntimeError as e:
             return back(f"/jobs/{job_id}", err=str(e))
-        return back("/hunt", msg="Applying - watch progress here.")
+        return back("/hunt", msg="Applying now: follow it here.")
 
     @app.post("/jobs/{job_id}/rebuild")
     def rebuild(job_id: int):
@@ -449,7 +528,9 @@ def create_app(port: int = 8765) -> FastAPI:
     @app.get("/profile", response_class=HTMLResponse)
     def profile_page(request: Request):
         text = profile.load_profile()
+        restore = Path(request.query_params.get("restore", "")).name
         return page(request, "profile.html", contact=profile.load_contact(), profile_text=text or profile.PROFILE_TEMPLATE,
+                    restore=restore if restore and (paths.cv_dir() / ".removed" / restore).is_file() else "",
                     has_profile=bool(text.strip()), cvs=[p.name for p in profile.list_cvs()],
                     screening=profile.load_screening(), screening_fields=profile.SCREENING_FIELDS)
 
@@ -497,10 +578,22 @@ def create_app(port: int = 8765) -> FastAPI:
 
     @app.post("/profile/cv/delete")
     def delete_cv(name: str = Form(...)):
+        """Moves the CV aside (cv/.removed), so the toast's Undo can put it back."""
         target = (paths.cv_dir() / Path(name).name)
         if target.is_file():
-            target.unlink()
+            bin_ = paths.cv_dir() / ".removed"
+            bin_.mkdir(exist_ok=True)
+            target.replace(bin_ / target.name)
+            return back(f"/profile?restore={quote(target.name)}", msg=f"Removed {target.name}.")
         return back("/profile", msg="Removed.")
+
+    @app.post("/profile/cv/restore")
+    def restore_cv(name: str = Form(...)):
+        kept = paths.cv_dir() / ".removed" / Path(name).name
+        if not kept.is_file():
+            return back("/profile", err="That file can't be brought back now.")
+        kept.replace(paths.cv_dir() / kept.name)
+        return back("/profile", msg=f"{kept.name} is back.")
 
     @app.post("/profile/build")
     def build_profile():
@@ -508,7 +601,7 @@ def create_app(port: int = 8765) -> FastAPI:
             hunt.runner.start("profile")
         except RuntimeError as e:
             return back("/profile", err=str(e))
-        return back("/hunt", msg="Building your profile - this takes about a minute. "
+        return back("/hunt", msg="Building your profile: about a minute. "
                                  "You'll be taken back to the Profile page when it's done.")
 
     # ── scope ──────────────────────────────────────────────────────────
@@ -530,12 +623,12 @@ def create_app(port: int = 8765) -> FastAPI:
     def save_scope(keywords: str = Form(""), location: str = Form(""), avoid_words: str = Form(""), scope_text: str = Form("")):
         store_scope(keywords, location, avoid_words, scope_text)
         if profile.scope_is_example(scope_text):
-            return back("/scope", err="Saved, but this is still the example from the original JobHunt, not yours. "
+            return back("/scope", warn="Saved, but this is still the example from the original JobHunt, not yours. "
                                       "Write your own (or press Draft from my profile): hunts won't start until you do.")
         if not profile.scope_ready(scope_text):
-            return back("/scope", err="Saved. Describe the jobs you want in the big box (or press Draft from my "
+            return back("/scope", warn="Saved. Describe the jobs you want in the big box (or press Draft from my "
                                       "profile): hunts won't start until you do.")
-        return back("/scope", msg="Scope saved.")
+        return back("/scope", msg="Preferences saved.")
 
     @app.post("/scope/draft")
     def draft_scope(keywords: str | None = Form(None), location: str = Form(""), avoid_words: str = Form(""),
@@ -550,8 +643,8 @@ def create_app(port: int = 8765) -> FastAPI:
             hunt.runner.start("scope")
         except RuntimeError as e:
             return back("/scope", err=str(e))
-        return back("/hunt", msg="Drafting your scope - this takes under a minute. "
-                                 "You'll be taken back to the Scope page to review it when it's done.")
+        return back("/hunt", msg="Drafting your preferences: under a minute. "
+                                 "You'll be taken back to review them when it's done.")
 
     # ── accounts: AI key, site logins, browser sessions ───────────────
     @app.get("/accounts", response_class=HTMLResponse)
@@ -606,7 +699,7 @@ def create_app(port: int = 8765) -> FastAPI:
                 base = settings_mod.load().get("base_url", "").rstrip("/")
                 r = httpx.get(f"{base}/models", headers={"Authorization": f"Bearer {key}"}, timeout=20)
         except httpx.HTTPError as e:
-            return back("/accounts", err=f"Could not reach the provider ({type(e).__name__}).")
+            return back("/accounts", err="Couldn't reach the AI provider. Check your internet connection and try again.")
         except llm.LLMError as e:
             return back("/accounts", err=str(e))
         if r.status_code == 200:
@@ -616,7 +709,7 @@ def create_app(port: int = 8765) -> FastAPI:
                 if d.get("limit_remaining") is not None:
                     extra = f" Credit left on this key: ${d['limit_remaining']:.2f}."
             return back("/accounts", msg="The key works." + extra)
-        return back("/accounts", err=f"The provider rejected the key (HTTP {r.status_code}).")
+        return back("/accounts", err="The provider turned this key down. Check you copied all of it, or make a new one." if r.status_code in (401, 403) else f"The provider didn't answer properly (error {r.status_code}). Try again in a minute.")
 
     @app.post("/accounts/logins")
     def save_login(name: str = Form(...), username: str = Form(""), password: str = Form(""), domains: str = Form("")):
@@ -848,7 +941,7 @@ def create_app(port: int = 8765) -> FastAPI:
         try:
             n = llm.refresh_openrouter_prices()
         except Exception as e:
-            return back("/settings", err=f"Could not download prices ({type(e).__name__}).")
+            return back("/settings", err="Couldn't download prices. Check your internet connection and try again.")
         return back("/settings", msg=f"Downloaded current prices for {n} OpenRouter models.")
 
     @app.post("/settings/forget-seen")

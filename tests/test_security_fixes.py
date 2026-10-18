@@ -180,7 +180,7 @@ def test_C2_xss_does_not_run_in_a_real_browser(full_app, browser, data_dir):
     (d / "match_report.md").write_text(render.match_report_md(XSS, "Engineer", {}, []), encoding="utf-8")
     page = browser.page
     page.goto(f"{full_app}/jobs/{jid}")
-    page.click("text=match_report.md")
+    page.click("text=Match report")
     time.sleep(0.5)
     assert page.evaluate("() => window.__pwned") is None
     assert "onerror" in page.inner_text("#reportView")  # shown as text

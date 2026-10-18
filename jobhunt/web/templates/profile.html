@@ -1,30 +1,31 @@
 {% extends "base.html" %}
 {% block title %}Profile{% endblock %}
 {% block content %}
-<h1>Your profile</h1>
-<p class="sub">Everything the AI knows about you. It tailors from this and nothing else, so make it complete and true.</p>
+<div class="pagehead"><div><h1>Your profile</h1>
+  <p class="sub">Everything the AI knows about you. It tailors from this and nothing else, so make it complete and true.</p></div></div>
 
 <div class="card">
   <h2>1. Upload your CVs</h2>
   <p class="muted">Old and new resumes, a LinkedIn export, notes with achievements and numbers. PDF, Word (.docx), .txt or .md.</p>
   <form method="post" action="/profile/upload" enctype="multipart/form-data" class="dropzone" id="cvDrop">
-    <div class="drop-icon" aria-hidden="true">📄</div>
-    <div><b>Drag your CV here</b> <span class="muted">or choose the files:</span></div>
+    <div class="drop-icon" aria-hidden="true">{{ icon("file-up", "lg") }}</div>
+    <div id="dropSay"><b>Drag your CV here</b> <span class="muted">or choose the files:</span></div>
     <div><input type="file" name="files" multiple accept=".pdf,.docx,.txt,.md,.html" aria-label="CV files"></div>
     <div class="hint" style="margin:0">They upload as soon as you drop or choose them.</div>
   </form>
   {% if cvs %}
-  <table style="margin-top:10px">
-    {% for name in cvs %}<tr><td>{{ name }}</td><td style="text-align:right">
-      <form method="post" action="/profile/cv/delete" class="inline"><input type="hidden" name="name" value="{{ name }}">
-        <button class="btn small danger">Remove</button></form></td></tr>{% endfor %}
-  </table>
-  <h2 style="margin-top:16px">2. Build your profile from them</h2>
+  <div class="filelist rise">
+    {% for name in cvs %}<div class="fileitem" data-row>{{ icon("file-text") }}<span class="name">{{ name }}</span>
+      <form method="post" action="/profile/cv/delete" class="inline" data-leave><input type="hidden" name="name" value="{{ name }}">
+        <button class="btn small ghost" title="Remove {{ name }}">{{ icon("trash-2") }}Remove</button></form></div>{% endfor %}
+  </div>
+  <h2 class="mt5">2. Build your profile from them</h2>
   <form method="post" action="/profile/build"
-        data-confirm="Build your profile from these files? It replaces the profile text below (the old one is kept as profile.previous.md).">
-    <button class="btn primary" {{ 'disabled' if status.busy or not key_saved }}>Build my profile with AI</button>
-    <span class="hint">About a minute. It fills in steps 3 to 5 below for you to check (answers you typed are kept).</span>
-    {% if not key_saved %}<p class="hint">Add your AI key on the <a href="/accounts">Accounts</a> page first.</p>{% endif %}
+        data-confirm="It reads these files and rewrites the profile text below (the old one is kept as profile.previous.md). Answers you typed in steps 3 and 4 are kept."
+        data-confirm-title="Build your profile from your CVs?" data-confirm-ok="Build my profile" data-confirm-icon="sparkles">
+    <div class="keyline"><button class="btn primary" {{ 'disabled' if status.busy or not key_saved }}>{{ icon("sparkles") }}Build my profile with AI</button>
+    <span class="hint" style="margin:0">About a minute. It fills in steps 3 to 5 below for you to check.</span></div>
+    {% if not key_saved %}<p class="hint">Add your AI key on the <a href="/accounts">Connections</a> page first.</p>{% endif %}
   </form>
   {% else %}
   <p class="hint">2. Once a CV is uploaded, a <b>Build my profile with AI</b> button appears here. No CV? Fill in steps 3 to 5 yourself.</p>
@@ -33,19 +34,19 @@
 
 <form method="post" action="/profile/save" data-guard id="profileForm">
 <div class="savebar">
-  <span>Steps 3 to 5 are saved together.</span>
-  <button class="btn primary">Save profile</button>
+  <span class="savestate" data-savestate="profileForm">Steps 3 to 5 are saved together.</span>
+  <button class="btn primary" data-busy="Saving…">{{ icon("check") }}Save profile</button>
 </div>
 
 <div class="card" id="contact">
   <h2>3. Contact details</h2>
   <p class="muted">Used exactly as written on every resume, cover letter and form.</p>
   <div class="row">
-    <div><label for="f_name">Full name</label><input type="text" id="f_name" name="name" value="{{ contact.name }}"></div>
-    <div><label for="f_email">Email</label><input type="email" id="f_email" name="email" value="{{ contact.email }}"></div>
+    <div><label for="f_name">Full name</label><input type="text" id="f_name" name="name" value="{{ contact.name }}" autocomplete="name"></div>
+    <div><label for="f_email">Email</label><input type="email" id="f_email" name="email" value="{{ contact.email }}" autocomplete="email"></div>
   </div>
   <div class="row">
-    <div><label for="f_phone">Phone</label><input type="tel" id="f_phone" name="phone" value="{{ contact.phone }}"></div>
+    <div><label for="f_phone">Phone</label><input type="tel" id="f_phone" name="phone" value="{{ contact.phone }}" autocomplete="tel"></div>
     <div><label for="f_location">Location</label><input type="text" id="f_location" name="location" value="{{ contact.location }}"></div>
   </div>
   <label for="f_links">Links <span class="hint">one per line (LinkedIn, GitHub, portfolio)</span></label>
@@ -70,7 +71,6 @@
     and nothing else.{% else %}No profile yet. Build it from your CVs above, or write it here using this outline.{% endif %}</p>
   <label for="f_profile_text" class="sr">Profile text</label>
   <textarea id="f_profile_text" name="profile_text" class="tall plain">{{ profile_text }}</textarea>
-  <div class="actions"><button class="btn primary">Save profile</button></div>
 </div>
 </form>
 {% endblock %}

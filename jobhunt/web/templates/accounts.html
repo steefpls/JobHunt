@@ -1,20 +1,21 @@
 {% extends "base.html" %}
-{% block title %}Accounts{% endblock %}
+{% block title %}Connections{% endblock %}
 {% block content %}
-<h1>Accounts &amp; keys</h1>
-<p class="sub">Keys and passwords are stored in <b>Windows Credential Manager</b>, never in a file, and never shown to the AI.</p>
+<div class="pagehead"><div><h1>Connections</h1>
+  <p class="sub">Your AI key and job-site logins. Keys and passwords are stored in <b>Windows Credential Manager</b>, never in a file, and never shown to the AI.</p></div></div>
 
-<div class="card">
-  <h2>AI key</h2>
-  <p class="muted">Using: <b>{{ providers[settings.provider] }}</b> (change in <a href="/settings">Settings</a>).</p>
+<div class="card" id="aikey">
+  <div class="cardhead"><h2>{{ icon("key-round") }}AI key</h2>
+    <span class="muted">Using <b>{{ providers[settings.provider] }}</b> · <a href="/settings">change</a></span></div>
   <table>
     {% for p, label in providers.items() %}
     <tr><td>{{ label }}</td>
-      <td>{% if keys[p] %}<span class="badge Applied">saved</span>{% else %}<span class="badge">not set</span>{% endif %}</td>
-      <td style="text-align:right">
+      <td>{% if keys[p] %}<span class="badge Applied">{{ icon("check", "sm") }}saved</span>{% else %}<span class="badge">not set</span>{% endif %}</td>
+      <td class="right nowrap">
         {% if keys[p] %}
-        <form method="post" action="/accounts/apikey/test" class="inline"><input type="hidden" name="provider" value="{{ p }}"><button class="btn small">Test</button></form>
-        <form method="post" action="/accounts/apikey/delete" class="inline"><input type="hidden" name="provider" value="{{ p }}"><button class="btn small danger">Remove</button></form>
+        <form method="post" action="/accounts/apikey/test" class="inline" data-busy="Testing…"><input type="hidden" name="provider" value="{{ p }}"><button class="btn small">{{ icon("play") }}Test</button></form>
+        <form method="post" action="/accounts/apikey/delete" class="inline" data-confirm="JobHunt can't use {{ label }} until you paste a key again." data-confirm-title="Remove this key?" data-confirm-ok="Remove key" data-confirm-danger>
+          <input type="hidden" name="provider" value="{{ p }}"><button class="btn small danger">{{ icon("trash-2") }}Remove</button></form>
         {% endif %}
       </td></tr>
     {% endfor %}
@@ -22,8 +23,8 @@
   <form method="post" action="/accounts/apikey" class="row" style="margin-top:12px" autocomplete="off" data-guard>
     <div style="flex:0 0 260px"><label for="f_provider">Provider</label>
       <select id="f_provider" name="provider">{% for p, label in providers.items() %}<option value="{{ p }}" {{ 'selected' if p == settings.provider }}>{{ label }}</option>{% endfor %}</select></div>
-    <div><label for="f_api_key">Paste key</label><input type="password" id="f_api_key" name="api_key" autocomplete="new-password" placeholder="paste your key here"></div>
-    <div style="flex:0 0 auto"><button class="btn primary">Save key</button></div>
+    <div><label for="f_api_key">Paste key</label><input type="password" id="f_api_key" name="api_key" autocomplete="new-password" placeholder="paste your key here" required minlength="8"></div>
+    <div style="flex:0 0 auto"><button class="btn primary">{{ icon("check") }}Save key</button></div>
   </form>
 </div>
 
@@ -32,32 +33,32 @@
   <p class="muted">Press <b>Log in</b> to open a browser window. Log in yourself (Singpass, 2-step codes and captchas are fine),
     then close the window. JobHunt keeps that session for hunts and applications, and checks below that it worked.
     It never sees or stores these passwords.</p>
-  {% if browser_open %}<div id="loginOpen" style="margin:8px 0"><span class="badge Ready">Login window is open</span> Close it when you're done.
+  {% if browser_open %}<div id="loginOpen" class="busyline" style="margin:8px 0">{{ icon("loader-circle", "spin") }}<span><span class="badge Ready">Login window is open</span> Close it when you're done.
     Can't find it?
-    <form method="post" action="/accounts/browser/close" class="inline"><button class="btn small">Close it for me</button></form></div>
-  {% elif checking or check_waiting %}<div id="loginChecking" style="margin:8px 0"><span class="badge Ready">Checking your logins…</span>
-    This page updates by itself in a few seconds.</div>{% endif %}
+    <form method="post" action="/accounts/browser/close" class="inline"><button class="btn small">Close it for me</button></form></span></div>
+  {% elif checking or check_waiting %}<div id="loginChecking" class="busyline" style="margin:8px 0">{{ icon("loader-circle", "spin") }}<span><span class="badge Ready">Checking your logins…</span>
+    This page updates by itself in a few seconds.</span></div>{% endif %}
   <table>
     {% for key, (label, url) in login_sites.items() %}{% set st = login_status.get(key) %}
     <tr><td><b>{{ label }}</b></td>
-      <td>{% if browser_open or checking or check_waiting %}<span class="badge">…</span>
+      <td>{% if browser_open or checking or check_waiting %}<span class="badge" aria-label="Checking">{{ icon("loader-circle", "sm spin") }}</span>
         {% elif not st %}<span class="badge">Not checked yet</span>
-        {% elif st.state == "in" %}<span class="badge LoggedIn">✓ Logged in</span>{% if st.account %} as <b>{{ st.account }}</b>{% endif %}
+        {% elif st.state == "in" %}<span class="badge LoggedIn">{{ icon("check", "sm") }}Logged in</span>{% if st.account %} as <b>{{ st.account }}</b>{% endif %}
         {% elif st.state == "out" %}<span class="badge LoggedOut">Not logged in</span>
         {% else %}<span class="badge">Couldn't tell</span>{% endif %}
         {% if st and not (browser_open or checking or check_waiting) %}<span class="hint">
           {{ st.detail ~ " · " if st.detail and st.state != "in" }}checked {{ (st.checked_at or "")[:16]|replace("T", " ") }}</span>{% endif %}</td>
-      <td style="text-align:right"><form method="post" action="/accounts/browser" class="inline"><input type="hidden" name="site" value="{{ key }}">
+      <td class="right"><form method="post" action="/accounts/browser" class="inline"><input type="hidden" name="site" value="{{ key }}">
         <button class="btn small {{ 'primary' if st and st.state == 'out' }}" {{ 'disabled' if browser_open or checking or status.busy }}>
-          {{ "Log in again" if st and st.state == "in" else "Log in" }}</button></form></td></tr>
+          {{ icon("log-in") }}{{ "Log in again" if st and st.state == "in" else "Log in" }}</button></form></td></tr>
     {% endfor %}
   </table>
   <div class="actions">
-    <form method="post" action="/accounts/check" class="inline"><button class="btn small" {{ 'disabled' if browser_open or checking or status.busy }}>Check again</button></form>
+    <form method="post" action="/accounts/check" class="inline"><button class="btn small" {{ 'disabled' if browser_open or checking or status.busy }}>{{ icon("refresh-cw") }}Check again</button></form>
   </div>
   <p class="hint">Not logged in to a site? Hunts still read its public job pages, but applications there come back to you as
     <b>Needs you</b>. MyCareersFuture isn't listed: its applications need Singpass, so you finish those in your own browser.</p>
-  <p class="hint">There is deliberately no Google button: the browser that fills in applications should not be signed in to
+  <p class="hint mb0">There is deliberately no Google button: the browser that fills in applications should not be signed in to
     your email. Jobs that need "Sign in with Google" are handed to you as <b>Needs you</b>.</p>
 </div>
 
@@ -68,26 +69,26 @@
     typed into a password box, and only on the sites you list (the list is required). Without a saved login, those jobs are marked
     <b>Needs you</b> with the link.</p>
   {% if logins %}
-  <table>
+  <div class="tablewrap"><table>
     <thead><tr><th>Name</th><th>Username</th><th>Password</th><th>Only on these sites</th><th></th></tr></thead>
     {% for l in logins %}
     <tr><td><b>{{ l.name }}</b></td>
       <td>{{ 'saved' if l.has_user else '—' }}</td><td>{{ '••••••• saved' if l.has_pw else '—' }}</td>
       <td>{% if l.domains %}{{ l.domains|join(", ") }}{% else %}<span class="badge Error">none: not used anywhere</span> save it again with a site list{% endif %}</td>
-      <td style="text-align:right"><form method="post" action="/accounts/logins/delete" class="inline">
-        <input type="hidden" name="name" value="{{ l.name }}"><button class="btn small danger">Delete</button></form></td></tr>
+      <td class="right"><form method="post" action="/accounts/logins/delete" class="inline" data-confirm="The username and password saved as '{{ l.name }}' are removed from Windows Credential Manager." data-confirm-title="Delete this login?" data-confirm-ok="Delete login" data-confirm-danger>
+        <input type="hidden" name="name" value="{{ l.name }}"><button class="btn small danger">{{ icon("trash-2") }}Delete</button></form></td></tr>
     {% endfor %}
-  </table>
+  </table></div>
   {% endif %}
   <form method="post" action="/accounts/logins" autocomplete="off" style="margin-top:10px" data-guard>
     <div class="row">
-      <div><label for="f_name">Name</label><input type="text" id="f_name" name="name" placeholder="default"></div>
+      <div><label for="f_name">Name</label><input type="text" id="f_name" name="name" placeholder="default" pattern="[A-Za-z0-9_\-]+" title="Letters, digits, - and _ only"></div>
       <div><label for="f_username">Username / email</label><input type="text" id="f_username" name="username" autocomplete="off"></div>
       <div><label for="f_password">Password</label><input type="password" id="f_password" name="password" autocomplete="new-password"></div>
     </div>
     <label for="f_domains">Only use on <span class="hint">site names separated by spaces, e.g. "myworkdayjobs.com greenhouse.io". Required: it is never typed anywhere else.</span></label>
     <input type="text" id="f_domains" name="domains" required>
-    <div class="actions"><button class="btn primary">Save login</button></div>
+    <div class="actions"><button class="btn primary">{{ icon("check") }}Save login</button></div>
   </form>
 </div>
 {% endblock %}

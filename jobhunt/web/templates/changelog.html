@@ -1,29 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Changelog{% endblock %}
+{% block title %}What's new{% endblock %}
 {% block content %}
-<h1>Changelog</h1>
-<p class="sub">Every change to JobHunt, newest first. Click one for the details. You have version <b>{{ log.version }}</b>.
-  {% if log.coming %}{{ log.coming }} newer change{{ 's are' if log.coming != 1 else ' is' }} out: restart JobHunt to get {{ 'them' if log.coming != 1 else 'it' }}.{% endif %}</p>
+<div class="pagehead"><div><h1>What's new</h1>
+<p class="sub">Every change to JobHunt, newest first. Click one for the details.
+  {% if log.coming %}{{ log.coming }} newer change{{ 's are' if log.coming != 1 else ' is' }} out: restart JobHunt to get {{ 'them' if log.coming != 1 else 'it' }}.{% endif %}</p></div></div>
 {% if not log.ok %}
-<div class="notice avail">Couldn't reach GitHub just now (offline?).{% if log.days %} This is the list from {{ log.fetched_at }}.{% endif %}</div>
+<div class="notice avail">{{ icon("info") }}<div class="body">Couldn't reach GitHub just now (offline?).{% if log.days %} This is the list from {{ log.fetched_at }}.{% endif %}</div></div>
 {% endif %}
 {% if not log.days %}
-<div class="card"><p class="muted" style="margin:0">{% if not updates.on %}Updates are off (JOBHUNT_NO_UPDATE is set), so there's no list of changes.
-  {% else %}No list of changes yet. It comes from GitHub, so try again once you're online.{% endif %}</p></div>
+<div class="card empty">
+  <div class="art">{{ icon("sparkles", "xl") }}</div>
+  <h2>No list of changes yet</h2>
+  <p>{% if not updates.on %}Automatic updates are off, so there's no list of changes.
+  {% else %}It comes from GitHub, so try again once you're online.{% endif %}</p></div>
 {% endif %}
+<div class="rise">
 {% for day in log.days %}
 <div class="card changelog">
   <h2>{{ day.label }}
-    {% if day.current %}<span class="badge Applied">your version</span>{% endif %}
+    {% if day.current %}<span class="badge Applied" title="Version {{ log.version }}">{{ icon("check", "sm") }}your version</span>{% endif %}
     {% if day.coming %}<span class="badge Ready">{{ day.coming ~ ' ' if day.coming < day.changes|length }}not installed yet</span>{% endif %}</h2>
   <ul>
   {% for ch in day.changes %}
-    <li class="{{ 'coming' if not ch.installed }}">{% if ch.more %}<details><summary>{{ ch.note }}</summary>
-      <div class="more">{% for para in ch.more.split("\n") if para.strip() %}<p style="margin:0 0 4px">{{ para }}</p>{% endfor %}
-        <span class="hint ver">{{ ch.sha }}</span></div></details>
-      {% else %}<span class="bullet">•</span>{{ ch.note }} <span class="hint ver">{{ ch.sha }}</span>{% endif %}</li>
+    <li class="{{ 'coming' if not ch.installed }}" title="{{ ch.sha }}">{% if ch.more %}<details><summary>{{ ch.note }}</summary>
+      <div class="more">{% for para in ch.more.split("\n") if para.strip() %}<p style="margin:0 0 4px">{{ para }}</p>{% endfor %}</div></details>
+      {% else %}<span class="bullet">•</span>{{ ch.note }}{% endif %}</li>
   {% endfor %}
   </ul>
 </div>
 {% endfor %}
+</div>
 {% endblock %}

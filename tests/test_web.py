@@ -144,6 +144,6 @@ def test_pages_ask_for_this_versions_scripts_and_styles_not_a_saved_copy(data_di
     with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as c:
         html = c.get("/").text
         links = re.findall(r'(?:src|href)="(/static/[^"]+)"', html)
-        assert links and all(re.search(r"\?v=[0-9a-f]{10}$", u) for u in links)
+        assert links and all(re.search(r"\?v=[0-9a-f]{10}(#[\w-]+)?$", u) for u in links)
         r = c.get(links[0])
         assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"

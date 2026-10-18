@@ -91,6 +91,6 @@ def test_saved_on_the_job_and_shown(mcf):
         assert json.loads(db.get_job(jid)["market_pay"])["status"] == "ok"
         page = client.get(f"/jobs/{jid}").text
         assert "$7k–$9k a month (typical $8k)" in page and "Below the market" in page and "From 5 current ads" in page
-        dash = client.get("/").text
-        assert dash.count("pay below market") == 2  # the Ready list and the table
+        assert client.get("/").text.count("pay below market") == 1  # the Ready list
+        assert client.get("/applications").text.count("pay below market") == 1  # and the table
         assert "pay below market" in client.get("/hunt").text

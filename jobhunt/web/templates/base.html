@@ -8,73 +8,111 @@
 <script src="{{ static_url('theme.js') }}"></script>
 </head>
 <body data-party="{{ party }}" data-name="{{ first_name }}">
+{% set ready_n = nav_counts.get("Ready", 0) %}{% set needs_n = nav_counts.get("Needs you", 0) %}
+<header class="topbar">
+  <button type="button" class="iconbtn" id="menuBtn" aria-label="Open the menu" aria-controls="side" aria-expanded="false">{{ icon("menu") }}</button>
+  <span class="logo">Job<span>Hunt</span></span>
+  <span class="dot {{ 'live' if status.busy }}" id="topDot" title="{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}"></span>
+</header>
+<div class="scrim" id="scrim"></div>
 <div class="layout">
-  <nav class="side">
-    <div class="logo" id="logo">Job<span>Hunt</span></div>
-    <a href="/" class="{{ 'on' if nav == 'dashboard' or nav == 'job' }}">Dashboard</a>
-    <a href="/hunt" class="{{ 'on' if nav == 'hunt' }}">Hunt</a>
-    <a href="/profile" class="{{ 'on' if nav == 'profile' }}">Profile</a>
-    <a href="/scope" class="{{ 'on' if nav == 'scope' }}">Scope</a>
-    <a href="/accounts" class="{{ 'on' if nav == 'accounts' }}">Accounts</a>
-    <a href="/settings" class="{{ 'on' if nav == 'settings' }}">Settings</a>
-    <a href="/changelog" class="{{ 'on' if nav == 'changelog' }}">Changelog</a>
-    <div class="runstate" id="sideRun">
-      <span class="dot {{ 'live' if status.busy }}"></span>{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}
+  <nav class="side" id="side" aria-label="Main">
+    <div class="logo" id="logo"><span class="mark">{{ icon("search", "sm") }}</span><div>Job<span>Hunt</span></div></div>
+    <nav>
+      <a href="/" class="{{ 'on' if nav == 'dashboard' }}" {{ 'aria-current=page' if nav == 'dashboard' }}>{{ icon("inbox") }}To review
+        {% if ready_n + needs_n %}<span class="count {{ 'warn' if needs_n and not ready_n }}" id="navCount">{{ ready_n + needs_n }}</span>{% endif %}</a>
+      <a href="/applications" class="{{ 'on' if nav == 'applications' }}" {{ 'aria-current=page' if nav == 'applications' }}>{{ icon("briefcase-business") }}Applications</a>
+      <a href="/hunt" class="{{ 'on' if nav == 'hunt' }}" {{ 'aria-current=page' if nav == 'hunt' }}>{{ icon("search") }}Hunt</a>
+      <div class="navlabel">Setup</div>
+      <a href="/profile" class="{{ 'on' if nav == 'profile' }}" {{ 'aria-current=page' if nav == 'profile' }}>{{ icon("user-round") }}Profile</a>
+      <a href="/scope" class="{{ 'on' if nav == 'scope' }}" {{ 'aria-current=page' if nav == 'scope' }}>{{ icon("sliders-horizontal") }}Preferences</a>
+      <a href="/accounts" class="{{ 'on' if nav == 'accounts' }}" {{ 'aria-current=page' if nav == 'accounts' }}>{{ icon("key-round") }}Connections</a>
+      <a href="/settings" class="{{ 'on' if nav == 'settings' }}" {{ 'aria-current=page' if nav == 'settings' }}>{{ icon("settings") }}Settings</a>
+      <a href="/changelog" class="{{ 'on' if nav == 'changelog' }}" {{ 'aria-current=page' if nav == 'changelog' }}>{{ icon("sparkles") }}What's new</a>
+    </nav>
+    <div class="foot">
+      <div class="runstate" id="sideRun" role="status">
+        <span class="dot {{ 'live' if status.busy }}"></span><span class="txt">{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}</span>
+      </div>
+      {% if trophies %}<a href="/achievements" class="sidebtn trophies {{ 'on' if nav == 'achievements' }}">{{ icon("trophy") }}{{ trophies }} achievement{{ 's' if trophies != 1 }}</a>{% endif %}
+      <button type="button" class="sidebtn themebtn" id="themeBtn">{{ icon("sun-moon") }}<span>Theme: auto</span></button>
+      <div class="version" id="sideVersion">JobHunt version <b>{{ updates.version }}</b><br>
+        {% if not updates.on %}Automatic updates are off
+        {% elif not updates.checked_at %}Checks for updates each time it starts
+        {% elif updates.check_ok %}Checked for updates {{ updates.checked_at }}
+        {% else %}Couldn't check for updates ({{ updates.checked_at }}): offline?{% endif %}
+      </div>
     </div>
-    <div class="version" id="sideVersion">JobHunt version <b>{{ updates.version }}</b><br>
-      {% if not updates.on %}Updates are off (JOBHUNT_NO_UPDATE is set)
-      {% elif not updates.checked_at %}Checks for updates each time it starts
-      {% elif updates.check_ok %}Checked for updates {{ updates.checked_at }}
-      {% else %}Couldn't check for updates ({{ updates.checked_at }}): offline?{% endif %}
-    </div>
-    <button type="button" class="themebtn" id="themeBtn">Theme: auto</button>
-    {% if trophies %}<a href="/achievements" class="trophies {{ 'on' if nav == 'achievements' }}">🏆 {{ trophies }} achievement{{ 's' if trophies != 1 }}</a>{% endif %}
   </nav>
-  <main>
-    {% if msg %}<div class="flash ok">{{ msg }}</div>{% endif %}
-    {% if err %}<div class="flash err">{{ err }}</div>{% endif %}
+  <main id="main">
     {% if suggestion %}
-    <div class="notice tune" id="tune">
-      <b>{{ suggestion.question }}</b><br><span class="hint">{{ suggestion.detail }}</span>
-      <div class="actions" style="margin-top:8px">
+    <div class="notice tune" id="tune">{{ icon("sparkles") }}
+      <div class="body"><b>{{ suggestion.question }}</b><br><span class="hint">{{ suggestion.detail }}</span>
+      <div class="actions">
         {% if suggestion.kind == "link" %}<a class="btn small primary" href="{{ suggestion.href }}">{{ suggestion.button }}</a>
         {% else %}<form method="post" action="/tune" class="inline"><input type="hidden" name="job_id" value="{{ suggestion.job_id }}">
           <input type="hidden" name="next" value="{{ here }}"><button class="btn small primary">{{ suggestion.button }}</button></form>{% endif %}
-        <a class="btn small" href="{{ here }}">No thanks</a></div>
+        <a class="btn small ghost" href="{{ here }}" data-dismiss="#tune">No thanks</a></div></div>
     </div>
     {% endif %}
     {% if updates.available %}
-    <div class="notice avail">
-      <b>A newer version of JobHunt is out</b> (you have {{ updates.version }}, the newest is {{ updates.latest }}).
+    <div class="notice avail">{{ icon("download") }}
+      <div class="body"><b>A newer version of JobHunt is out</b> (you have {{ updates.version }}, the newest is {{ updates.latest }}).
       Restart JobHunt to install it: about a minute, and everything of yours is kept.
-      <form method="post" action="/update/restart" class="inline"
-            data-confirm="Restart JobHunt now to install the new version? It closes and opens again by itself.">
+      <div class="actions">
+      <form method="post" action="/update/restart" class="inline" data-confirm="Restart JobHunt now to install the new version? It closes and opens again by itself."
+            data-confirm-title="Restart and update?" data-confirm-ok="Restart now">
         <input type="hidden" name="next" value="{{ here }}">
-        <button class="btn small primary" {{ 'disabled' if status.busy }}>Restart &amp; update</button></form>
+        <button class="btn small primary" {{ 'disabled' if status.busy }}>{{ icon("refresh-cw") }}Restart &amp; update</button></form>
       {% if status.busy %}<span class="hint">Once the current task has finished.</span>{% endif %}
+      </div></div>
     </div>
     {% endif %}
     {% if updates.news %}
-    <div class="notice news">
-      <b>JobHunt was updated</b> to version {{ updates.news.to[:7] }}{% if updates.news["from"] %} (from {{ updates.news["from"][:7] }}){% endif %}.
+    <div class="notice news" id="news">{{ icon("sparkles") }}
+      <div class="body"><b>JobHunt was updated</b> to version {{ updates.news.to[:7] }}{% if updates.news["from"] %} (from {{ updates.news["from"][:7] }}){% endif %}.
       {% if updates.news.changes %}What's new:
       <ul>{% for c in updates.news.changes %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
-      {% if nav != 'changelog' %}<a href="/changelog">See every change so far</a>{% endif %}
-      <form method="post" action="/update/seen" class="inline"><input type="hidden" name="next" value="{{ here }}">
+      <div class="actions">
+      <form method="post" action="/update/seen" class="inline" data-dismiss="#news"><input type="hidden" name="next" value="{{ here }}">
         <button class="btn small">Got it</button></form>
+      {% if nav != 'changelog' %}<a class="btn small ghost" href="/changelog">See every change so far</a>{% endif %}
+      </div></div>
     </div>
     {% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>
-{% if toasts %}
-<div class="toasts" id="toasts">
-  {% for t in toasts[:4] %}<a class="toast" href="/achievements"><span class="ticon">{{ t.icon }}</span>
-    <span><b>{{ t.title }}</b><br>{{ t.text }}</span></a>{% endfor %}
-  {% if toasts|length > 4 %}<a class="toast" href="/achievements"><span class="ticon">🏆</span>
-    <span><b>And {{ toasts|length - 4 }} more</b><br>See them all</span></a>{% endif %}
+
+<div class="toasts" id="toasts" role="status" aria-live="polite">
+  {% if msg or err or warn %}{% set tone = 'ok' if msg else ('err' if err else 'warn') %}
+  <div class="toast {{ tone }} flash" data-ttl="{{ 9000 if err or undo or restore else 5000 }}">
+    {{ icon({"ok": "circle-check", "err": "circle-alert", "warn": "triangle-alert"}[tone]) }}
+    <div class="tbody">{{ msg or err or warn }}</div>
+    <div class="tact">
+      {% if undo %}<form method="post" action="/jobs/{{ undo.job_id }}/undo" class="inline">
+        <input type="hidden" name="state" value="{{ undo.state }}"><input type="hidden" name="next" value="{{ here }}">
+        <button class="tbtn">{{ icon("undo-2", "sm") }}Undo</button></form>{% endif %}
+      {% if restore %}<form method="post" action="/profile/cv/restore" class="inline">
+        <input type="hidden" name="name" value="{{ restore }}"><button class="tbtn">{{ icon("undo-2", "sm") }}Undo</button></form>{% endif %}
+      <button type="button" class="tclose" aria-label="Close">{{ icon("x", "sm") }}</button>
+    </div>
+  </div>
+  {% endif %}
+  {% for t in (toasts or [])[:4] %}<a class="toast trophy" href="/achievements" data-ttl="9000"><span class="ticon" aria-hidden="true">{{ t.icon }}</span>
+    <span class="tbody"><b>{{ t.title }}</b><br>{{ t.text }}</span></a>{% endfor %}
+  {% if toasts and toasts|length > 4 %}<a class="toast trophy" href="/achievements" data-ttl="9000"><span class="ticon" aria-hidden="true">🏆</span>
+    <span class="tbody"><b>And {{ toasts|length - 4 }} more</b><br>See them all</span></a>{% endif %}
 </div>
-{% endif %}
+
+<dialog class="confirm" id="confirmDialog" aria-labelledby="confirmTitle">
+  <form method="dialog">
+    <div class="dbody"><span class="dicon" id="confirmIcon">{{ icon("send", "lg") }}</span>
+      <div><h2 id="confirmTitle">Are you sure?</h2><p id="confirmText"></p></div></div>
+    <div class="dactions"><button class="btn" value="no" id="confirmNo">Cancel</button>
+      <button class="btn primary" value="yes" id="confirmYes">Continue</button></div>
+  </form>
+</dialog>
 <script src="{{ static_url('app.js') }}"></script>
 <script src="{{ static_url('motion.js') }}"></script>
 <script src="{{ static_url('eggs.js') }}"></script>

@@ -348,7 +348,7 @@ def test_look_up_button_on_the_job_page_and_the_dashboard_line(client, demo_serv
     assert "Company summary updated" in hunt.runner.last_result
 
     page = client.get(f"/jobs/{jid}").text
-    assert page.index('id="company"') < page.index("What next")  # the first thing on the page
+    assert page.index('id="next"') < page.index('id="company"')  # under the job's actions and files
     assert "51-200 employees" in page and "18 Cross Street, #07-01, Singapore 048423" in page
     assert "Not found" in page  # what the pages don't say (the industry) says so
     assert "Sources" in page and "/demo/companies/lumen-analytics" in page

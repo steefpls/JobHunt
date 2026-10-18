@@ -8,9 +8,10 @@
   let wasBusy = cfg.busy === '1';
   const fmt = n => Math.round(n).toLocaleString();
   const $ = id => document.getElementById(id);
+  const count = (el, to, f) => window.jhMotion ? window.jhMotion.countTo(el, to, f) : (el.textContent = f(to));
 
   function line(e) {
-    const d = document.createElement('div'); d.className = e.level;
+    const d = document.createElement('div'); d.className = e.level + ' new';
     const ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = e.ts.slice(11, 19) + ' ';
     d.appendChild(ts); d.appendChild(document.createTextNode(e.message)); return d;
   }
@@ -22,13 +23,14 @@
       const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
       if (s.events.length && $('logArt')) $('logArt').remove();
       for (const e of s.events) { log.appendChild(line(e)); lastEvent = e.id; }
-      if (atBottom) log.scrollTop = log.scrollHeight;
+      if (atBottom && s.events.length) log.scrollTo({top: log.scrollHeight, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
       const m = s.meter;
-      $('mState').textContent = s.busy ? s.kind : (s.run && s.run.status) || 'idle';
+      const state = s.busy ? s.kind : (s.run && s.run.status) || 'idle';
+      if ($('mState').textContent !== state) $('mState').textContent = state;
       if (m) {
-        $('mTokens').textContent = fmt(m.tokens_in + m.tokens_out);
-        $('mCalls').textContent = fmt(m.calls);
-        $('mCost').textContent = '$' + m.run_cost.toFixed(4);
+        count($('mTokens'), m.tokens_in + m.tokens_out, fmt);
+        count($('mCalls'), m.calls, fmt);
+        count($('mCost'), m.run_cost, v => '$' + v.toFixed(4));
         const caps = [];
         if (!m.subscription && m.run_cap) caps.push('$' + m.run_cap.toFixed(2) + ' per run, $' + m.job_cap.toFixed(2) + ' per job');
         if (m.run_token_cap) caps.push(fmt(m.run_token_cap) + ' tokens per run');
@@ -48,32 +50,44 @@
           location.replace(back + '?' + key + '=' + encodeURIComponent(s.last_result || 'Finished.'));
           return;
         }
-        setTimeout(() => location.reload(), 1200);
+        // The run ended: show the new packages (a navigation, so the page cross-fades instead of blinking)
+        setTimeout(() => location.replace(location.pathname + location.hash), 1200);
       }
       wasBusy = s.busy;
     } catch (err) { /* server restarting; try again */ }
   }
 
+  let estTimer = null, estSeq = 0;
   async function estimate() {
+    const seq = ++estSeq;
     const f = $('huntForm');
+    const box = $('estimate');
     const sites = [...f.querySelectorAll('input[name=sites]:checked')].map(x => x.value).join(',');
     const auto = f.querySelector('input[name=mode]:checked').value === 'auto' ? 1 : 0;
     const jobs = parseInt($('jobsInput').value || '10');
-    const e = await (await fetch(`/api/estimate?jobs=${jobs}&sites=${sites}&auto=${auto}`)).json();
-    const box = $('estimate');
-    const cost = `about <b>$${e.total_usd.toFixed(3)}</b> ($${e.per_job_usd.toFixed(4)} per job, ${fmt(e.per_job_tokens)} tokens, `
-      + `~${e.calls_per_job.toFixed(0)} AI calls each)` + (e.subscription ? ' at API prices; your flat plan covers it' : '');
-    let speed = `<b>~${e.drafts_per_hour.toFixed(0)}</b> drafts/hour`;
-    if (e.applies_per_hour) speed += `, <b>~${e.applies_per_hour.toFixed(0)}</b> auto-applies/hour (capped at ${MAX_APPS}/hour per site)`;
-    let html = `Estimate for ${jobs} job(s): ${cost}. Speed: ${speed}`
-      + (e.hours ? `, so roughly <b>${e.hours < 1 ? Math.round(e.hours * 60) + ' min' : e.hours.toFixed(1) + ' h'}</b>.` : '.');
-    html += `<br><span class="hint">${e.from_history ? 'Based on your own past runs.' : 'First-run guess; it gets better as you use it.'}`
-      + ` Assumes ~${e.candidates_per_match.toFixed(1)} postings read per match. Real sites are slower than this guess when they rate-limit.</span>`;
-    if (e.over_run_cap || e.over_job_cap) html += `<br><b>Heads-up:</b> this may hit your caps (Settings); the run will stop cleanly if it does.`;
+    let e;
+    try {
+      e = await (await fetch(`/api/estimate?jobs=${jobs}&sites=${sites}&auto=${auto}`)).json();
+    } catch (err) {
+      if (seq === estSeq) box.textContent = "Couldn't work out an estimate just now. You can still start.";
+      return;
+    }
+    if (seq !== estSeq) return;  // a newer estimate is on its way
+    const time = e.hours ? (e.hours < 1 ? Math.round(e.hours * 60) + ' min' : e.hours.toFixed(1) + ' hours') : '';
+    let html = `<span class="big">${time ? 'About ' + time : 'Estimate'}</span>`
+      + `for ${jobs} package${jobs === 1 ? '' : 's'}: about <b>$${e.total_usd.toFixed(3)}</b>`
+      + (e.subscription ? ' at API prices (your flat plan covers it)' : '')
+      + `, ~<b>${e.drafts_per_hour.toFixed(0)}</b> drafts an hour`;
+    if (e.applies_per_hour) html += `, ~<b>${e.applies_per_hour.toFixed(0)}</b> auto-applies an hour (at most ${MAX_APPS} an hour per site)`;
+    html += '.';
+    html += `<br><span class="hint">${e.from_history ? 'Based on your own past runs.' : 'A first guess; it gets better as you use it.'}`
+      + ` $${e.per_job_usd.toFixed(4)} and ${fmt(e.per_job_tokens)} tokens a package; real sites are slower when they rate-limit.</span>`;
+    if (e.over_run_cap || e.over_job_cap) html += `<br><b>Heads-up:</b> this may hit your caps (Settings); the run stops cleanly if it does.`;
     box.innerHTML = html; box.classList.toggle('warn', e.over_run_cap || e.over_job_cap);
+    if (window.jhMotion) window.jhMotion.reveal(box.firstChild);
   }
 
-  $('huntForm').addEventListener('input', estimate);
+  $('huntForm').addEventListener('input', function () { clearTimeout(estTimer); estTimer = setTimeout(estimate, 200); });
   estimate(); poll(); setInterval(poll, 1500);
   $('log').scrollTop = 1e9;
 })();

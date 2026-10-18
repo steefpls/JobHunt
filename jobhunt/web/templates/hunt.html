@@ -1,20 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Hunt{% endblock %}
 {% block content %}
-<h1 id="huntPage" data-subscription="{{ 1 if subscription else 0 }}" data-ready="{{ 0 if missing else 1 }}"
+<div class="pagehead" id="huntPage" data-subscription="{{ 1 if subscription else 0 }}" data-ready="{{ 0 if missing else 1 }}"
     data-max-apps="{{ settings.pacing.max_apps_per_hour_per_site }}" data-last-event="{{ events[-1].id if events else 0 }}"
-    data-busy="{{ 1 if status.busy else 0 }}">Hunt</h1>
-<p class="sub">Finds postings, judges each against your scope, and builds a tailored package for every match, one job at a time.</p>
+    data-busy="{{ 1 if status.busy else 0 }}">
+  <div><h1>Hunt</h1>
+    <p class="sub">Finds postings, judges each against your preferences, and builds a tailored package for every match, one job at a time.</p></div>
+</div>
 
 {% if last_hunt and not status.busy %}
-{% set lh = last_hunt %}
-<div class="notice lasthunt {{ 'good' if lh.status == 'done' else ('bad' if lh.status in ('error', 'interrupted') else 'mid') }}" id="lastHunt">
-  <b>{{ {"done": "Last hunt finished", "error": "Last hunt stopped with a problem", "stopped": "Last hunt stopped by you",
+{% set lh = last_hunt %}{% set tone = 'good' if lh.status == 'done' else ('bad' if lh.status in ('error', 'interrupted') else 'mid') %}
+<div class="notice lasthunt {{ tone }}" id="lastHunt">{{ icon({"good": "circle-check", "bad": "circle-alert", "mid": "circle-pause"}[tone]) }}
+  <div class="body"><b>{{ {"done": "Last hunt finished", "error": "Last hunt stopped with a problem", "stopped": "Last hunt stopped by you",
          "capped": "Last hunt stopped at a cap", "interrupted": "Last hunt was cut off"}.get(lh.status, "Last hunt") }}</b>
-  <span class="muted">· {{ (lh.finished_at or lh.started_at).replace("T", " ")[:16] }}</span><br>
+  <span class="muted">· {{ ago_text(lh.finished_at or lh.started_at) or (lh.finished_at or lh.started_at).replace("T", " ")[:16] }}</span><br>
   {{ lh.summary }}
-  {% if last_hunt_ready %}<div class="actions" style="margin-top:8px"><a class="btn small primary" href="#approve">{{ last_hunt_ready }} {{ "package is" if last_hunt_ready == 1 else "packages are" }} waiting for your approval: review {{ "it" if last_hunt_ready == 1 else "them" }}</a></div>
-  {% elif lh.status == "done" and not last_hunt_built %}<br><span class="hint">No new packages this time. Widen your search keywords or Scope, or try more sites.</span>{% endif %}
+  {% if last_hunt_ready %}<div class="actions"><a class="btn small primary" href="#approve">{{ icon("circle-dot") }}{{ last_hunt_ready }} {{ "package is" if last_hunt_ready == 1 else "packages are" }} waiting for your approval: review {{ "it" if last_hunt_ready == 1 else "them" }}</a></div>
+  {% elif lh.status == "done" and not last_hunt_built %}<br><span class="hint">No new packages this time. Widen your search keywords or preferences, or try more sites.</span>{% endif %}
+  </div>
 </div>
 {% endif %}
 
@@ -22,37 +25,39 @@
   <div class="card">
     <h2>Start a hunt</h2>
     <form method="post" action="/hunt/start" id="huntForm">
-      <div class="row">
-        <div style="flex:0 0 150px"><label for="jobsInput">How many jobs</label>
-          <input type="number" name="jobs" min="1" max="200" value="{{ settings.hunt.jobs }}" id="jobsInput"></div>
-        <div><label>Mode</label>
-          <label class="check"><input type="radio" name="mode" value="draft" checked>
-            Draft: build packages, I approve each one <span class="pill">recommended</span></label>
-          <label class="check"><input type="radio" name="mode" value="auto">
-            Auto-submit: also fill in and send applications</label>
+      <label for="jobsInput">How many packages to build</label>
+      <input type="number" name="jobs" min="1" max="200" value="{{ settings.hunt.jobs }}" id="jobsInput" style="max-width:140px">
+      <fieldset>
+        <legend>Mode</legend>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="mode" value="draft" checked>
+            <span><b>Review each one first <span class="pill">recommended</span></b><span class="hint">Draft: JobHunt builds the packages and you approve each one.</span></span></label>
+          <label class="choice"><input type="radio" name="mode" value="auto">
+            <span><b>Send automatically</b><span class="hint">Auto-submit: it also fills in and sends the applications.</span></span></label>
         </div>
-      </div>
-      <label>Sites</label>
-      <div class="sitelist">
-      {% for key, label in sites.items() %}
-        <label class="check"><input type="checkbox" name="sites" value="{{ key }}" {{ 'checked' if key in ticked }}>
-          <span>{{ label }}{% if key == "demo" and practice_first %} <span class="pill">start here</span>{% endif %}<br><span class="hint">{{ site_status[key] }}</span></span></label>
-      {% endfor %}
-      </div>
-      <div class="est" id="estimate">Working out an estimate…</div>
+      </fieldset>
+      <fieldset>
+        <legend>Sites</legend>
+        <div class="sitelist">
+        {% for key, label in sites.items() %}
+          <label class="check"><input type="checkbox" name="sites" value="{{ key }}" {{ 'checked' if key in ticked }}>
+            <span>{{ label }}{% if key == "demo" and practice_first %} <span class="pill">start here</span>{% endif %}<br><span class="hint">{{ site_status[key] }}</span></span></label>
+        {% endfor %}
+        </div>
+      </fieldset>
+      <div class="est" id="estimate" aria-live="polite"><span class="shimmer" style="display:block;height:12px;border-radius:6px;width:70%"></span></div>
       {% if missing %}
-      <div class="notice todo" id="notReady"><b>Before you can start</b>
-        <ul>{% for what, href in missing %}<li><a href="{{ href }}">{{ what }}</a></li>{% endfor %}</ul></div>
+      <div class="notice todo" id="notReady">{{ icon("list-checks") }}<div class="body"><b>Before you can start</b>
+        <ul>{% for what, href in missing %}<li><a href="{{ href }}">{{ what }}</a></li>{% endfor %}</ul></div></div>
       {% endif %}
-      <div class="actions">
+      <div class="runbar">
         <button class="btn primary" id="startBtn" {{ 'disabled' if status.busy or missing }}
-          data-confirm-auto="Auto-submit sends real applications without asking you first. Continue?">Start</button>
+          data-confirm-auto="Auto-submit sends real applications without asking you first. Continue?">{{ icon("play") }}Start</button>
+        <button class="btn danger" id="stopBtn" form="stopForm" {{ 'disabled' if not status.busy }}>{{ icon("square") }}Stop</button>
+        <span class="hint" style="margin:0">Stop finishes the current step cleanly first.</span>
       </div>
     </form>
-    <form method="post" action="/hunt/stop" style="margin-top:8px">
-      <button class="btn danger" id="stopBtn" {{ 'disabled' if not status.busy }}>Stop</button>
-      <span class="hint">Stops cleanly after the current step.</span>
-    </form>
+    <form method="post" action="/hunt/stop" id="stopForm"></form>
   </div>
 
   <div class="card">
@@ -63,35 +68,38 @@
       <div class="stat"><b id="mCalls">0</b><span>AI calls</span></div>
       <div class="stat"><b id="mCost">–</b><span>{{ 'cost at API prices' if subscription else 'cost (run)' }}</span></div>
     </div>
-    <p class="muted" id="mJob" style="margin:10px 0 0">No job in progress.</p>
+    <p class="muted" id="mJob" style="margin:12px 0 0">No job in progress.</p>
     <p class="muted" id="mCaps" style="margin:6px 0 0"></p>
-    <h2 style="margin-top:18px">Progress log</h2>
-    <div class="log" id="log">{% if not events %}<div id="logArt" class="art">
+    <h2 class="mt5">Progress log</h2>
+    <div class="log" id="log" role="log" aria-live="polite">{% if not events %}<div id="logArt" class="art" aria-hidden="true">
         __
    (___()'`;     No hunts yet.
    /,    /`      The dog is ready when you are.
    \\"--\\
 </div>{% endif %}{% for e in events %}<div class="{{ e.level }}"><span class="ts">{{ e.ts[11:19] }}</span> {{ e.message }}</div>{% endfor %}</div>
-    {% if ready %}
-    <h2 style="margin-top:18px" id="approve">Waiting for your approval <span class="badge Ready">{{ ready|length }}</span></h2>
-    <p class="hint" style="margin-top:0">Review each package, then approve it, or apply yourself where the site needs you.</p>
-    {% include "_approve.html" %}
-    {% endif %}
-    {% if needs_you %}
-    <h2 style="margin-top:18px">Needs you <span class="badge Needs you">{{ needs_you|length }}</span></h2>
-    <p class="hint" style="margin-top:0">JobHunt stopped on these and handed them to you. Open one to see why and finish it
-      yourself, then press I applied.</p>
-    <table>
-      {% for j in needs_you %}
-      <tr><td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b> · {{ j.role }}</a>
-        {% set why = why_needs_you(j) %}{% if why %}<br><span class="hint">{{ why|truncate(140) }}</span>{% endif %}</td>
-        <td style="text-align:right;white-space:nowrap"><a class="btn small" href="/jobs/{{ j.id }}">Open</a>
-          {% with next = "/hunt", cls = "" %}{% include "_applied.html" %}{% endwith %}</td></tr>
-      {% endfor %}
-    </table>
-    {% endif %}
   </div>
 </div>
+
+{% if ready %}
+<h2 class="section-title mt5" id="approve">{{ icon("circle-dot") }}Waiting for your approval <span class="count">{{ ready|length }}</span></h2>
+<p class="hint mt0">Review each package, then approve it, or apply yourself where the site needs you.</p>
+{% include "_approve.html" %}
+{% endif %}
+{% if needs_you %}
+<h2 class="section-title mt5">{{ icon("hand") }}Needs you <span class="count">{{ needs_you|length }}</span></h2>
+<p class="hint mt0">JobHunt stopped on these and handed them to you. Open one to see why and finish it yourself, then press I applied.</p>
+<div class="queue rise">
+  {% for j in needs_you %}
+  <div class="qcard needs" data-row>
+    <span class="logo" aria-hidden="true">{{ initials(j.company) }}</span>
+    <div class="what"><a class="role" href="/jobs/{{ j.id }}">{{ j.role }}</a><span class="co">{{ j.company }}</span>
+      {% set why = why_needs_you(j) %}{% if why %}<div class="whyline">{{ icon("circle-alert", "sm") }}<span>{{ why|truncate(140) }}</span></div>{% endif %}</div>
+    <div class="acts"><a class="btn small" href="/jobs/{{ j.id }}">{{ icon("chevron-right") }}Open</a>
+      {% with next = "/hunt", cls = "" %}{% include "_applied.html" %}{% endwith %}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script src="{{ static_url('hunt.js') }}"></script>

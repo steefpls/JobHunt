@@ -72,7 +72,7 @@ def test_accounts_page_shows_each_sites_login_state(client):
                              "jobstreet": {"state": "out", "detail": "the site asked to sign in",
                                            "checked_at": "2026-10-14T10:00:00"}})
     page = client.get("/accounts").text
-    assert "✓ Logged in" in page and "Not logged in" in page and "Not checked yet" in page
+    assert "Logged in</span>" in page and "Not logged in" in page and "Not checked yet" in page
     assert "checked 2026-10-14 10:00" in page and "Log in again" in page
     assert "Logged in</span> as <b>Jane Tan</b>" in page
     assert "Session saved" not in client.get("/static/app.js").text  # no more "saved" without knowing
@@ -264,7 +264,8 @@ def test_needs_you_jobs_are_listed_on_the_hunt_page_and_dashboard(client):
     db.append_note(jid, "The form asks about notice period and your Profile has no answer.")
     hunt_page = client.get("/hunt").text
     assert "Needs you" in hunt_page and "Lumen" in hunt_page and "has no answer" in hunt_page
-    assert "Needs you: 1" in client.get("/").text
+    home = client.get("/").text
+    assert "Needs you <span class=\"count\">1</span>" in home and "has no answer" in home
 
 
 def test_profile_and_scope_tasks_report_what_finished(fake_llm, secrets, candidate):

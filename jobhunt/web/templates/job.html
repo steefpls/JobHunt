@@ -1,14 +1,124 @@
 {% extends "base.html" %}
 {% block title %}{{ job.company }}{% endblock %}
 {% block content %}
-<p><a href="/">&larr; All applications</a></p>
-<h1>{{ job.company }} · {{ job.role }}</h1>
-<p class="sub">{{ job.location }} · {{ job.source }} · found {{ job.created_at.replace("T", " ") }}
-  · <span class="badge {{ job.state }}">{{ job.state }}</span>
-  {% if job.date_applied %} · applied {{ job.date_applied }}{% endif %}
-  {% set wm = work_mode(job) %}{% if wm.kind %} · <span class="pill work" title="The posting says: {{ wm.quote }}">{{ wm.kind }}</span>{% endif %}
-  {% for f in wm.flex %}<span class="pill work" title="Ticked on MyCareersFuture">{{ f }}</span>{% endfor %}</p>
-  {% if wm.quote %}<p class="hint" style="margin:-12px 0 16px">Work arrangement, from the posting: “{{ wm.quote }}”</p>{% endif %}
+{% set from_review = job.state in ("Ready", "Needs you") %}
+<a class="back" href="{{ '/' if from_review else '/applications' }}">{{ icon("arrow-left") }}{{ 'To review' if from_review else 'Applications' }}</a>
+<div class="jobhead">
+  <span class="logo" aria-hidden="true">{{ initials(job.company) }}</span>
+  <div>
+    <h1>{{ job.company }} · {{ job.role }}</h1>
+    <div class="meta">
+      {{ state_badge(job.state) }}
+      {% if job.location %}<span>{{ icon("map-pin", "sm") }}{{ job.location }}</span>{% endif %}
+      <span>{{ icon("search", "sm") }}{{ job.source }}</span>
+      <span title="{{ job.created_at.replace('T', ' ')[:16] }}">{{ icon("clock", "sm") }}found {{ ago_text(job.created_at) or job.created_at[:10] }}</span>
+      {% if job.date_applied %}<span>{{ icon("send", "sm") }}applied {{ job.date_applied }}</span>{% endif %}
+      {% if job.match_score is not none %}<span class="pill fit {{ 'hi' if job.match_score >= 8 }}" style="margin:0">fit {{ job.match_score|int }}/10</span>{% endif %}
+      {% set wm = work_mode(job) %}{% if wm.kind %}<span class="pill work" style="margin:0" title="The posting says: {{ wm.quote }}">{{ icon("house") }}{{ wm.kind }}</span>{% endif %}
+      {% for f in wm.flex %}<span class="pill work" style="margin:0" title="Ticked on MyCareersFuture">{{ f }}</span>{% endfor %}
+    </div>
+    {% if wm.quote %}<p class="hint" style="margin:6px 0 0">Work arrangement, from the posting: “{{ wm.quote }}”</p>{% endif %}
+  </div>
+</div>
+
+{# The one place to act on this job: what to do next, its main button, and the rest under More #}
+{% set au = job.apply_url or job.url %}{# a MyCareersFuture search: /apply looks for the job itself first #}
+{% set apply_href = ('/jobs/' ~ job.id ~ '/apply') if au.startswith(mcf_search) else au|web_url %}
+<div class="actionbar" id="next">
+  <div class="what">
+    {% if job.state == "Ready" and not human_apply %}
+      <b>Ready to send</b>Check the resume and cover letter below, then let JobHunt fill in the application.
+        It stops and hands it to you if anything needs a person.
+    {% elif job.state == "Needs you" %}
+      <b>Needs you</b>JobHunt stopped on this application: the reason is below.
+    {% elif job.state == "Not for me" %}
+      <b>You turned this one down</b>{% if reject_why %}Why: {{ reject_why }}{% else %}No reason given.{% endif %} JobHunt won't suggest it again.
+    {% elif job.state == "Ready" %}
+      <b>Apply yourself</b>This site needs Singpass, so you finish it in your own browser.
+        {% if has_package %}Attach the resume and cover letter from Files, then press I applied.{% else %}Then press I applied.{% endif %}
+    {% else %}
+      <b>{{ state_label(job.state) }}</b>Move it along with Status as things happen.
+    {% endif %}
+  </div>
+  <div class="actions">
+    <details class="menu last">
+      <summary class="btn" aria-label="More actions">{{ icon("ellipsis") }}More</summary>
+      <div class="menupanel" role="menu">
+        <a class="mitem" role="menuitem" href="{{ job.url|web_url }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }}Open posting ↗</a>
+        <form method="post" action="/jobs/{{ job.id }}/open-folder"><button class="mitem" role="menuitem" title="data/jobs/{{ job.folder }}">{{ icon("folder-open") }}Open folder</button></form>
+        <hr><div class="mlabel">Status</div>
+        <form method="post" action="/jobs/{{ job.id }}/state"><input type="hidden" name="next" value="/jobs/{{ job.id }}">
+          {% for s in user_states %}<button class="mitem {{ 'on' if s == job.state }}" role="menuitem" name="state" value="{{ s }}" {{ 'disabled' if s == job.state }}>{{ icon(state_icons.get(s, "circle-dot")) }}{{ state_label(s) }}</button>{% endfor %}
+        </form>
+      </div>
+    </details>
+    {% if job.state == "Ready" and not human_apply %}
+      <a class="btn" href="{{ apply_href }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }}Open apply page ↗</a>
+      <form method="post" action="/jobs/{{ job.id }}/apply" class="inline" data-confirm="JobHunt fills in the application for {{ job.role }} at {{ job.company }} and submits it, with the resume and cover letter below. It stops and hands it to you if anything needs a person."
+            data-confirm-title="Send this application?" data-confirm-ok="Submit application">
+        <button class="btn primary" {{ 'disabled title="Waiting for the current task to finish"' if status.busy }}>{{ icon("send") }}Approve &amp; apply</button>
+      </form>
+    {% else %}
+      <a class="btn {{ 'primary' if job.state in ('Ready', 'Needs you') }}" href="{{ apply_href }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }}Open apply page ↗</a>
+    {% endif %}
+    {% if job.state in ("Ready", "Needs you") %}{% with j = job, next = "/jobs/" ~ job.id, cls = "big" %}{% include "_applied.html" %}
+      {% include "_reject.html" %}{% endwith %}{% endif %}
+  </div>
+</div>
+
+{% if job.state == "Needs you" %}
+<div class="card">
+  <div class="why"><b>Why JobHunt stopped:</b> {{ why or "It needs you to finish it." }}</div>
+  {% if help.fix %}<p style="margin:12px 0 4px"><b>1.</b> <a class="btn small" href="{{ help.fix[1] }}">{{ help.fix[0] }}</a></p>{% endif %}
+  {% if can_retry %}
+  <form method="post" action="/jobs/{{ job.id }}/apply" class="inline"
+        data-confirm="JobHunt fills in the application again from the start, and submits it if every question is answered."
+        data-confirm-title="Try this application again?" data-confirm-ok="Try again">
+    <p style="margin:8px 0">{% if help.fix %}<b>2.</b> Then {% endif %}<button class="btn small primary" {{ 'disabled' if status.busy }}>{{ icon("refresh-cw") }}Try again</button>
+      <span class="hint">JobHunt fills it in again from the start.</span></p>
+  </form>
+  {% endif %}
+  <p class="hint mb0">{% if has_package %}{{ help.advice }}{% else %}Open the apply page and finish it there, then press I applied.{% endif %}</p>
+</div>
+{% endif %}
+
+<div class="card files">
+  <div class="cardhead"><h2>{{ icon("file-text") }}Files</h2>
+    {% if files and not (profile_changes or letter_dated) %}{# when the notice is up, its button is the one #}
+    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline" data-busy="Rebuilding…"><button class="btn small">{{ icon("refresh-cw") }}Rebuild PDFs</button></form>
+    {% endif %}
+  </div>
+  {% if files %}
+  {% if profile_changes or letter_dated %}
+  <div class="notice todo" id="pdfsStale" style="margin:0 0 12px">{{ icon("triangle-alert") }}<div class="body">
+    {% if letter_dated %}<p style="margin:0 0 8px"><b>The cover letter is dated {{ letter_dated }}.</b> Rebuild PDFs to date it today{% if not profile_changes %} (no AI, no tokens){% endif %}.
+      {% if (job.state == "Ready" and not human_apply) or can_retry %}JobHunt does this by itself when it applies.{% endif %}</p>{% endif %}
+    {% if profile_changes %}<b>Your <a href="/profile">Profile</a> changed after these were made.</b> Rebuild PDFs to use the new version.
+    It brings in your name, contact details, employers, job titles and dates (no AI, no tokens). Other wording stays as it is: to change it, edit <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder first.
+    <ul>{% for c in profile_changes %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline" data-busy="Rebuilding…"><button class="btn small">{{ icon("refresh-cw") }}Rebuild PDFs</button></form>
+  </div></div>
+  {% endif %}
+  <div class="seg" id="tabs" role="tablist" aria-label="Files">
+    {% for f in files if (f.name.endswith(".pdf") or f.name.endswith(".md")) and f.name != "company.md" %}
+    <button type="button" role="tab" data-src="/files/{{ job.id }}/{{ f.name }}?v={{ f.version }}" data-name="{{ f.name }}" class="{{ 'on' if loop.first }}" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ icon("list-checks" if f.name.endswith(".md") else "file-text") }}{{ {"resume.pdf": "Resume", "cover_letter.pdf": "Cover letter", "match_report.md": "Match report"}.get(f.name, f.name) }}</button>
+    {% endfor %}
+  </div>
+  {# report_html is built by render.report_html: every "<" from the file is escaped first #}
+  <div id="reportView" class="report mt3" style="display:none">{{ report_html|safe }}</div>
+  <div class="previewbox mt3" id="previewBox">
+    <div class="skel" aria-hidden="true"><i style="width:40%;height:18px"></i><i style="width:60%"></i><i></i><i style="width:92%"></i><i style="width:85%"></i><i style="width:70%"></i><i></i><i style="width:88%"></i></div>
+    <iframe id="preview" class="preview" title="File preview"></iframe>
+  </div>
+  {% if not (profile_changes or letter_dated) %}
+  <p class="hint mb0 mt2">Changed your Profile? Rebuild PDFs re-makes them with your name, contact details,
+    employers, job titles and dates as your <a href="/profile">Profile</a> has them now, and dates the cover letter today if it hasn't been sent.
+    Other wording stays: to change it, edit <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder (Notepad is fine) first.</p>
+  {% endif %}
+  {% else %}
+  <p class="muted mb0">No files yet.</p>
+  {% endif %}
+</div>
 
 {# The company summary: every fact was checked against the page it quotes (company.py) #}
 {% macro fact(f, posting_tag="") %}{% if f %}{{ f.text }}{% set s = company_src.get(f.source) %}
@@ -17,20 +127,22 @@
         {%- if f.from_posting or posting_tag %} <span class="tag">{{ posting_tag or ("From the job posting only" if f.posting_only else "From the job posting") }}</span>{% endif %}
         {% else %}<span class="muted">Not found</span>{% endif %}{% endmacro %}
 {% set agency = company and company.status == "ok" and company.agency %}
+<div class="grid wide-right">
+<div class="stack">
 <div class="card company" id="company">
   <div class="company-head">
-    <h2>{% if agency %}Posted by: {{ job.company or "a recruiter" }}{% else %}About {{ job.company or "this company" }}{% endif %}{% if company and company.agency %} <span class="badge agency">Recruiter posting</span>{% endif %}</h2>
+    <h2>{{ icon("building-2") }}{% if agency %}Posted by: {{ job.company or "a recruiter" }}{% else %}About {{ job.company or "this company" }}{% endif %}{% if company and company.agency %} <span class="badge agency">Recruiter posting</span>{% endif %}</h2>
     {% if not company_busy %}
     <form method="post" action="/jobs/{{ job.id }}/company" class="inline">
-      <button class="btn small" {{ 'disabled' if status.busy }}>{{ 'Refresh' if company else 'Look up this company' }}</button>
+      <button class="btn small" {{ 'disabled' if status.busy }}>{{ icon("refresh-cw" if company else "search") }}{{ 'Refresh' if company else 'Look up this company' }}</button>
     </form>
     {% endif %}
   </div>
   {% if company_busy %}
-    <p class="muted" id="companyBusy" data-job="{{ job.id }}"><span class="dot live"></span>Looking up {{ job.company }}:
+    <div class="busyline mt3" id="companyBusy" data-job="{{ job.id }}">{{ icon("loader-circle", "spin") }}<span>Looking up {{ job.company }}:
       reading the posting, the job board's company page, Singapore's company registry, Wikipedia and the company's
-      website. This takes about a minute;
-      the summary shows here when it's done.</p>
+      website. About a minute; the summary shows here when it's done.</span></div>
+    <div class="skel-lines" aria-hidden="true"><i class="shimmer"></i><i class="shimmer"></i><i class="shimmer"></i></div>
   {% elif company and company.status == "ok" %}
     {% if agency %}<p class="hint">A recruitment agency posted this job for an employer it doesn't name. These facts are
       about the agency; what the posting says about the employer is under Hiring for.</p>{% endif %}
@@ -55,7 +167,7 @@
           title="{{ (s.label ~ ': ' if s) ~ '“' ~ n.quote ~ '”' }}">{{ n.source }}</a></li>{% endfor %}
     </ul>
     {% endif %}
-    <div class="sources"><b>Sources</b>
+    <details class="sources"><summary>Sources ({{ company.sources|length }})</summary>
       <ul>{% for s in company.sources %}<li><span class="src">{{ s.id }}</span> {{ s.label }}{% if s.url %}:
         <a href="{{ s.url|web_url }}" target="_blank" rel="noopener noreferrer">{{ s.url|link_label }}</a>{% endif %}</li>{% endfor %}</ul>
       {% if company.skipped %}<details><summary>Not read ({{ company.skipped|length }})</summary>
@@ -63,131 +175,58 @@
       <p class="hint">Made {{ company.made_at.replace("T", " ") }} from these pages only. Every fact is quoted from the
         page it cites (point at a source mark to see the words); what the pages don't say shows as Not found{% if company.dropped %},
         and {{ company.dropped }} fact(s) the AI couldn't back with a quote were left out{% endif %}.</p>
-    </div>
+    </details>
   {% elif company and company.status == "failed" %}
-    <div class="why">Couldn't look this company up: {{ company.error }}</div>
+    <div class="why mt3">Couldn't look this company up: {{ company.error }}</div>
     <p class="hint">The package isn't affected. Press Look up this company to try again.</p>
   {% else %}
-    <p class="muted" style="margin-bottom:0">No company summary yet (packages made before JobHunt looked companies up
+    <p class="muted mb0 mt3">No company summary yet (packages made before JobHunt looked companies up
       don't have one). Press <b>Look up this company</b> to read about it: one small AI call.</p>
   {% endif %}
 </div>
 
 <div class="card pay" id="pay">
   <div class="company-head">
-    <h2>Market pay</h2>
-    <form method="post" action="/jobs/{{ job.id }}/market-pay" class="inline">
-      <button class="btn small">{{ 'Check again' if pay else 'Check market pay' }}</button></form>
+    <h2>{{ icon("banknote") }}Market pay</h2>
+    <form method="post" action="/jobs/{{ job.id }}/market-pay" class="inline" data-busy="Checking…">
+      <button class="btn small">{{ icon("refresh-cw" if pay else "search") }}{{ 'Check again' if pay else 'Check market pay' }}</button></form>
   </div>
   {% if pay and pay.status == "ok" %}
-    <div class="paygrid">
+    <div class="paygrid mt3">
       <div><span class="hint">This job</span><b>{{ (pay.job ~ " a month") if pay.job else "Not stated" }}</b>
         {% if pay.verdict %}<span class="pill {{ pay.verdict|replace(' ', '') }}">{{ "Above the market" if pay.verdict == "above" else "Below the market" if pay.verdict == "below" else "In line with the market" }}</span>{% endif %}</div>
       <div><span class="hint">Similar {{ pay.level }} jobs{{ " (all levels)" if pay.all_levels }}</span><b>{{ pay.text }}</b></div>
     </div>
-    <p class="hint" style="margin-bottom:0">From {{ pay.ads }} current ads on MyCareersFuture for
+    <p class="hint mb0">From {{ pay.ads }} current ads on MyCareersFuture for
       “<a href="{{ pay.search_url|web_url }}" target="_blank" rel="noopener noreferrer">{{ pay.query }}</a>”
       with the same job title{{ " at the same level" if not pay.all_levels else "; too few at this level, so every level counts" }},
       checked {{ pay.checked }}. The range is the middle of their stated ranges; every ad there must state its pay.</p>
   {% elif pay %}
-    <p class="muted" style="margin-bottom:0">{{ pay.why }}</p>
+    <p class="muted mb0 mt3">{{ pay.why }}</p>
   {% else %}
-    <p class="muted" style="margin-bottom:0">Not checked yet. <b>Check market pay</b> compares it with what similar jobs
+    <p class="muted mb0 mt3">Not checked yet. <b>Check market pay</b> compares it with what similar jobs
       on MyCareersFuture pay right now: a few seconds, no AI.</p>
   {% endif %}
 </div>
-
-<div class="grid two">
-  <div class="card">
-    <h2>What next</h2>
-    {% if job.state == "Ready" and not human_apply %}
-      <p>The package is ready. Check the resume and cover letter, then let JobHunt fill in the application.
-        It stops and hands it to you if anything needs a human (unknown questions, verification codes, captchas).</p>
-      <form method="post" action="/jobs/{{ job.id }}/apply" class="inline"
-            data-confirm="Let JobHunt fill in and SUBMIT this application now?">
-        <button class="btn primary" {{ 'disabled' if status.busy }}>Approve &amp; apply</button>
-      </form>
-    {% elif job.state == "Needs you" %}
-      <div class="why"><b>Why JobHunt stopped:</b> {{ why or "It needs you to finish it." }}</div>
-      {% if help.fix %}<p style="margin:10px 0 4px"><b>1.</b> <a class="btn small" href="{{ help.fix[1] }}">{{ help.fix[0] }}</a></p>{% endif %}
-      {% if can_retry %}
-      <form method="post" action="/jobs/{{ job.id }}/apply" class="inline"
-            data-confirm="Let JobHunt try this application again? It fills it in and SUBMITS it if everything is answered.">
-        <p style="margin:6px 0">{% if help.fix %}<b>2.</b> Then {% endif %}<button class="btn small primary" {{ 'disabled' if status.busy }}>Try again</button>
-          <span class="hint">JobHunt fills it in again from the start.</span></p>
-      </form>
-      {% endif %}
-      <p class="hint">{% if has_package %}{{ help.advice }}{% else %}Open the apply page and finish it there, then press I applied.{% endif %}</p>
-    {% elif job.state == "Not for me" %}
-      <div class="why"><b>You rejected this package.</b> {% if reject_why %}Why: {{ reject_why }}{% else %}No reason given.{% endif %}</div>
-      <p class="hint">JobHunt won't suggest it again. Changed your mind? Set the state below.</p>
-    {% elif job.state == "Ready" %}
-      <p>Finish this application yourself in your browser (this site needs Singpass).
-        {% if has_package %}Attach the resume and cover letter from Files below, then press I applied.{% else %}Then press I applied.{% endif %}</p>
-    {% endif %}
-    <div class="actions">
-      {% set au = job.apply_url or job.url %}{# a MyCareersFuture search: /apply looks for the job itself first #}
-      <a class="btn" href="{{ ('/jobs/' ~ job.id ~ '/apply') if au.startswith(mcf_search) else au|web_url }}" target="_blank" rel="noopener noreferrer">Open apply page ↗</a>
-      <a class="btn" href="{{ job.url|web_url }}" target="_blank" rel="noopener noreferrer">Open posting ↗</a>
-      <form method="post" action="/jobs/{{ job.id }}/open-folder" class="inline"><button class="btn">Open folder</button></form>
-      {% if job.state in ("Ready", "Needs you") %}{% with j = job, next = "/jobs/" ~ job.id, cls = "big" %}{% include "_applied.html" %}
-        {% include "_reject.html" %}{% endwith %}{% endif %}
-    </div>
-    <form method="post" action="/jobs/{{ job.id }}/state" class="row" style="margin-top:14px">
-      <div><label for="jobState">Set state</label>
-        <select name="state" id="jobState">{% for s in user_states %}<option {{ 'selected' if s == job.state }}>{{ s }}</option>{% endfor %}</select></div>
-      <div style="flex:0 0 auto"><button class="btn">Save</button></div>
-    </form>
-  </div>
-  <div class="card">
-    <h2>Notes</h2>
-    <form method="post" action="/jobs/{{ job.id }}/notes" data-guard>
-      <textarea name="notes" class="plain" style="min-height:110px" aria-label="Your notes"
-        placeholder="Your own notes: who you spoke to, follow-up dates...">{{ job.notes }}</textarea>
-      <div class="actions"><button class="btn small">Save notes</button></div>
-    </form>
-    {% if history %}
-    <details class="history"><summary>What JobHunt did ({{ history|length }})</summary>
-      <ul>{% for line in history %}<li>{{ line }}</li>{% endfor %}</ul></details>
-    {% endif %}
-    <p class="muted" style="margin-bottom:0">AI use for this job: <b>{{ "{:,}".format(job.tokens_in + job.tokens_out) }}</b> tokens
-      ({{ "{:,}".format(job.tokens_in) }} in / {{ "{:,}".format(job.tokens_out) }} out), <b>${{ "%.4f"|format(job.cost_usd) }}</b>{% if subscription %} at API prices (covered by your flat plan){% endif %}.
-      {% for c in calls %}<br><span class="mono">{{ c.stage }}: {{ "{:,}".format(c.tokens_in + c.tokens_out) }} tok, {{ "%.1f"|format(c.seconds) }}s</span>{% endfor %}</p>
-  </div>
 </div>
 
 <div class="card">
-  <h2>Files <span class="muted" style="font-weight:400;font-size:13px">data/jobs/{{ job.folder }}</span></h2>
-  {% if files %}
-  {% if profile_changes or letter_dated %}
-  <div class="notice todo" id="pdfsStale" style="margin:0 0 12px">
-    {% if letter_dated %}<p style="margin:0 0 8px"><b>The cover letter is dated {{ letter_dated }}.</b> Rebuild PDFs to date it today{% if not profile_changes %} (no AI, no tokens){% endif %}.
-      {% if (job.state == "Ready" and not human_apply) or can_retry %}JobHunt does this by itself when it applies.{% endif %}</p>{% endif %}
-    {% if profile_changes %}<b>Your <a href="/profile">Profile</a> changed after these were made.</b> Rebuild PDFs to use the new version.
-    It brings in your name, contact details, employers, job titles and dates (no AI, no tokens). Other wording stays as it is: to change it, edit <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder first.
-    <ul>{% for c in profile_changes %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
-    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small">Rebuild PDFs</button></form>
-  </div>
+  <h2>Notes</h2>
+  <form method="post" action="/jobs/{{ job.id }}/notes" data-guard>
+    <textarea name="notes" class="plain" style="min-height:140px" aria-label="Your notes"
+      placeholder="Your own notes: who you spoke to, follow-up dates...">{{ job.notes }}</textarea>
+    <div class="actions"><button class="btn small">{{ icon("check") }}Save notes</button><span class="savestate hint" data-savestate></span></div>
+  </form>
+  {% if history %}
+  <details class="history"><summary>What JobHunt did ({{ history|length }})</summary>
+    <ul>{% for line in history %}<li>{{ line }}</li>{% endfor %}</ul></details>
   {% endif %}
-  <div class="tabs" id="tabs">
-    {% for f in files if (f.name.endswith(".pdf") or f.name.endswith(".md")) and f.name != "company.md" %}
-    <button type="button" data-src="/files/{{ job.id }}/{{ f.name }}?v={{ f.version }}" data-name="{{ f.name }}" class="{{ 'on' if loop.first }}">{{ f.name }}</button>
-    {% endfor %}
-  </div>
-  {# report_html is built by render.report_html: every "<" from the file is escaped first #}
-  <div id="reportView" class="report" style="display:none">{{ report_html|safe }}</div>
-  <iframe id="preview" class="preview" title="file preview"></iframe>
-  {% if not (profile_changes or letter_dated) %}{# when the notice is up, its button is the one #}
-  <div class="actions" style="align-items:center;flex-wrap:nowrap">
-    <form method="post" action="/jobs/{{ job.id }}/rebuild" class="inline"><button class="btn small" style="white-space:nowrap">Rebuild PDFs</button></form>
-    <span class="hint">Changed your Profile? This re-makes the PDFs with your name, contact details,
-      employers, job titles and dates as your <a href="/profile">Profile</a> has them now, and dates the cover letter today if it hasn't been sent. Other wording stays as it is: to change it, edit
-      <span class="mono">resume.html</span> / <span class="mono">cover_letter.html</span> in the folder (Notepad is fine) first.</span>
-  </div>
-  {% endif %}
-  {% else %}
-  <p class="muted">No files yet.</p>
-  {% endif %}
+  <details class="history"><summary>AI use for this job</summary>
+    <p class="mb0 mt2"><b>{{ "{:,}".format(job.tokens_in + job.tokens_out) }}</b> tokens
+      ({{ "{:,}".format(job.tokens_in) }} in / {{ "{:,}".format(job.tokens_out) }} out), <b>${{ "%.4f"|format(job.cost_usd) }}</b>{% if subscription %} at API prices (covered by your flat plan){% endif %}.
+      {% for c in calls %}<br><span class="mono">{{ c.stage }}: {{ "{:,}".format(c.tokens_in + c.tokens_out) }} tok, {{ "%.1f"|format(c.seconds) }}s</span>{% endfor %}</p>
+  </details>
+</div>
 </div>
 
 {% if job.state == "Rejected" %}
@@ -199,10 +238,10 @@
 </details>
 {% endif %}
 
-<div class="card">
-  <h2>Posting text <span class="muted" style="font-weight:400;font-size:13px">(what the AI read)</span></h2>
-  <div class="posting">{{ job.posting_text }}</div>
-</div>
+<details class="card" id="posting">
+  <summary><b>Posting text</b> <span class="muted">(what the AI read)</span></summary>
+  <div class="posting mt3">{{ job.posting_text }}</div>
+</details>
 {% endblock %}
 {% block scripts %}
 <script src="{{ static_url('job.js') }}"></script>

@@ -6,18 +6,7 @@
     fetch('/achievements/flag', {method: 'POST', body: new URLSearchParams({name: name})}).catch(function () {});
   }
 
-  // Achievement pop-ups: fade out after a while (hovering keeps them).
-  const toasts = document.getElementById('toasts');
-  if (toasts) {
-    let hold = false;
-    toasts.addEventListener('mouseenter', function () { hold = true; });
-    toasts.addEventListener('mouseleave', function () { hold = false; });
-    setTimeout(function fade() {
-      if (hold) { setTimeout(fade, 1500); return; }
-      toasts.querySelectorAll('.toast').forEach(function (t) { t.classList.add('gone'); });
-      setTimeout(function () { toasts.remove(); }, 700);
-    }, 9000);
-  }
+  // (Achievement pop-ups are toasts: app.js fades them out after a while, hovering keeps them.)
 
   // Five clicks on the logo, or the Konami code, find the achievements page.
   const logo = document.getElementById('logo');
@@ -52,7 +41,7 @@
     const name = document.body.dataset.name;
     window.jhIdleText = 'Idle (go to sleep' + (name ? ', ' + name : '') + ')';
     const box = document.getElementById('sideRun');
-    if (box && !box.querySelector('.dot.live')) box.lastChild.textContent = window.jhIdleText;
+    if (box && !box.querySelector('.dot.live')) box.querySelector('.txt').textContent = window.jhIdleText;
   }
 
   // Confetti for an offer, a smaller burst for an interview.

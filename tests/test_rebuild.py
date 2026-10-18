@@ -221,7 +221,7 @@ def test_notice_after_a_profile_change_and_gone_after_rebuild(client, candidate)
     notice = notice[:notice.index("</div>")]
     assert f'action="/jobs/{jid}/rebuild"' in notice and ">Rebuild PDFs</button>" in notice
     assert page.count(">Rebuild PDFs</button>") == 1  # the notice's button stands in for the usual one
-    assert ">Profile changed</span>" in client.get("/").text  # and the Dashboard row says so
+    assert ">Profile changed</span>" in client.get("/applications").text  # and the Dashboard row says so
 
     client.post(f"/jobs/{jid}/rebuild", headers=SAME_ORIGIN, follow_redirects=False)
     page = client.get(f"/jobs/{jid}").text
@@ -340,7 +340,7 @@ def test_job_page_says_the_letter_is_dated_before_today_and_rebuild_dates_it_tod
     notice = page[page.index('id="pdfsStale"'):]
     notice = notice[:notice.index("</div>")]
     assert f'action="/jobs/{jid}/rebuild"' in notice and page.count(">Rebuild PDFs</button>") == 1
-    assert "Profile changed" not in client.get("/").text  # Approve & apply re-dates it: no Dashboard pill
+    assert "Profile changed" not in client.get("/applications").text  # Approve & apply re-dates it: no Dashboard pill
 
     r = client.post(f"/jobs/{jid}/rebuild", headers=SAME_ORIGIN, follow_redirects=False)
     assert "now%20dated%2016%20October%202026" in r.headers["location"]
@@ -366,7 +366,7 @@ def test_both_notices_together_with_one_button(client, candidate, monkeypatch):
     assert "The cover letter is dated 13 October.</b> Rebuild PDFs to date it today." in page
     assert NOTICE in page and "your contact details" in page
     assert page.count(">Rebuild PDFs</button>") == 1
-    assert ">Profile changed</span>" in client.get("/").text
+    assert ">Profile changed</span>" in client.get("/applications").text
 
 
 @pytest.mark.parametrize("state", ["Applied", "Rejected", "Not for me", "Applying"])

@@ -1,97 +1,60 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
+{% block title %}To review{% endblock %}
 {% block content %}
-<h1>Applications</h1>
-<p class="sub">Every job JobHunt prepared for you. Click a row to see the resume, cover letter and match report.</p>
+<div class="pagehead">
+  <div><h1>To review</h1>
+    <p class="sub">{% if ready or needs_you %}{{ (ready|length + needs_you|length) }} waiting for you. Check each package, then send it or set it aside.
+      {% else %}Packages JobHunt builds show up here for you to check.{% endif %}</p></div>
+  <a class="btn primary" href="/hunt">{{ icon("search") }}Start a hunt</a>
+</div>
 
-{% if not checklist|selectattr(1)|list|length == checklist|length %}
+{% set done_n = checklist|selectattr(1)|list|length %}
+{% if done_n < checklist|length %}
 <div class="card checklist">
-  <h2>Get started</h2>
+  <div class="cardhead"><h2>{{ icon("list-checks") }}Get set up</h2><span class="muted">{{ done_n }} of {{ checklist|length + 1 }} done</span></div>
+  <div class="progressbar"><span style="width:{{ (done_n / (checklist|length + 1) * 100)|round|int }}%"></span></div>
+  <div class="steps">
   {% for label, done, href in checklist %}
-  <a href="{{ href }}"><span class="tick {{ 'done' if done }}">{{ '✓' if done else loop.index }}</span>{{ label }}</a>
+  <a class="step {{ 'isdone' if done }}" href="{{ href }}"><span class="tick {{ 'done' if done }}">{% if done %}{{ icon("check", "sm") }}{% else %}{{ loop.index }}{% endif %}</span>{{ label }}</a>
   {% endfor %}
-  <a href="/hunt"><span class="tick">{{ checklist|length + 1 }}</span>Start a hunt (try the practice board first)</a>
+  <a class="step" href="/hunt"><span class="tick">{{ checklist|length + 1 }}</span>Start a hunt (try the practice board first)</a>
+  </div>
 </div>
 {% endif %}
 
-{% if counts.get("Needs you") %}
-<div class="notice avail"><b>Needs you: {{ counts["Needs you"] }}</b> · JobHunt stopped on
-  {{ "these applications" if counts["Needs you"] > 1 else "this application" }} and handed
-  {{ "them" if counts["Needs you"] > 1 else "it" }} to you (a Singpass site, a question with no saved answer, a captcha...).
-  <a class="btn small" href="/?state=Needs%20you">Show</a></div>
+{% if needs_you %}
+<h2 class="section-title">{{ icon("hand") }}Needs you <span class="count">{{ needs_you|length }}</span></h2>
+<p class="hint mt0">JobHunt stopped on {{ "these" if needs_you|length > 1 else "this one" }} and handed {{ "them" if needs_you|length > 1 else "it" }} to you:
+  a Singpass site, a question with no saved answer or a captcha. Finish it on the site, then press I applied.</p>
+<div class="queue rise" id="needsYou">
+  {% for j in needs_you %}
+  <div class="qcard needs" data-row>
+    <span class="logo" aria-hidden="true">{{ initials(j.company) }}</span>
+    <div class="what"><a class="role" href="/jobs/{{ j.id }}">{{ j.role }}</a><span class="co">{{ j.company }}</span>
+      {% set why = why_needs_you(j) %}{% if why %}<div class="whyline">{{ icon("circle-alert", "sm") }}<span>{{ why|truncate(140) }}</span></div>{% endif %}</div>
+    <div class="acts"><a class="btn small primary" href="/jobs/{{ j.id }}">{{ icon("chevron-right") }}Open</a>
+      {% with next = "/", cls = "" %}{% include "_applied.html" %}{% endwith %}</div>
+  </div>
+  {% endfor %}
+</div>
 {% endif %}
 
 {% if ready %}
-<div class="card" id="readyToApprove">
-  <h2>Ready to approve <span class="badge Ready">{{ ready|length }}</span></h2>
-  <p class="hint" style="margin-top:0">JobHunt built these packages. Review each one, then approve it (or apply yourself where the site needs you).</p>
-  {% include "_approve.html" %}
+<div id="readyToApprove">
+<h2 class="section-title">{{ icon("circle-dot") }}Ready to approve <span class="count">{{ ready|length }}</span></h2>
+<p class="hint mt0">JobHunt built these packages. Review each one, then approve it (or apply yourself where the site needs you).</p>
+{% include "_approve.html" %}
 </div>
 {% endif %}
 
-<div class="stats">
-  <a class="stat link" href="/"><b>{{ counts.values()|sum }}</b><span>All</span></a>
-  {% for s in states %}{% if counts.get(s) %}
-  <a class="stat link" href="/?state={{ s|urlencode }}"><b>{{ counts[s] }}</b><span>{{ s }}</span></a>
-  {% endif %}{% endfor %}
-  <div class="stat"><b id="spendTotal">{{ "{:,}".format((spend.tin + spend.tout)|int) }}</b><span>tokens used, all time{% if spend.cost > 0 %} · ${{ "%.3f"|format(spend.cost) }}{% if subscription %} at API prices{% endif %}{% endif %}</span></div>
-</div>
-
-<div class="card">
-  <div class="row" style="align-items:center;margin-bottom:8px">
-    <h2 style="margin:0">{{ state or "All applications" }}</h2>
-    <div style="text-align:right;flex:0 0 auto">
-      {% if state %}<a class="btn small" href="/">Show all</a>{% endif %}
-      <a class="btn small" href="/export.csv">Export CSV</a>
-    </div>
-  </div>
-  {% if jobs %}
-  <table>
-    <thead><tr><th>#</th><th>Found</th><th>Company · Role</th><th>Site</th><th>State</th><th>Applied / rejected</th><th>Last change</th><th>Tokens</th><th>Cost</th><th>Set state</th></tr></thead>
-    <tbody>
-    {% for j in jobs %}
-      <tr>
-        <td class="muted">{{ j.id }}</td>
-        <td class="muted">{{ j.created_at[:10] }}</td>
-        <td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b></a><br>{{ j.role }}{% if j.match_score is not none %}<span class="pill">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">pay {{ p.verdict }} market</span>{% endif %}{% if j.id in profile_changed %}<span class="pill warn" title="Your Profile changed after its PDFs were made: open it to rebuild them">Profile changed</span>{% endif %}
-          {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
-        <td>{{ j.source }}</td>
-        <td><span class="badge {{ j.state }}">{{ j.state }}</span></td>
-        {% set applied_label, applied_day = applied_or_rejected(j) %}
-        <td class="muted" style="white-space:nowrap">{% if applied_day %}{{ applied_label }} {{ applied_day }}{% else %}—{% endif %}</td>
-        <td class="muted" style="white-space:nowrap"{% if j.last_state_ts %} title="{{ j.last_state_ts.replace('T', ' ')[:16] }}"{% endif %}>{{ ago_text(j.last_state_ts) or "—" }}</td>
-        <td class="mono">{{ "{:,}".format(j.tokens_in + j.tokens_out) }}</td>
-        <td class="mono">${{ "%.4f"|format(j.cost_usd) }}</td>
-        <td>
-          <form class="inline" method="post" action="/jobs/{{ j.id }}/state">
-            <input type="hidden" name="next" value="/{{ '?state=' ~ state|urlencode if state }}">
-            <select name="state" data-autosubmit aria-label="Change state" style="width:auto;padding:4px 6px">
-              <option value="">change…</option>
-              {% for s in user_states %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-            </select>
-          </form>
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p class="muted">Nothing here yet. Run a hunt to fill this table.</p>
-  {% endif %}
-</div>
-
-{% if runs %}
-<div class="card">
-  <h2>Recent runs</h2>
-  <table>
-    <thead><tr><th>#</th><th>What</th><th>Started</th><th>Result</th><th>Tokens</th><th>Cost</th></tr></thead>
-    {% for r in runs %}
-    <tr><td class="muted">{{ r.id }}</td><td>{{ r.kind }}</td><td class="muted">{{ r.started_at.replace("T", " ") }}</td>
-      <td><span class="badge">{{ r.status }}</span> {{ r.summary }}</td>
-      <td class="mono">{{ "{:,}".format(r.tokens_in + r.tokens_out) }}</td>
-      <td class="mono">${{ "%.4f"|format(r.cost_usd) }}</td></tr>
-    {% endfor %}
-  </table>
+{% if not ready and not needs_you %}
+<div class="card empty done">
+  <div class="art">{{ icon("circle-check", "xl") }}</div>
+  <h2>{{ "All caught up" if counts else "Nothing to review yet" }}</h2>
+  <p>{% if last_hunt %}The last hunt finished {{ ago_text(last_hunt.finished_at or last_hunt.started_at) or "a while ago" }}.
+    {% endif %}Start a hunt and the packages it builds land here.</p>
+  <div class="actions"><a class="btn primary" href="/hunt">{{ icon("search") }}Start a hunt</a>
+    {% if counts %}<a class="btn" href="/applications">{{ icon("briefcase-business") }}See all applications</a>{% endif %}</div>
 </div>
 {% endif %}
 {% endblock %}

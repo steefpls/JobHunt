@@ -95,7 +95,7 @@ def test_reject_with_reasons_saves_them_and_the_job_page_shows_them(client):
     assert job["reject_note"] == "Too far from home"
     assert 'You rejected it: Wrong location; Too senior. "Too far from home"' in job["history"]
     page = client.get(f"/jobs/{jid}").text
-    assert "You rejected this package." in page and "Wrong location; Too senior." in page
+    assert "You turned this one down" in page and "Wrong location; Too senior." in page
     assert "Too far from home" in page and not reject_panel(page, jid)
     assert db.list_jobs("Not for me")[0]["id"] == jid and not db.list_jobs("Rejected")
 

@@ -104,7 +104,7 @@ def test_the_page_is_secret_until_found(client):
     assert "You found the secret page" in page and "Snoop · Unlocked" in page  # visiting earns Snoop
     assert page.count("???") == len([k for k in achievements.KINDS if k.group == "Hidden"]) - 1
     assert "A code older than you are." in page
-    assert '🏆 1 achievement</a>' in client.get("/hunt").text
+    assert '1 achievement</a>' in client.get("/hunt").text
 
 
 def test_flags_can_only_be_the_ones_the_page_sets(client):

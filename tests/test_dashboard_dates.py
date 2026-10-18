@@ -86,9 +86,9 @@ def test_dashboard_shows_the_dates_and_a_dash(client):
     declined = _job(url="http://x/b", company="Beta")
     db.reject(declined, ["Too senior"])
     _job(url="http://x/c", company="Gamma")  # Found: nothing was decided, no date to show
-    page = client.get("/").text
+    page = client.get("/applications").text
     assert "<th>Applied / rejected</th>" in page and "<th>Last change</th>" in page
-    assert f"Applied {today}" in page and f"Not for me {today}" in page
+    assert f"Applied {today}" in page and f"Not interested {today}" in page
     assert "just now" in page and 'title="' in page  # the exact time is in the tooltip
     gamma_row = page.split(">Gamma<", 1)[1].split("</tr>", 1)[0]
     assert ">—</td>" in gamma_row  # a dash, never a wrong date
