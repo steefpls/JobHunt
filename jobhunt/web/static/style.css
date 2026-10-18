@@ -252,3 +252,4 @@ details[open]:not(.reject) > summary::before { transform: rotate(90deg); }
 .pill.above { background: var(--ok-bg); color: var(--ok); }
 .pill.below { background: var(--bad-bg); color: var(--bad); }
 .pill.inline { background: var(--chip); color: var(--chip-ink2); }
+.pill.work { background: var(--blue-bg); color: var(--brand); }

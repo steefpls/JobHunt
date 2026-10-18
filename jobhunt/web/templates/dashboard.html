@@ -53,7 +53,7 @@
       <tr>
         <td class="muted">{{ j.id }}</td>
         <td class="muted">{{ j.created_at[:10] }}</td>
-        <td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b></a><br>{{ j.role }}{% if j.match_score is not none %}<span class="pill">fit {{ j.match_score|int }}/10</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">pay {{ p.verdict }} market</span>{% endif %}{% if j.id in profile_changed %}<span class="pill warn" title="Your Profile changed after its PDFs were made: open it to rebuild them">Profile changed</span>{% endif %}
+        <td><a href="/jobs/{{ j.id }}"><b>{{ j.company }}</b></a><br>{{ j.role }}{% if j.match_score is not none %}<span class="pill">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">pay {{ p.verdict }} market</span>{% endif %}{% if j.id in profile_changed %}<span class="pill warn" title="Your Profile changed after its PDFs were made: open it to rebuild them">Profile changed</span>{% endif %}
           {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
         <td>{{ j.source }}</td>
         <td><span class="badge {{ j.state }}">{{ j.state }}</span></td>

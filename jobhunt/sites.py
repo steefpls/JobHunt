@@ -26,9 +26,9 @@ from urllib.parse import quote, quote_plus, urljoin, urlparse, parse_qs
 import httpx
 from bs4 import BeautifulSoup
 
-from . import company
-from .extract import (Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, salary_top_monthly,
-                      select_text)
+from . import company, workmode
+from .extract import (Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, salary_range_monthly,
+                      salary_top_monthly, select_text)
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/141.0.0.0 Safari/537.36")
@@ -232,6 +232,9 @@ class MyCareersFutureSite:
             parts.append("Skills listed: " + ", ".join(skills))
         if salary:
             parts.append("Salary: " + salary)
+        flex = [f.get("flexibleWorkArrangement") for f in r.get("flexibleWorkArrangements") or [] if isinstance(f, dict)]
+        if any(flex):  # MyCareersFuture's own ticks: Telecommuting, Flexi-Hours... (workmode.py reads them)
+            parts.append(workmode.FLEX_LINE + ", ".join(f for f in flex if f))
         p = Posting(source=self.key, url=listing.url, title=r.get("title") or listing.title,
                     company=(r.get("hiringCompany") or {}).get("name") or (r.get("postedCompany") or {}).get("name") or listing.company,
                     location=listing.location, text="\n\n".join(parts), apply_url=listing.url, salary=salary,
@@ -479,7 +482,7 @@ class IndeedSite:
         p = self.posting_from_job(data, listing)
         if p.apply_url.startswith(MCF_SEARCH) and not self.mcf_down:
             try:
-                p.apply_url = mcf_job_url(ctx, p.title, p.company) or p.apply_url
+                p.apply_url = mcf_job_url(ctx, p.title, p.company, p.salary) or p.apply_url
             except (SiteBlocked, PageUnavailable, httpx.HTTPError, ValueError):
                 self.mcf_down = True
         return p
@@ -529,22 +532,33 @@ MCF_HOST = "mycareersfuture.gov.sg"
 MCF_SEARCH = f"https://www.{MCF_HOST}/search?search="
 
 
-def mcf_job_url(ctx, title: str, company: str) -> str:
+def mcf_job_url(ctx, title: str, company: str, salary: str = "") -> str:
     """A job's own MyCareersFuture page, from MyCareersFuture's public search by its title and company (the
-    employer's or the posting agency's name); '' unless exactly one job matches both. Raises the search's
-    own errors (SiteBlocked, PageUnavailable, httpx.HTTPError, ValueError) so a hunt can stop asking."""
+    employer's or the posting agency's name). When the company has several ads with that title, the pay
+    the posting states picks one; '' unless exactly one job is left. Raises the search's own errors
+    (SiteBlocked, PageUnavailable, httpx.HTTPError, ValueError) so a hunt can stop asking."""
     def same(a, b):
         return clean_whitespace(str(a or "")).casefold() == clean_whitespace(b).casefold()
     data = ctx.get_json(f"{MyCareersFutureSite.API}/search?limit=20&page=0", method="POST",
                         body={"search": f"{title} {company}"}, pace=False)
     mcf = MyCareersFutureSite()
     try:
-        hits = {mcf.listing_from_result(r).url for r in data.get("results") or []
-                if r.get("uuid") and same(r.get("title"), title)
-                and any(same((r.get(k) or {}).get("name"), company) for k in ("hiringCompany", "postedCompany"))}
-    except (AttributeError, TypeError):  # not the shape we know
+        found = {mcf.listing_from_result(r).url: r for r in data.get("results") or []
+                 if r.get("uuid") and same(r.get("title"), title)
+                 and any(same((r.get(k) or {}).get("name"), company) for k in ("hiringCompany", "postedCompany"))}
+        lo, hi = salary_range_monthly(salary)
+        if len(found) > 1 and hi:  # "Software Engineer" at $4k-$6k and at $7k-$10k: the pay says which
+            found = {url: r for url, r in found.items() if _same_pay(r.get("salary") or {}, lo, hi)}
+    except (AttributeError, TypeError, ValueError):  # not the shape we know
         return ""
-    return hits.pop() if len(hits) == 1 and is_mcf_url(next(iter(hits))) else ""
+    return next(iter(found)) if len(found) == 1 and is_mcf_url(next(iter(found))) else ""
+
+
+def _same_pay(sal: dict, lo: float, hi: float) -> bool:
+    """MyCareersFuture's salary block states the same monthly range as (lo, hi), give or take a dollar."""
+    if (sal.get("type") or {}).get("salaryType", "Monthly") != "Monthly":
+        return False
+    return abs(float(sal.get("minimum") or 0) - lo) < 1 and abs(float(sal.get("maximum") or 0) - hi) < 1
 
 
 def is_mcf_url(url: str) -> bool:

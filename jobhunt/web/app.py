@@ -23,6 +23,7 @@ from fastapi.templating import Jinja2Templates
 from .. import (achievements, company, db, demo_board, hunt, llm, login_check, marketpay, paths, profile, refresh,
                render, secrets_store, tuning, updates)
 from .. import settings as settings_mod
+from .. import sites, workmode
 from ..sites import SITE_STATUS, apply_site
 
 HERE = Path(__file__).resolve().parent
@@ -70,6 +71,8 @@ templates.env.filters["link_label"] = render.link_label
 templates.env.globals["apply_site"] = apply_site  # MyCareersFuture for an Indeed job that applies there
 templates.env.globals["company_line"] = company.line_for  # the one-line company summary on job lists
 templates.env.globals["market_pay"] = marketpay.load  # what similar jobs pay, once checked
+templates.env.globals["mcf_search"] = sites.MCF_SEARCH
+templates.env.globals["work_mode"] = workmode.of  # remote / hybrid / on-site, when the posting says
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
 templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Dashboard's Applied / rejected column
@@ -376,6 +379,24 @@ def create_app(port: int = 8765) -> FastAPI:
         if result.get("status") == "ok":
             return back(f"/jobs/{job_id}#pay")
         return back(f"/jobs/{job_id}#pay", err=result.get("why") or "Couldn't work out market pay.")
+
+    @app.get("/jobs/{job_id}/apply")
+    def open_apply_page(job_id: int):
+        """Open apply page. An Indeed job from MyCareersFuture whose own page the hunt couldn't pick out
+        (its link is a MyCareersFuture search) gets one more look, with the pay to tell same-name ads apart."""
+        job = db.get_job(job_id)
+        if not job:
+            return back("/", err="No such job.")
+        url = job["apply_url"] or job["url"]
+        if url.startswith(sites.MCF_SEARCH):
+            try:
+                found = sites.mcf_job_url(_MCFSearch(), job["role"], job["company"], job["salary"])
+            except (httpx.HTTPError, ValueError, sites.SiteBlocked, sites.PageUnavailable):
+                found = ""  # offline or MyCareersFuture down: the search still finds it
+            if found:
+                db.update_job(job_id, apply_url=found)
+                url = found
+        return RedirectResponse(web_url(url) if web_url(url) != "#" else f"/jobs/{job_id}", status_code=303)
 
     @app.post("/jobs/{job_id}/open-folder")
     def open_folder(job_id: int):
@@ -818,3 +839,12 @@ def create_app(port: int = 8765) -> FastAPI:
         return back("/settings", msg="Forgot every posting seen so far; the next hunt will look at them again.")
 
     return app
+
+
+class _MCFSearch:
+    """Just enough of a hunt's SiteContext for sites.mcf_job_url, outside a hunt."""
+    def get_json(self, url, method="GET", body=None, pace=True):
+        with httpx.Client(headers={"User-Agent": marketpay.UA}, timeout=8) as c:
+            r = c.request(method, url, json=body)
+            r.raise_for_status()
+            return r.json()
