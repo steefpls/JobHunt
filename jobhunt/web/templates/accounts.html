@@ -7,7 +7,7 @@
 <div class="card" id="aikey">
   <div class="cardhead"><h2>{{ icon("key-round") }}AI key</h2>
     <span class="muted">Using <b>{{ providers[settings.provider] }}</b> · <a href="/settings">change</a></span></div>
-  <table>
+  <table class="statustable">
     {% for p, label in providers.items() %}
     <tr><td>{{ label }}</td>
       <td>{% if keys[p] %}<span class="badge Applied">{{ icon("check", "sm") }}saved</span>{% else %}<span class="badge">not set</span>{% endif %}</td>
@@ -21,7 +21,7 @@
     {% endfor %}
   </table>
   <form method="post" action="/accounts/apikey" class="row" style="margin-top:12px" autocomplete="off" data-guard>
-    <div style="flex:0 0 260px"><label for="f_provider">Provider</label>
+    <div style="flex:0 1 360px"><label for="f_provider">Provider</label>
       <select id="f_provider" name="provider">{% for p, label in providers.items() %}<option value="{{ p }}" {{ 'selected' if p == settings.provider }}>{{ label }}</option>{% endfor %}</select></div>
     <div><label for="f_api_key">Paste key</label><input type="password" id="f_api_key" name="api_key" autocomplete="new-password" placeholder="paste your key here" required minlength="8"></div>
     <div style="flex:0 0 auto"><button class="btn primary">{{ icon("check") }}Save key</button></div>
@@ -38,7 +38,7 @@
     <form method="post" action="/accounts/browser/close" class="inline"><button class="btn small">Close it for me</button></form></span></div>
   {% elif checking or check_waiting %}<div id="loginChecking" class="busyline" style="margin:8px 0">{{ icon("loader-circle", "spin") }}<span><span class="badge Ready">Checking your logins…</span>
     This page updates by itself in a few seconds.</span></div>{% endif %}
-  <table>
+  <table class="statustable">
     {% for key, (label, url) in login_sites.items() %}{% set st = login_status.get(key) %}
     <tr><td><b>{{ label }}</b></td>
       <td>{% if browser_open or checking or check_waiting %}<span class="badge" aria-label="Checking">{{ icon("loader-circle", "sm spin") }}</span>

@@ -63,7 +63,7 @@
       <div class="fielderr" id="delayErr" hidden>The max wait is shorter than the min: it will be raised to match when you save.</div>
       <div class="row">
         <div><label for="f_max_apps_per_hour_per_site">Max applications an hour, per site</label><input type="number" id="f_max_apps_per_hour_per_site" name="max_apps_per_hour_per_site" min="0" value="{{ settings.pacing.max_apps_per_hour_per_site }}"></div>
-        <div><label for="f_action_delay_s">Pause between clicks while applying (s)</label><input type="number" id="f_action_delay_s" name="action_delay_s" min="0" step="0.1" value="{{ settings.pacing.action_delay_s }}"></div>
+        <div><label for="f_action_delay_s" title="While JobHunt fills in an application">Pause between clicks (s)</label><input type="number" id="f_action_delay_s" name="action_delay_s" min="0" step="0.1" value="{{ settings.pacing.action_delay_s }}"></div>
       </div>
       <label for="f_max_candidates">Most postings to read per hunt</label><input type="number" id="f_max_candidates" name="max_candidates" min="1" value="{{ settings.hunt.max_candidates }}">
     </div>

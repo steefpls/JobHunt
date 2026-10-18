@@ -21,7 +21,7 @@
 </div>
 {% endif %}
 
-<div class="grid two">
+<div class="grid hunt">
   <div class="card">
     <h2>Start a hunt</h2>
     <form method="post" action="/hunt/start" id="huntForm">
@@ -29,7 +29,7 @@
       <input type="number" name="jobs" min="1" max="200" value="{{ settings.hunt.jobs }}" id="jobsInput" style="max-width:140px">
       <fieldset>
         <legend>Mode</legend>
-        <div class="choices">
+        <div class="choices cols">
           <label class="choice"><input type="radio" name="mode" value="draft" checked>
             <span><b>Review each one first <span class="pill">recommended</span></b><span class="hint">Draft: JobHunt builds the packages and you approve each one.</span></span></label>
           <label class="choice"><input type="radio" name="mode" value="auto">
@@ -60,7 +60,7 @@
     <form method="post" action="/hunt/stop" id="stopForm"></form>
   </div>
 
-  <div class="card">
+  <div class="card runcard">
     <h2>This run</h2>
     <div class="meter">
       <div class="stat"><b id="mState">{{ status.kind if status.busy else "idle" }}</b><span>status</span></div>

@@ -19,14 +19,14 @@
     <label for="f_location">Location</label>
     <input type="text" id="f_location" name="location" value="{{ settings.scope.location }}">
   </div>
-  <div class="card">
+  <div class="card fillcard">
     <h2>Never apply when the title or company contains</h2>
     <label for="f_avoid" class="hint" style="font-weight:400;margin-top:0">Skipped instantly, without spending any AI tokens. One per line.</label>
     <textarea id="f_avoid" name="avoid_words" class="plain" style="min-height:150px">{{ settings.scope.avoid_words|join("\n") }}</textarea>
   </div>
 </div>
 <div class="grid wide-left">
-  <div class="card" id="describe">
+  <div class="card fillcard" id="describe">
     <h2>Describe the jobs you want</h2>
     <p class="muted">The AI reads this to decide yes or no on every posting, so be specific. Short answers are enough;
       the guide on the right says what helps. Your salary floor is the <a href="/profile#screening">Expected salary</a>
