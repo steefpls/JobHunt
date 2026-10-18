@@ -16,6 +16,7 @@
     <a href="/scope" class="{{ 'on' if nav == 'scope' }}">Scope</a>
     <a href="/accounts" class="{{ 'on' if nav == 'accounts' }}">Accounts</a>
     <a href="/settings" class="{{ 'on' if nav == 'settings' }}">Settings</a>
+    <a href="/changelog" class="{{ 'on' if nav == 'changelog' }}">Changelog</a>
     <div class="runstate" id="sideRun">
       <span class="dot {{ 'live' if status.busy }}"></span>{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}
     </div>
@@ -56,6 +57,7 @@
       <b>JobHunt was updated</b> to version {{ updates.news.to[:7] }}{% if updates.news["from"] %} (from {{ updates.news["from"][:7] }}){% endif %}.
       {% if updates.news.changes %}What's new:
       <ul>{% for c in updates.news.changes %}<li>{{ c }}</li>{% endfor %}</ul>{% endif %}
+      {% if nav != 'changelog' %}<a href="/changelog">See every change so far</a>{% endif %}
       <form method="post" action="/update/seen" class="inline"><input type="hidden" name="next" value="{{ here }}">
         <button class="btn small">Got it</button></form>
     </div>

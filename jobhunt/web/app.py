@@ -660,6 +660,10 @@ def create_app(port: int = 8765) -> FastAPI:
     def api_version():  # also how a second run.bat tells that JobHunt is the one on this port
         return JSONResponse({"app": "JobHunt", "version": updates.info()["version"], "started": app.state.started})
 
+    @app.get("/changelog", response_class=HTMLResponse)
+    def changelog_page(request: Request):
+        return page(request, "changelog.html", log=updates.changelog())
+
     @app.post("/update/seen")
     def update_seen(next: str = Form("/")):
         updates.mark_news_seen()

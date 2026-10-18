@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Changelog{% endblock %}
+{% block content %}
+<h1>Changelog</h1>
+<p class="sub">Every change to JobHunt, newest first. You have version <b>{{ log.version }}</b>.
+  {% if log.coming %}{{ log.coming }} newer change{{ 's are' if log.coming != 1 else ' is' }} out: restart JobHunt to get {{ 'them' if log.coming != 1 else 'it' }}.{% endif %}</p>
+{% if not log.ok %}
+<div class="notice avail">Couldn't reach GitHub just now (offline?).{% if log.days %} This is the list from {{ log.fetched_at }}.{% endif %}</div>
+{% endif %}
+{% if not log.days %}
+<div class="card"><p class="muted" style="margin:0">{% if not updates.on %}Updates are off (JOBHUNT_NO_UPDATE is set), so there's no list of changes.
+  {% else %}No list of changes yet. It comes from GitHub, so try again once you're online.{% endif %}</p></div>
+{% endif %}
+{% for day in log.days %}
+<div class="card changelog">
+  <h2>{{ day.label }}</h2>
+  <ul>
+  {% for ch in day.changes %}
+    <li class="{{ 'coming' if not ch.installed }}">{% if ch.current %}<span class="badge Applied">your version</span> {% elif not ch.installed %}<span class="badge Ready">not installed yet</span> {% endif %}{{ ch.note }}
+      <span class="hint ver">{{ ch.sha }}</span></li>
+  {% endfor %}
+  </ul>
+</div>
+{% endfor %}
+{% endblock %}
