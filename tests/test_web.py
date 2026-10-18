@@ -133,3 +133,17 @@ def test_login_browser_status_and_close(client, monkeypatch):
     assert "Login browser closed" in r.text and proc.poll() is not None
     assert client.get("/api/login-browser").json()["open"] is False
     assert "Close it for me" not in client.get("/accounts").text
+
+
+def test_pages_ask_for_this_versions_scripts_and_styles_not_a_saved_copy(data_dir):
+    """After an update a browser must not keep running its saved app.js and style.css next to new pages
+    (Zech's theme switch showed up unstyled and dead that way)."""
+    import re
+    from fastapi.testclient import TestClient
+    from jobhunt.web.app import create_app
+    with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as c:
+        html = c.get("/").text
+        links = re.findall(r'(?:src|href)="(/static/[^"]+)"', html)
+        assert links and all(re.search(r"\?v=[0-9a-f]{10}$", u) for u in links)
+        r = c.get(links[0])
+        assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"

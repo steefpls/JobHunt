@@ -5,6 +5,7 @@ must carry a local Host header (stops DNS-rebinding tricks); every form post mus
 come from this app's own pages (stops other websites posting to it).
 Secret values can be saved here but are never sent back to the browser.
 """
+import hashlib
 import json
 import os
 import subprocess
@@ -66,7 +67,22 @@ def ago_text(ts: str, now: datetime | None = None) -> str:
     return f"{n} {unit}{'s' if n != 1 else ''} ago"
 
 
+_static_hashes: dict[str, str] = {}
+
+
+def static_url(name: str) -> str:
+    """/static/app.js?v=<its content hash>: after an update the browser fetches the new file at once
+    instead of running its saved copy of the old one next to the new pages."""
+    if name not in _static_hashes:
+        try:
+            _static_hashes[name] = hashlib.sha1((HERE / "static" / name).read_bytes()).hexdigest()[:10]
+        except OSError:
+            _static_hashes[name] = ""
+    return f"/static/{name}?v={_static_hashes[name]}"
+
+
 templates.env.filters["web_url"] = web_url
+templates.env.globals["static_url"] = static_url
 templates.env.filters["link_label"] = render.link_label
 templates.env.globals["apply_site"] = apply_site  # MyCareersFuture for an Indeed job that applies there
 templates.env.globals["company_line"] = company.line_for  # the one-line company summary on job lists
@@ -207,6 +223,8 @@ def create_app(port: int = 8765) -> FastAPI:
             if origin.rstrip("/").lower() not in own_origins:
                 return PlainTextResponse("Blocked: this request did not come from the JobHunt page.", status_code=403)
         response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-cache"  # always ask whether it changed (a quick 304 if not)
         if response.headers.get("content-type", "").startswith("text/html"):
             # Second line of defence: even if some web text slipped into a page as HTML,
             # no inline script, plugin or foreign resource would run.

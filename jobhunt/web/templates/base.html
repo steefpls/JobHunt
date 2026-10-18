@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% if waiting %}({{ waiting }}) {% endif %}{% block title %}JobHunt{% endblock %} · JobHunt</title>
-<link rel="stylesheet" href="/static/style.css">
-<script src="/static/theme.js"></script>
+<link rel="stylesheet" href="{{ static_url('style.css') }}">
+<script src="{{ static_url('theme.js') }}"></script>
 </head>
 <body data-party="{{ party }}" data-name="{{ first_name }}">
 <div class="layout">
@@ -75,9 +75,9 @@
     <span><b>And {{ toasts|length - 4 }} more</b><br>See them all</span></a>{% endif %}
 </div>
 {% endif %}
-<script src="/static/app.js"></script>
-<script src="/static/motion.js"></script>
-<script src="/static/eggs.js"></script>
+<script src="{{ static_url('app.js') }}"></script>
+<script src="{{ static_url('motion.js') }}"></script>
+<script src="{{ static_url('eggs.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
