@@ -191,8 +191,32 @@ a.src:hover { text-decoration: none; background: #dbe4ff; }
 .company .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 6px;
   background: #f1f3f5; color: var(--muted); vertical-align: 1px; }
 .company h3.hiring { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: 15px; }
-.changelog ul { margin: 0; padding-left: 20px; }
-.changelog li { margin: 0 0 8px; line-height: 1.5; }
+
+/* Motion: pages cross-fade into each other, colours ease on hover, new messages slide in
+   (<details> open and shut smoothly through motion.js). All off when Windows asks for less motion. */
+@view-transition { navigation: auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .18s; }
+.btn, .side a, .chip span, a.src, .tabs button, input, select, textarea {
+  transition: background-color .15s, border-color .15s, color .15s, box-shadow .15s, opacity .15s; }
+.flash { animation: ease-in-down .28s cubic-bezier(.2,.7,.3,1); }
+@keyframes ease-in-down { from { opacity: 0; transform: translateY(-6px); } }
+summary::marker { content: none; }
+summary::-webkit-details-marker { display: none; }
+details:not(.reject) > summary { list-style: none; cursor: pointer; padding-left: 1em; }
+details:not(.reject) > summary::before { content: "▸"; display: inline-block; width: 1em; margin-left: -1em; color: var(--muted);
+  transition: transform .2s cubic-bezier(.2,.7,.3,1); }
+details[open]:not(.reject) > summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* Changelog: one line per change, opening to the details */
+.changelog ul { margin: 0; padding: 0; list-style: none; }
+.changelog li { margin: 0 0 6px; line-height: 1.5; padding-left: 1em; }
 .changelog li:last-child { margin-bottom: 0; }
 .changelog li.coming { color: var(--muted); }
+.changelog li > details { margin-left: -1em; }
+.changelog .bullet { display: inline-block; width: 1em; margin-left: -1em; color: var(--muted); }
+.changelog .more { margin: 4px 0 4px 1em; color: var(--muted); font-size: 13px; }
 .changelog .ver { margin-left: 4px; font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }

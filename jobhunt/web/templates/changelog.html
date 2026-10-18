@@ -2,7 +2,7 @@
 {% block title %}Changelog{% endblock %}
 {% block content %}
 <h1>Changelog</h1>
-<p class="sub">Every change to JobHunt, newest first. You have version <b>{{ log.version }}</b>.
+<p class="sub">Every change to JobHunt, newest first. Click one for the details. You have version <b>{{ log.version }}</b>.
   {% if log.coming %}{{ log.coming }} newer change{{ 's are' if log.coming != 1 else ' is' }} out: restart JobHunt to get {{ 'them' if log.coming != 1 else 'it' }}.{% endif %}</p>
 {% if not log.ok %}
 <div class="notice avail">Couldn't reach GitHub just now (offline?).{% if log.days %} This is the list from {{ log.fetched_at }}.{% endif %}</div>
@@ -16,8 +16,11 @@
   <h2>{{ day.label }}</h2>
   <ul>
   {% for ch in day.changes %}
-    <li class="{{ 'coming' if not ch.installed }}">{% if ch.current %}<span class="badge Applied">your version</span> {% elif not ch.installed %}<span class="badge Ready">not installed yet</span> {% endif %}{{ ch.note }}
-      <span class="hint ver">{{ ch.sha }}</span></li>
+    {% set tag %}{% if ch.current %}<span class="badge Applied">your version</span> {% elif not ch.installed %}<span class="badge Ready">not installed yet</span> {% endif %}{% endset %}
+    <li class="{{ 'coming' if not ch.installed }}">{% if ch.more %}<details><summary>{{ tag }}{{ ch.note }}</summary>
+      <div class="more">{% for para in ch.more.split("\n") if para.strip() %}<p style="margin:0 0 4px">{{ para }}</p>{% endfor %}
+        <span class="hint ver">{{ ch.sha }}</span></div></details>
+      {% else %}<span class="bullet">•</span>{{ tag }}{{ ch.note }} <span class="hint ver">{{ ch.sha }}</span>{% endif %}</li>
   {% endfor %}
   </ul>
 </div>

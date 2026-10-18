@@ -4,10 +4,11 @@
   const frame = document.getElementById('preview');
   const report = document.getElementById('reportView');
   if (!frame || !report) return;
+  function reveal(el) { if (window.jhMotion) window.jhMotion.reveal(el); }
   function show(btn) {
     tabs.forEach(b => b.classList.toggle('on', b === btn));
-    if (btn.dataset.name === 'match_report.md') { frame.style.display = 'none'; report.style.display = 'block'; }
-    else { report.style.display = 'none'; frame.style.display = 'block'; frame.src = btn.dataset.src; }
+    if (btn.dataset.name === 'match_report.md') { frame.style.display = 'none'; report.style.display = 'block'; reveal(report); }
+    else { report.style.display = 'none'; frame.style.display = 'block'; frame.src = btn.dataset.src; reveal(frame); }
   }
   tabs.forEach(b => b.addEventListener('click', () => show(b)));
   if (tabs.length) show(tabs[0]);

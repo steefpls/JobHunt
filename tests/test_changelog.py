@@ -85,7 +85,7 @@ def test_reading_githubs_answer_leaves_out_merges(monkeypatch):
         seen.append(req.full_url)
         return io.BytesIO(json.dumps(answer).encode())
     monkeypatch.setattr(updates.urllib.request, "urlopen", urlopen)
-    assert REAL_FETCH() == [{"sha": B, "at": "2026-10-17T00:00:00Z", "note": "A change"}]
+    assert REAL_FETCH() == [{"sha": B, "at": "2026-10-17T00:00:00Z", "note": "A change", "body": "more detail"}]
     assert len(seen) == 1 and "steefpls/JobHunt/commits?sha=main" in seen[0]
 
 
@@ -104,3 +104,20 @@ def test_page_offline_with_nothing_yet(data_dir):
     with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as client:
         r = client.get("/changelog")
     assert r.status_code == 200 and "Couldn't reach GitHub" in r.text and "No list of changes yet" in r.text
+
+
+def test_long_notes_get_a_short_headline_with_the_rest_behind_it():
+    assert updates.headline("Short note") == ("Short note", "")
+    assert updates.headline("Short note", "More detail") == ("Short note", "More detail")
+    long = "Cover letters are dated the day they're sent, not the day they were made: approve & apply " + "x " * 40
+    line, more = updates.headline(long)
+    assert line == "Cover letters are dated the day they're sent, not the day they were made" and more.startswith("Approve")
+    line, more = updates.headline("Dashboard: " + "word " * 40)
+    assert line.endswith("…") and len(line) <= updates.HEADLINE_MAX + 1 and more.startswith("Dashboard: word")
+
+
+def test_the_details_open_from_the_page(data_dir):
+    ANSWER["now"] = [{"sha": C, "at": "2026-10-18T09:00:00Z", "note": "A headline", "body": "What it does, in full"}]
+    with TestClient(create_app(8765), base_url="http://127.0.0.1:8765") as client:
+        r = client.get("/changelog")
+    assert "<summary>" in r.text and "A headline</summary>" in r.text and "What it does, in full" in r.text

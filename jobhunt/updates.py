@@ -129,7 +129,8 @@ def _changelog_file() -> Path:
 
 
 def fetch_history(timeout: float = 6) -> list[dict]:
-    """Every commit on main, newest first: {"sha", "at" (ISO, UTC), "note" (its first line)}. Merges left out."""
+    """Every commit on main, newest first: {"sha", "at" (ISO, UTC), "note" (its first line), "body" (the rest)}.
+    Merges left out."""
     u = updater()
     out = []
     for page in range(1, CHANGELOG_PAGES + 1):
@@ -144,9 +145,10 @@ def fetch_history(timeout: float = 6) -> list[dict]:
             commit = c.get("commit") or {}
             lines = str(commit.get("message") or "").strip().splitlines()
             note = lines[0].strip() if lines else ""
+            body = "\n".join(ln for ln in lines[1:] if not ln.startswith("Co-Authored-By:")).strip()
             if note and not note.startswith("Merge ") and len(c.get("parents") or []) <= 1:
                 at = (commit.get("committer") or {}).get("date") or (commit.get("author") or {}).get("date") or ""
-                out.append({"sha": str(c.get("sha") or ""), "at": str(at), "note": note})
+                out.append({"sha": str(c.get("sha") or ""), "at": str(at), "note": note, "body": body})
         if len(commits) < 100:
             break
     return out
@@ -194,6 +196,25 @@ def _local_day(at: str) -> tuple[str, str]:
     return d.strftime("%Y-%m-%d"), f"{d.day} {d.strftime('%B %Y')}"
 
 
+HEADLINE_MAX = 100  # a longer note is split into a headline and details
+
+
+def headline(note: str, body: str = "") -> tuple[str, str]:
+    """A change as (one short line, the details behind it). A note with a body is already a headline.
+    Older notes are one long line: 'Cover letters are dated the day they're sent: Approve & apply re-dates...'
+    splits at the colon, else after the first sentence, else at a word near HEADLINE_MAX."""
+    note, body = note.strip(), body.strip()
+    if body or len(note) <= HEADLINE_MAX:
+        return note, body
+    for sep in (": ", ". ", "; "):
+        i = note.find(sep)
+        if 25 <= i <= HEADLINE_MAX + 20:
+            rest = note[i + len(sep):].strip()
+            return note[:i].rstrip("."), rest[:1].upper() + rest[1:]
+    cut = note.rfind(" ", 0, HEADLINE_MAX)
+    return note[:cut if cut > 40 else HEADLINE_MAX].rstrip(" ,;:") + "…", note
+
+
 def changelog() -> dict:
     """What the Changelog page shows: the changes grouped by day, newest first, each marked
     as in the version you have, the version you have, or not installed yet."""
@@ -209,7 +230,8 @@ def changelog() -> dict:
         key, label = _local_day(c.get("at", ""))
         if not days or days[-1]["key"] != key:
             days.append({"key": key, "label": label, "changes": []})
-        days[-1]["changes"].append({"sha": sha[:7], "note": c.get("note", ""), "installed": installed,
+        line, more = headline(c.get("note", ""), c.get("body", ""))
+        days[-1]["changes"].append({"sha": sha[:7], "note": line, "more": more, "installed": installed,
                                     "current": have and sha == version})
     return {"days": days, "fetched_at": fetched.replace("T", " ")[:16], "ok": ok,
             "coming": sum(1 for d in days for ch in d["changes"] if not ch["installed"]),
