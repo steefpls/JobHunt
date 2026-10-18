@@ -16,6 +16,7 @@ import threading
 from datetime import datetime
 
 from . import paths
+from .extract import salary_range_monthly
 
 # "Rejected" is the employer saying no (it counts toward achievements); "Not for me" is you turning a package down.
 STATES = ["Found", "Ready", "Applying", "Applied", "Needs you", "Error", "Interview", "Offer", "Rejected", "Not for me"]
@@ -61,7 +62,9 @@ CREATE TABLE IF NOT EXISTS seen (
     role TEXT NOT NULL DEFAULT '',
     decision TEXT NOT NULL,
     reason TEXT NOT NULL DEFAULT '',
-    seen_at TEXT NOT NULL
+    seen_at TEXT NOT NULL,
+    salary TEXT NOT NULL DEFAULT '',         -- the pay as the board stated it: tells same-title ads apart
+    apply_url TEXT NOT NULL DEFAULT ''       -- where its Apply button leads (an Indeed job's MyCareersFuture page)
 );
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,7 +132,8 @@ def connect() -> sqlite3.Connection:
 _ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": "TEXT NOT NULL DEFAULT ''",
                            "history": "TEXT NOT NULL DEFAULT ''", "reject_reason": "TEXT NOT NULL DEFAULT ''",
                            "reject_note": "TEXT NOT NULL DEFAULT ''", "salary": "TEXT NOT NULL DEFAULT ''",
-                           "company_info": "TEXT NOT NULL DEFAULT ''", "market_pay": "TEXT NOT NULL DEFAULT ''"}}
+                           "company_info": "TEXT NOT NULL DEFAULT ''", "market_pay": "TEXT NOT NULL DEFAULT ''"},
+                  "seen": {"salary": "TEXT NOT NULL DEFAULT ''", "apply_url": "TEXT NOT NULL DEFAULT ''"}}
 
 
 def init() -> None:
@@ -317,15 +321,57 @@ def company_key(name: str) -> str:
     return " ".join(kept or words)
 
 
-def is_duplicate(url: str, company: str, role: str) -> bool:
-    """Same URL, or the same company + role already tracked (even from another job site)."""
-    if _query("SELECT 1 FROM jobs WHERE url = ?", (url,)):
-        return True
-    key = company_key(company)
-    if not key:
-        return False
-    rows = _query("SELECT company FROM jobs WHERE lower(trim(role)) = lower(trim(?)) AND company != ''", (role,))
-    return any(company_key(r["company"]) == key for r in rows)
+# Words a board adds to a job title that don't change the job: "Software Engineer (Singapore) - Urgent Hiring"
+_TITLE_NOISE = {"singapore", "sg", "urgent", "urgently", "hiring", "immediate", "immediately", "asap", "wanted",
+                "new", "vacancy", "opening", "start", "job", "role"}
+_TITLE_SAME = {"sr": "senior", "snr": "senior", "jr": "junior", "mgr": "manager", "exec": "executive",
+               "asst": "assistant", "dev": "developer", "eng": "engineer", "engr": "engineer"}
+
+
+def title_key(title: str) -> frozenset:
+    """A job title the same way every board writes it: 'Sr. Software Engineer (Singapore) - Urgent' and
+    'Senior Software Engineer' are the same; '(Backend)' or '- Payments' still count."""
+    words = re.findall(r"[a-z0-9+#]+", (title or "").lower())
+    return frozenset(_TITLE_SAME.get(w, w) for w in words if w not in _TITLE_NOISE)
+
+
+def _pay_differs(a: str, b: str) -> bool:
+    """Both state a monthly range and the ranges don't meet: two ads, not one ($4k-6k and $7k-10k)."""
+    (alo, ahi), (blo, bhi) = salary_range_monthly(a), salary_range_monthly(b)
+    return bool(ahi and bhi) and (ahi < blo or bhi < alo)
+
+
+def _same_ad_links(url: str, apply_url: str) -> list[str]:
+    """The links that name one ad: its own, and where its Apply button leads (an Indeed job's MyCareersFuture
+    page is that MyCareersFuture job). A link to a search names no ad."""
+    return [u for u in dict.fromkeys((url, apply_url)) if u and "/search?" not in u]
+
+
+def duplicate_of(url: str, company: str, role: str, salary: str = "", apply_url: str = "") -> dict | None:
+    """The job already tracked or judged that this one is, from any job site: the same ad (its link, or
+    where its Apply button leads), or the same company and title (as title_key and company_key read them)
+    unless the pay says they're two ads. Postings that failed to load don't count, and neither does this
+    URL's own earlier try."""
+    links = _same_ad_links(url, apply_url)
+    marks = ",".join("?" * len(links))
+    rows = _query(f"SELECT source FROM jobs WHERE url IN ({marks}) OR (apply_url IN ({marks}) AND apply_url != '')",
+                  (*links, *links)) + _query(
+        f"SELECT source FROM seen WHERE decision != 'error' AND url != ? AND (url IN ({marks}) OR apply_url IN ({marks}))",
+        (url, *links, *links))
+    if rows:
+        return rows[0]
+    key, title = company_key(company), title_key(role)
+    if not key or not title:
+        return None
+    candidates = _query("SELECT source, company, role, salary FROM jobs WHERE company != ''") + _query(
+        "SELECT source, company, role, salary FROM seen WHERE company != '' AND decision != 'error' AND url != ?", (url,))
+    return next((r for r in candidates if company_key(r["company"]) == key and title_key(r["role"]) == title
+                 and not _pay_differs(salary, r["salary"])), None)
+
+
+def is_duplicate(url: str, company: str, role: str, salary: str = "", apply_url: str = "") -> bool:
+    """Same URL, or the same job already tracked or judged (even from another job site): see duplicate_of."""
+    return duplicate_of(url, company, role, salary, apply_url) is not None
 
 
 def applied_since(source: str, since_iso: str) -> int:
@@ -382,9 +428,11 @@ def was_seen(url: str) -> bool:
     return bool(_query("SELECT 1 FROM seen WHERE url = ? AND decision != 'error'", (url,)))
 
 
-def mark_seen(url: str, source: str, company: str, role: str, decision: str, reason: str = "") -> None:
-    _exec("INSERT OR REPLACE INTO seen (url, source, company, role, decision, reason, seen_at) VALUES (?,?,?,?,?,?,?)",
-          (url, source, company, role, decision, reason[:500], now()))
+def mark_seen(url: str, source: str, company: str, role: str, decision: str, reason: str = "", salary: str = "",
+              apply_url: str = "") -> None:
+    _exec("INSERT OR REPLACE INTO seen (url, source, company, role, decision, reason, seen_at, salary, apply_url)"
+          " VALUES (?,?,?,?,?,?,?,?,?)",
+          (url, source, company, role, decision, reason[:500], now(), salary or "", apply_url or ""))
 
 
 def forget_seen() -> None:

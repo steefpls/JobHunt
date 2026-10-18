@@ -508,19 +508,19 @@ def run_hunt(task: Task) -> str:
             if site.key in blocked or listing.url in tried:
                 continue  # tried: the same posting can come up again under another keyword
             tried.add(listing.url)
-            if db.was_seen(listing.url) or db.is_duplicate(listing.url, listing.company, listing.title):
+            if db.was_seen(listing.url) or db.is_duplicate(listing.url, listing.company, listing.title, listing.salary):
                 skipped_known += 1
                 continue
             hit = _avoid_hit(avoid, listing.title, listing.company)
             if hit:
-                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", f"avoid word: {hit}")
+                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", f"avoid word: {hit}", salary=listing.salary)
                 task.log(f"Skip (avoid word '{hit}'): {listing.company} - {listing.title}")
                 continue
             if listing.company and db.company_key(listing.company) in companies:
                 continue  # one application per company per run
             reason = _below_floor(listing.salary_max_monthly, floor)
             if reason:  # the search card already shows the pay: no need to open the posting
-                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", reason)
+                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", reason, salary=listing.salary)
                 task.log(f"Skip ({reason}): {listing.company} - {listing.title}")
                 continue
             examined += 1
@@ -531,16 +531,25 @@ def run_hunt(task: Task) -> str:
                 task.log(f"{site.label}: blocked or needs login ({e}); skipping this site for this run.", "warn")
                 continue
             except Exception as e:
-                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "error", str(e)[:200])
+                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "error", str(e)[:200], salary=listing.salary)
                 task.log(f"Could not read posting {listing.url}: {type(e).__name__}", "warn")
                 continue
+            dup = db.duplicate_of(listing.url, posting.company, posting.title, posting.salary, posting.apply_url)
+            if dup:  # the posting's own company and title, and its pay, can say more than the search card did
+                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip",
+                             f"same job as one already seen on {dup['source']}", salary=posting.salary,
+                         apply_url=posting.apply_url)
+                task.log(f"Skip (same job already seen on {dup['source']}): {posting.company} - {posting.title}")
+                continue
             if len(posting.text) < 80:
-                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", "posting text too short")
+                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", "posting text too short", salary=posting.salary,
+                         apply_url=posting.apply_url)
                 task.log(f"Posting had no readable text, skipped: {listing.url}", "warn")
                 continue
             reason = _below_floor(posting.salary_max_monthly, floor)
             if reason:
-                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip", reason)
+                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip", reason, salary=posting.salary,
+                         apply_url=posting.apply_url)
                 task.log(f"Skip ({reason}): {posting.company} - {posting.title}")
                 continue
             try:
@@ -548,16 +557,19 @@ def run_hunt(task: Task) -> str:
             except RateLimited:
                 raise
             except LLMError as e:  # one unreadable answer costs one posting, not the whole run
-                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", f"filter: {e}"[:200])
+                db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", f"filter: {e}"[:200], salary=posting.salary,
+                         apply_url=posting.apply_url)
                 task.log(f"Could not judge {posting.company} - {posting.title}: {e}", "warn")
                 continue
             if not verdict["apply"]:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip",
-                             "; ".join(map(str, verdict["reasons"])))
+                             "; ".join(map(str, verdict["reasons"])), salary=posting.salary,
+                         apply_url=posting.apply_url)
                 task.log(f"Not a fit: {posting.company} - {posting.title} ({'; '.join(map(str, verdict['reasons']))[:160]})")
                 continue
             db.mark_seen(listing.url, listing.source, posting.company, posting.title, "match",
-                         "; ".join(map(str, verdict["reasons"])))
+                         "; ".join(map(str, verdict["reasons"])), salary=posting.salary,
+                         apply_url=posting.apply_url)
             task.log(f"Match ({verdict.get('score')}/10): {posting.company} - {posting.title}")
             job_id = build_package(task, browser, posting, verdict, ctx)
             companies.add(db.company_key(posting.company))
