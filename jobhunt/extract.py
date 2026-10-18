@@ -89,6 +89,24 @@ def salary_top_monthly(text: str) -> float:
     return monthly(top, text)
 
 
+def salary_range_monthly(text: str) -> tuple[float, float]:
+    """Pay as a board shows it -> (bottom, top) in SGD a month; (0, 0) when not stated or not comparable.
+    '$5,500 – $8,000 per month' -> (5500, 8000), '$84,000 – $120,000 per year' -> (7000, 10000), '$6k' -> (6000, 6000).
+    Unlike salary_top_monthly, doubt gives (0, 0): this is only shown, it never skips a job."""
+    if not text or _FOREIGN_CURRENCY_RE.search(text):
+        return 0.0, 0.0
+    amounts = [float(n.replace(",", "")) * (1000 if k else 1) for n, k in _AMOUNT_RE.findall(_spread_k(text))]
+    amounts = [a for a in amounts if a >= 100]
+    if not amounts or (_PER_YEAR_RE.search(text) and _PER_MONTH_RE.search(text)):
+        return 0.0, 0.0
+    lo, hi = min(amounts), max(amounts)
+    if _PER_YEAR_RE.search(text):
+        return (lo / 12, hi / 12) if lo >= _LOWEST_YEARLY_PAY else (0.0, 0.0)
+    if _PER_HOUR_RE.search(text) or _PER_DAY_OR_WEEK_RE.search(text):
+        return 0.0, 0.0
+    return lo, hi
+
+
 _LOWEST_YEARLY_PAY = 20_000  # a year's pay below this is really a month's pay with "annual bonus" beside it
 
 

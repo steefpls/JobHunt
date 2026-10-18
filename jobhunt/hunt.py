@@ -19,7 +19,8 @@ import time
 import traceback
 from datetime import datetime, timedelta
 
-from . import company, db, profile, prompts, refresh, render, secrets_store, settings as settings_mod, sites, tuning
+from . import (company, db, marketpay, profile, prompts, refresh, render, secrets_store, settings as settings_mod, sites,
+               tuning)
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
@@ -166,6 +167,9 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
         db.add_history(job_id, note)
         company_summary(task, ctx or SiteContext(browser, task.settings["pacing"], task.stop_event, task.log),
                         job_id, posting.company_info)
+        pay = marketpay.check(job_id)
+        if pay and pay.get("status") == "ok":
+            task.log(f"Market pay for {posting.title}: {pay['text']}, from {pay['ads']} similar ads.", job_id=job_id)
         db.record_timing(task.run_id, job_id, "draft", time.monotonic() - t0)
         task.log(f"Package ready: {folder.name}")
     except BudgetExceeded as e:

@@ -70,6 +70,30 @@
   {% endif %}
 </div>
 
+<div class="card pay" id="pay">
+  <div class="company-head">
+    <h2>Market pay</h2>
+    <form method="post" action="/jobs/{{ job.id }}/market-pay" class="inline">
+      <button class="btn small">{{ 'Check again' if pay else 'Check market pay' }}</button></form>
+  </div>
+  {% if pay and pay.status == "ok" %}
+    <div class="paygrid">
+      <div><span class="hint">This job</span><b>{{ (pay.job ~ " a month") if pay.job else "Not stated" }}</b>
+        {% if pay.verdict %}<span class="pill {{ pay.verdict|replace(' ', '') }}">{{ "Above the market" if pay.verdict == "above" else "Below the market" if pay.verdict == "below" else "In line with the market" }}</span>{% endif %}</div>
+      <div><span class="hint">Similar {{ pay.level }} jobs{{ " (all levels)" if pay.all_levels }}</span><b>{{ pay.text }}</b></div>
+    </div>
+    <p class="hint" style="margin-bottom:0">From {{ pay.ads }} current ads on MyCareersFuture for
+      “<a href="{{ pay.search_url|web_url }}" target="_blank" rel="noopener noreferrer">{{ pay.query }}</a>”
+      with the same job title{{ " at the same level" if not pay.all_levels else "; too few at this level, so every level counts" }},
+      checked {{ pay.checked }}. The range is the middle of their stated ranges; every ad there must state its pay.</p>
+  {% elif pay %}
+    <p class="muted" style="margin-bottom:0">{{ pay.why }}</p>
+  {% else %}
+    <p class="muted" style="margin-bottom:0">Not checked yet. <b>Check market pay</b> compares it with what similar jobs
+      on MyCareersFuture pay right now: a few seconds, no AI.</p>
+  {% endif %}
+</div>
+
 <div class="grid two">
   <div class="card">
     <h2>What next</h2>

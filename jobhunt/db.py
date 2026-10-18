@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     reject_reason TEXT NOT NULL DEFAULT '', -- why you rejected it: the quick picks, joined with '; '
     reject_note TEXT NOT NULL DEFAULT '',   -- ... and anything you typed
     salary TEXT NOT NULL DEFAULT '',        -- the pay as the posting stated it
-    company_info TEXT NOT NULL DEFAULT ''   -- the company summary as JSON (company.py), '' = none yet
+    company_info TEXT NOT NULL DEFAULT '',  -- the company summary as JSON (company.py), '' = none yet
+    market_pay TEXT NOT NULL DEFAULT ''     -- what similar jobs pay, as JSON (marketpay.py), '' = not checked yet
 );
 CREATE TABLE IF NOT EXISTS seen (
     url TEXT PRIMARY KEY,
@@ -128,7 +129,7 @@ def connect() -> sqlite3.Connection:
 _ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": "TEXT NOT NULL DEFAULT ''",
                            "history": "TEXT NOT NULL DEFAULT ''", "reject_reason": "TEXT NOT NULL DEFAULT ''",
                            "reject_note": "TEXT NOT NULL DEFAULT ''", "salary": "TEXT NOT NULL DEFAULT ''",
-                           "company_info": "TEXT NOT NULL DEFAULT ''"}}
+                           "company_info": "TEXT NOT NULL DEFAULT ''", "market_pay": "TEXT NOT NULL DEFAULT ''"}}
 
 
 def init() -> None:
@@ -189,7 +190,7 @@ def add_job(*, source, url, company, role, location="", apply_url="", posting_te
 
 _JOB_FIELDS = {"company", "role", "location", "apply_url", "posting_text", "state", "date_applied",
                "folder", "notes", "match_score", "reason", "reason_kind", "history", "reject_reason", "reject_note",
-               "company_info"}
+               "company_info", "market_pay"}
 
 
 def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:

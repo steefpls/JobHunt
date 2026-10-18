@@ -78,6 +78,11 @@ def no_internet_lookups(monkeypatch):
     def no_http(url, params=None, headers=None, timeout=20):
         raise httpx.ConnectError("no internet in tests")
     monkeypatch.setattr(company_sources, "http_get", no_http)
+    from jobhunt import marketpay  # nor MyCareersFuture's search: a market pay test sets marketpay.http_post
+
+    def no_post(url, body, timeout=20):
+        raise httpx.ConnectError("no internet in tests")
+    monkeypatch.setattr(marketpay, "http_post", no_post)
     monkeypatch.setattr(company_sources, "GAP_S", 0)
     monkeypatch.setattr(company_sources, "RETRY_WAIT_S", 0)
 

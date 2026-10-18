@@ -20,8 +20,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .. import (achievements, company, db, demo_board, hunt, llm, login_check, paths, profile, refresh, render,
-               secrets_store, tuning, updates)
+from .. import (achievements, company, db, demo_board, hunt, llm, login_check, marketpay, paths, profile, refresh,
+               render, secrets_store, tuning, updates)
 from .. import settings as settings_mod
 from ..sites import SITE_STATUS, apply_site
 
@@ -69,6 +69,7 @@ templates.env.filters["web_url"] = web_url
 templates.env.filters["link_label"] = render.link_label
 templates.env.globals["apply_site"] = apply_site  # MyCareersFuture for an Indeed job that applies there
 templates.env.globals["company_line"] = company.line_for  # the one-line company summary on job lists
+templates.env.globals["market_pay"] = marketpay.load  # what similar jobs pay, once checked
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
 templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Dashboard's Applied / rejected column
@@ -280,7 +281,7 @@ def create_app(port: int = 8765) -> FastAPI:
         dated = refresh.stale_letter_date(job, folder)  # "13 October" (with the year when it isn't this year's)
         letter_dated = (f"{dated.day} {dated:%B}" + (f" {dated.year}" if dated.year != refresh.today().year else "")
                         if dated else "")
-        return page(request, "job.html", job=job, company=co, company_fields=company.FIELDS,
+        return page(request, "job.html", job=job, company=co, company_fields=company.FIELDS, pay=marketpay.load(job),
                     company_src={s_["id"]: s_ for s_ in (co or {}).get("sources", [])},
                     company_busy=st["busy"] and st["kind"] == "company" and job_id in (st["current_job"], st.get("job_id")), decoder=achievements.DECODER, files=render.list_files(folder) if job["folder"] else [],
                     report_html=report_html, calls=db.job_calls(job_id), user_states=db.USER_STATES,
@@ -364,6 +365,17 @@ def create_app(port: int = 8765) -> FastAPI:
         except RuntimeError as e:
             return back(f"/jobs/{job_id}#company", err=str(e))
         return back(f"/jobs/{job_id}#company", msg=f"Looking up {job['company']}: this takes under a minute.")
+
+    @app.post("/jobs/{job_id}/market-pay")
+    def market_pay(job_id: int):
+        """Check what similar jobs pay: one search on MyCareersFuture, a few seconds, no AI."""
+        job = db.get_job(job_id)
+        if not job:
+            return back("/", err="No such job.")
+        result = marketpay.check(job_id) or {}
+        if result.get("status") == "ok":
+            return back(f"/jobs/{job_id}#pay")
+        return back(f"/jobs/{job_id}#pay", err=result.get("why") or "Couldn't work out market pay.")
 
     @app.post("/jobs/{job_id}/open-folder")
     def open_folder(job_id: int):
