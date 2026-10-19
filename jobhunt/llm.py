@@ -349,7 +349,16 @@ class LLMClient:
         try:
             return extract_json(resp.text), resp
         except ValueError as e:
-            raise LLMError(f"The model did not return valid JSON ({e}).") from None
+            first = e
+        # a broken reply is usually a one-off (a stray quote, a cut-off ending): ask once more, saying what went
+        # wrong, so the same prompt doesn't simply come back the same way. The meter still checks this call.
+        retry = dict(kw, user=kw.get("user", "") + f"\n\nYour previous reply was not valid JSON ({first}). "
+                     "Reply again with only the JSON object, every string properly escaped.")
+        resp = self.chat(json_mode=True, **retry)
+        try:
+            return extract_json(resp.text), resp
+        except ValueError as e:
+            raise LLMError(f"The model did not return valid JSON, twice ({e}).") from None
 
     # OpenRouter and other OpenAI-style endpoints
     def _openai_style(self, model, system, user, tools, max_tokens, json_mode, session="") -> LLMResponse:

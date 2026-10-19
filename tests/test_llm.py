@@ -171,3 +171,22 @@ def test_extract_json(text):
 def test_extract_json_failure():
     with pytest.raises(ValueError):
         llm.extract_json("no json here")
+
+
+def test_broken_json_is_asked_for_once_more():
+    replies = iter(['{"apply": true, "reasons": ["a" "b"]}', '{"apply": true, "reasons": ["a", "b"]}'])
+    rec = Recorder(lambda req: _ok(next(replies)))
+    c = LLMClient(settings.load(), API_KEY, transport=rec.transport)
+    data, _ = c.chat_json(stage="filter", system="sys", user="usr")
+    assert data == {"apply": True, "reasons": ["a", "b"]}
+    assert len(rec.requests) == 2
+    second = json.loads(rec.requests[1].content)["messages"][-1]["content"]
+    assert second.startswith("usr") and "not valid JSON" in second
+
+
+def test_broken_json_twice_gives_up():
+    rec = Recorder(lambda req: _ok('{"apply": true, "reasons": ["a" "b"]}'))
+    c = LLMClient(settings.load(), API_KEY, transport=rec.transport)
+    with pytest.raises(LLMError, match="twice"):
+        c.chat_json(stage="filter", system="sys", user="usr")
+    assert len(rec.requests) == 2
