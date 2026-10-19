@@ -283,3 +283,56 @@ def apply_step_prompt(*, contact: dict, profile_text: str, job: dict, logins: li
         "Current page:\n" + page_view + "\n\n"
         "Decide the next action(s) and call the tools."
     )
+
+
+# ── 5. ask: a question, or a recruiter's questions, answered from the resume ──
+
+ASK_SHAPE = """{
+ "answers": [{"question": "the question, short", "answer": "the answer to give, in first person",
+              "basis": "where it came from: the roles/projects with their dates, or the saved answer used",
+              "sure": "yes" | "partly" | "no",
+              "profile_field": "one of the saved-answer keys when the question is one of those topics, else empty",
+              "short": "the answer in a few words, for saving (e.g. '2 years', 'Singapore Citizen')"}],
+ "reply": "a ready-to-send reply answering every question in order, or empty for a single question",
+ "missing": ["things the recruiter asked that the candidate must answer themselves"]
+}"""
+
+
+def ask_prompt(question: str, profile_text: str, cv_texts: list[tuple[str, str]], screening: dict,
+               today: str, job: dict | None = None) -> tuple[str, str]:
+    system = (
+        "You help one job seeker answer questions about their own background: a single question they ask you, or "
+        "the questions in a recruiter's message they paste in. Answer from their resume, profile and saved answers.\n"
+        + HONESTY_RULES + "\n"
+        "Rules for answering:\n"
+        "- Never round up or stretch. If something isn't in their documents, say so plainly ('Not on your resume') "
+        "and set sure to 'no'. Overstating experience to a recruiter backfires at interview.\n"
+        f"- Today is {today}. Count years of experience from the dates of the roles that used the skill: full-time "
+        "work, internships and real projects count; a tool mentioned in passing in a course does not. Add up the "
+        "months, and in basis name each role or project counted with its dates so they can check the sum.\n"
+        "- When the honest number depends on what counts, give both (e.g. '1.5 years professional, 3 including "
+        "school projects') and set sure to 'partly'.\n"
+        "- Work authorisation, notice period, salaries and the like: use the saved answers word for word. If the "
+        "saved answer is empty, don't guess: say they need to fill it in and add it to missing.\n"
+        "- The reply is short, polite and plain, in first person, as the candidate. Number the answers like the "
+        "message does. Don't invent a sign-off name; end with the candidate's name from the profile if known.\n"
+        + UNTRUSTED_RULES
+        + "\nReply with one JSON object only."
+    )
+    saved = "\n".join(f"- {k}: {v or '(empty)'}" for k, v in (screening or {}).items())
+    docs = "\n\n".join(untrusted("document", f"File: {name}\n{text}", 12000) for name, text in cv_texts[:4])
+    about = ""
+    if job:
+        about = ("They are asking about this job they're applying for (match its wording where it helps):\n"
+                 + untrusted("job_posting", f"Title: {job.get('role', '')}\nCompany: {job.get('company', '')}\n\n"
+                             + (job.get("posting_text") or ""), CAPS["filter_posting"]) + "\n\n")
+    user = (
+        "Candidate profile:\n" + _cap(profile_text, CAPS["profile"]) + "\n\n"
+        "Their uploaded CVs (the original wording):\n" + (docs or "(none uploaded)") + "\n\n"
+        "Their saved answers (keys in brackets are the profile_field values):\n" + saved + "\n\n"
+        + about +
+        "What they want answered (from the candidate, or a recruiter's message they pasted in):\n"
+        + untrusted("question", question, 6000) + "\n\n"
+        "Return JSON exactly in this shape:\n" + ASK_SHAPE
+    )
+    return system, user

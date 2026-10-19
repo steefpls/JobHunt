@@ -24,6 +24,7 @@ from markupsafe import Markup, escape
 
 from .. import (achievements, company, db, demo_board, hunt, llm, login_check, marketpay, paths, profile, refresh,
                render, secrets_store, tuning, updates)
+from .. import ask as ask_mod
 from .. import settings as settings_mod
 from .. import sites, workmode
 from ..sites import SITE_STATUS, apply_site
@@ -603,6 +604,43 @@ def create_app(port: int = 8765) -> FastAPI:
             return back("/profile", err=str(e))
         return back("/hunt", msg="Building your profile: about a minute. "
                                  "You'll be taken back to the Profile page when it's done.")
+
+    # ── ask: a question, or a recruiter's message, answered from the resume ──
+    @app.get("/ask", response_class=HTMLResponse)
+    def ask_page(request: Request, id: str = "", job: int = 0):
+        past = ask_mod.history()
+        shown = ask_mod.get(id) if id else None
+        about = db.get_job(job) if job else None
+        return page(request, "ask.html", shown=shown, past=[a for a in past if not shown or a["id"] != shown["id"]],
+                    about=about, screening=profile.load_screening(), screening_fields=profile.SCREENING_FIELDS,
+                    has_cv=bool(profile.load_profile().strip() or profile.list_cvs()))
+
+    @app.post("/ask")
+    def ask_question(question: str = Form(""), job_id: int = Form(0)):
+        """One AI call while you wait (about 10-30 s): it doesn't use the background task, so it works mid-hunt."""
+        back_to = f"/ask?job={job_id}" if job_id else "/ask"
+        try:
+            entry = ask_mod.ask(question, job_id or None)
+        except (llm.LLMError, llm.BudgetExceeded) as e:
+            return back(back_to, err=str(e))
+        except httpx.HTTPError:
+            return back(back_to, err="Couldn't reach the AI provider. Check your internet connection and try again.")
+        return back(f"/ask?id={entry['id']}#answer")
+
+    @app.post("/ask/remember")
+    def ask_remember(field: str = Form(...), value: str = Form(""), id: str = Form("")):
+        """Save one answer as the Profile's screening answer, so forms and the next Ask say the same."""
+        if field not in profile.SCREENING_FIELDS or not value.strip():
+            return back(f"/ask?id={quote(id)}#answer", err="Nothing to save.")
+        answers = profile.load_screening()
+        answers[field] = value.strip()
+        profile.save_screening(answers)
+        return back(f"/ask?id={quote(id)}#answer", msg=f"Saved to your Profile: {profile.SCREENING_FIELDS[field][0]}.")
+
+    @app.post("/ask/forget")
+    def ask_forget(id: str = Form(...)):
+        ask_mod.forget(id)
+        return back("/ask", msg="Removed.")
 
     # ── scope ──────────────────────────────────────────────────────────
     @app.get("/scope", response_class=HTMLResponse)

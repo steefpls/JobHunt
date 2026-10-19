@@ -46,6 +46,7 @@
       <div class="menupanel" role="menu">
         <a class="mitem" role="menuitem" href="{{ job.url|web_url }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }}Open posting ↗</a>
         <form method="post" action="/jobs/{{ job.id }}/open-folder"><button class="mitem" role="menuitem" title="data/jobs/{{ job.folder }}">{{ icon("folder-open") }}Open folder</button></form>
+        <a class="mitem" role="menuitem" href="/ask?job={{ job.id }}">{{ icon("message-circle-question") }}Ask about this job</a>
         <hr><div class="mlabel">Status</div>
         <form method="post" action="/jobs/{{ job.id }}/state"><input type="hidden" name="next" value="/jobs/{{ job.id }}">
           {% for s in user_states %}<button class="mitem {{ 'on' if s == job.state }}" role="menuitem" name="state" value="{{ s }}" {{ 'disabled' if s == job.state }}>{{ icon(state_icons.get(s, "circle-dot")) }}{{ state_label(s) }}</button>{% endfor %}

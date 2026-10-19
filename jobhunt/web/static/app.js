@@ -276,3 +276,39 @@ document.addEventListener('click', function (ev) {
     })();
   });
 })();
+
+// <button data-copy="#el">: copies that element's text, and says so on the button for a moment.
+// <button data-fill="#field">: puts the button's own words in the field (the examples on the Ask page).
+document.addEventListener('click', function (ev) {
+  const copy = ev.target.closest && ev.target.closest('[data-copy]');
+  if (copy) {
+    const el = document.querySelector(copy.dataset.copy);
+    if (!el || !navigator.clipboard) return;
+    navigator.clipboard.writeText(el.innerText.trim()).then(function () {
+      const t = Array.from(copy.childNodes).reverse().find(n => n.nodeType === 3 && n.textContent.trim());
+      const use = copy.querySelector('svg use');
+      if (!t || copy.dataset.was) return;
+      copy.dataset.was = t.textContent;
+      t.textContent = 'Copied';
+      if (use) use.setAttribute('href', use.getAttribute('href').replace(/#.*$/, '#check'));
+      copy.classList.add('copied');
+      setTimeout(function () {
+        t.textContent = copy.dataset.was; delete copy.dataset.was; copy.classList.remove('copied');
+        if (use) use.setAttribute('href', use.getAttribute('href').replace(/#.*$/, '#copy'));
+      }, 1600);
+    });
+    return;
+  }
+  const fill = ev.target.closest && ev.target.closest('[data-fill]');
+  if (fill) {
+    const field = document.querySelector(fill.dataset.fill);
+    if (field) { field.value = fill.textContent.trim(); field.focus(); }
+  }
+});
+// Ctrl+Enter in a textarea sends its form (the Ask box).
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Enter' || !(ev.ctrlKey || ev.metaKey) || !ev.target.matches('textarea[data-send]')) return;
+  ev.preventDefault();
+  const f = ev.target.form;
+  if (f && f.requestSubmit) f.requestSubmit();
+});

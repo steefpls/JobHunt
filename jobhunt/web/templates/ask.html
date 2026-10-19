@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Ask{% endblock %}
+{% macro answer_card(a, full) %}
+  {% if a.job %}<p class="hint mt0">About {% if a.job_id %}<a href="/jobs/{{ a.job_id }}">{{ a.job }}</a>{% else %}{{ a.job }}{% endif %}</p>{% endif %}
+  <div class="answers">
+  {% for x in a.answers %}
+    <div class="answer {{ x.sure }}">
+      <div class="ahead">
+        {% if x.question %}<b>{{ x.question }}</b>{% endif %}
+        {% if x.sure == "yes" %}<span class="pill above">{{ icon("circle-check") }}Sure</span>
+        {% elif x.sure == "partly" %}<span class="pill warn">{{ icon("info") }}Check this</span>
+        {% else %}<span class="pill below">{{ icon("circle-alert") }}Not on your resume</span>{% endif %}
+      </div>
+      <p class="atext" id="a{{ a.id }}_{{ loop.index }}">{{ x.answer }}</p>
+      {% if x.basis %}<p class="hint mb0">{{ icon("file-text", "sm") }} {{ x.basis }}</p>{% endif %}
+      <div class="actions tight mt2">
+        <button type="button" class="btn small ghost" data-copy="#a{{ a.id }}_{{ loop.index }}">{{ icon("copy") }}Copy</button>
+        {% if full and x.field and x.short and x.sure != "no" and x.short != screening.get(x.field) %}
+        <form method="post" action="/ask/remember" class="inline saveans">
+          <input type="hidden" name="field" value="{{ x.field }}"><input type="hidden" name="id" value="{{ a.id }}">
+          <label class="sr" for="r{{ a.id }}_{{ loop.index }}">{{ screening_fields[x.field][0] }}</label>
+          <input type="text" name="value" id="r{{ a.id }}_{{ loop.index }}" value="{{ x.short }}">
+          <button class="btn small" title="Application forms and later answers will use this">{{ icon("check") }}{{ 'Save' if not screening.get(x.field) else 'Replace' }} as your “{{ screening_fields[x.field][0]|replace(' (leave empty to answer it yourself)', '') }}”</button>
+        </form>{% endif %}
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+  {% if a.missing %}
+  <div class="notice todo mt3">{{ icon("hand") }}<div class="body"><b>Only you can answer these</b>
+    <ul>{% for m in a.missing %}<li>{{ m }}</li>{% endfor %}</ul></div></div>
+  {% endif %}
+  {% if a.reply %}
+  <div class="replyhead mt4"><h3>{{ icon("send", "sm") }} Draft reply</h3>
+    <button type="button" class="btn small primary" data-copy="#reply{{ a.id }}">{{ icon("copy") }}Copy reply</button></div>
+  <div class="replytext" id="reply{{ a.id }}">{{ a.reply }}</div>
+  <p class="hint mb0">Read it through before you send it: fix anything marked “Check this”, and fill in what only you can answer.</p>
+  {% endif %}
+{% endmacro %}
+{% block content %}
+<div class="pagehead"><div><h1>Ask about your experience</h1>
+  <p class="sub">Ask how many years you've used something, or paste a recruiter's questions. Answers come from your resume
+    and Profile only, and say where each one came from.</p></div></div>
+
+<div class="grid wide-left top">
+  <div class="card">
+    <form method="post" action="/ask" id="askForm">
+      {% if about %}<input type="hidden" name="job_id" value="{{ about.id }}">
+      <p class="pills mt0"><span class="pill work">{{ icon("briefcase-business") }}About {{ about.role }} at {{ about.company }}</span>
+        <a class="hint" href="/ask">Ask without a job</a></p>{% endif %}
+      <label for="f_question">Your question, or the recruiter's message</label>
+      <textarea id="f_question" name="question" data-send class="plain" rows="7" required maxlength="6000"
+        placeholder="e.g. How many years of experience do I have with REST APIs?&#10;&#10;Or paste a whole message: “Kindly share: 1. Are you a Singapore Citizen or PR? 2. Expected salary? …”"></textarea>
+      <div class="examples" aria-label="Examples">
+        <span class="hint">Try:</span>
+        {% if about %}<button type="button" class="eg" data-fill="#f_question">Which of this job's requirements do I meet, and which don't I?</button>{% endif %}
+        <button type="button" class="eg" data-fill="#f_question">How many years of backend experience do I have?</button>
+        <button type="button" class="eg" data-fill="#f_question">Have I used AWS, Azure or GCP?</button>
+        <button type="button" class="eg" data-fill="#f_question">Does my degree count as Computer Science or IT?</button>
+      </div>
+      <div class="keyline mt3">
+        <button class="btn primary" data-busy="Reading your resume…" {{ 'disabled' if not key_saved or not has_cv }}>{{ icon("sparkles") }}Ask</button>
+        <span class="hint" style="margin:0">About 10 to 30 seconds (Ctrl+Enter sends). It works during a hunt too.</span>
+      </div>
+      {% if not key_saved %}<p class="hint">Add your AI key on the <a href="/accounts">Connections</a> page first.</p>
+      {% elif not has_cv %}<p class="hint">Upload your CV on the <a href="/profile">Profile</a> page first: answers come from it.</p>{% endif %}
+    </form>
+  </div>
+  <div class="card">
+    <h2>{{ icon("list-checks") }} Your saved answers</h2>
+    <p class="hint mt0">Questions like these are answered with exactly what's saved here, the same as on application forms.</p>
+    <dl class="saved">
+      {% for key, (label, _) in screening_fields.items() %}
+      <div><dt>{{ label|replace(' (leave empty to answer it yourself)', '') }}</dt>
+        <dd>{% if screening.get(key) %}{{ screening[key] }}{% else %}<span class="muted">Not saved</span>{% endif %}</dd></div>
+      {% endfor %}
+    </dl>
+    <a class="btn small" href="/profile#screening">{{ icon("user-round") }}Edit on Profile</a>
+  </div>
+</div>
+
+{% if shown %}
+<div class="card rise" id="answer">
+  <div class="cardhead"><h2>{{ icon("sparkles") }} Answer</h2><span class="hint">{{ shown.at }}</span></div>
+  <details class="asked"><summary>What you asked</summary><div class="replytext">{{ shown.question }}</div></details>
+  {{ answer_card(shown, True) }}
+</div>
+{% endif %}
+
+{% if past %}
+<div class="card">
+  <h2>{{ icon("clock") }} Earlier questions</h2>
+  {% for a in past %}
+  <details class="pastask" data-row>
+    <summary><span class="q">{{ a.question|truncate(110) }}</span><span class="hint">{{ a.at }}</span></summary>
+    <div class="pastbody">
+      {{ answer_card(a, False) }}
+      <div class="actions tight mt3"><a class="btn small" href="/ask?id={{ a.id }}#answer">{{ icon("eye") }}Open</a>
+        <form method="post" action="/ask/forget" class="inline" data-leave><input type="hidden" name="id" value="{{ a.id }}">
+          <button class="btn small ghost">{{ icon("trash-2") }}Remove</button></form></div>
+    </div>
+  </details>
+  {% endfor %}
+</div>
+{% elif not shown %}
+<div class="card empty">
+  <div class="art">{{ icon("message-circle-question", "lg") }}</div>
+  <h2>Nothing asked yet</h2>
+  <p>Not sure whether something counts as experience? Ask here. Your answers are kept on this page.</p>
+</div>
+{% endif %}
+{% endblock %}

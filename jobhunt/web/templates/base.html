@@ -23,6 +23,7 @@
         {% if ready_n + needs_n %}<span class="count {{ 'warn' if needs_n and not ready_n }}" id="navCount">{{ ready_n + needs_n }}</span>{% endif %}</a>
       <a href="/applications" class="{{ 'on' if nav == 'applications' }}" {{ 'aria-current=page' if nav == 'applications' }}>{{ icon("briefcase-business") }}Applications</a>
       <a href="/hunt" class="{{ 'on' if nav == 'hunt' }}" {{ 'aria-current=page' if nav == 'hunt' }}>{{ icon("search") }}Hunt</a>
+      <a href="/ask" class="{{ 'on' if nav == 'ask' }}" {{ 'aria-current=page' if nav == 'ask' }}>{{ icon("message-circle-question") }}Ask</a>
       <div class="navlabel">Setup</div>
       <a href="/profile" class="{{ 'on' if nav == 'profile' }}" {{ 'aria-current=page' if nav == 'profile' }}>{{ icon("user-round") }}Profile</a>
       <a href="/scope" class="{{ 'on' if nav == 'scope' }}" {{ 'aria-current=page' if nav == 'scope' }}>{{ icon("sliders-horizontal") }}Preferences</a>
