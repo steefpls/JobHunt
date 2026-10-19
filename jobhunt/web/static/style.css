@@ -720,3 +720,54 @@ details.pastask summary .hint { margin: 0; flex-shrink: 0; }
 .replylist .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--bad-bg); color: var(--bad-ink); display: inline-flex;
   align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: 0 0 auto; text-transform: uppercase; }
 .replylist .what .role { font-weight: 600; color: var(--ink); }
+
+/* the pay, the posted day and a closed ad on the To review cards */
+.facts-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 5px; font-size: var(--fs-sm); color: var(--chip-ink2); }
+.facts-line .fact { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.facts-line .fact .i { color: var(--muted); }
+.pill.closed { background: var(--bad-bg); color: var(--bad-ink); font-weight: 600; }
+.pill.noreply { background: var(--warn-bg); color: var(--warn-ink); }
+.filter.quiet .i { color: var(--warn); }
+.filter.quiet.on .i { color: inherit; }
+.adclosed { display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; margin-bottom: 10px; border-radius: var(--radius-sm);
+  background: var(--bad-bg); border: 1px solid var(--bad-line); color: var(--bad-ink); }
+.adclosed .i { flex: none; margin-top: 2px; }
+.actionbar .what .adclosed b { display: inline; font-size: inherit; }
+.pop { animation: pop-in var(--dur, .22s) var(--ease-ios, ease-out); }
+@keyframes pop-in { from { opacity: 0; transform: scale(.94); } }
+@media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
+
+/* must-haves, ticked from the match report */
+.reqs .cardhead { margin-bottom: var(--sp-2); }
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 2px 28px; }
+.checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
+.checklist .mark { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--chip); color: var(--chip-ink2); margin-top: 1px; }
+.checklist li.strong .mark { background: var(--ok-bg); color: var(--ok); }
+.checklist li.partial .mark { background: var(--warn-bg); color: var(--warn); }
+.checklist li.gap .mark { background: var(--bad-bg); color: var(--bad); }
+.checklist .req { display: block; font-weight: 500; line-height: 1.4; }
+.checklist .by { display: block; color: var(--muted); font-size: var(--fs-sm); line-height: 1.45; margin-top: 2px; }
+.checklist li.gap .by { color: var(--bad-ink); }
+details.nice { margin-top: var(--sp-3); }
+details.nice summary { cursor: pointer; color: var(--muted); font-size: var(--fs-sm); margin-bottom: 6px; }
+.reqs > .hint { margin-top: var(--sp-3); }
+
+/* what each site found in the last hunt */
+details.sitestats { margin-top: 10px; }
+details.sitestats > summary { cursor: pointer; font-weight: 600; font-size: var(--fs-sm); }
+.statgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3) 28px; margin: 10px 0 6px; }
+.statsite h3 { margin: 0 0 6px; font-size: var(--fs-md); }
+.statsite h3 .muted { font-weight: 400; font-size: var(--fs-sm); }
+.statsite .bar { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: var(--chip); gap: 2px; }
+.statsite .bar i { display: block; min-width: 4px; }
+.statsite .bar .known { background: var(--line-strong); }
+.statsite .bar .skip { background: var(--warn); opacity: .55; }
+.statsite .bar .nofit { background: var(--chip-ink2); opacity: .45; }
+.statsite .bar .match { background: var(--ok); }
+.statsite .hint { margin: 6px 0 4px; }
+.kwlist { list-style: none; margin: 0; padding: 0; font-size: var(--fs-sm); }
+.kwlist li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px dashed var(--line); }
+.kwlist li .kw { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kwlist li .muted { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kwlist li.dud .kw { color: var(--muted); }

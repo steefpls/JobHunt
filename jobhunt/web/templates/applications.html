@@ -17,10 +17,11 @@
 {% endif %}
 
 <div class="filters" role="navigation" aria-label="Filter by status">
-  <a class="filter {{ 'on' if not state }}" href="/applications">All <b>{{ counts.values()|sum }}</b></a>
+  <a class="filter {{ 'on' if not state and not noreply }}" href="/applications">All <b>{{ counts.values()|sum }}</b></a>
   {% for s in states %}{% if counts.get(s) %}
-  <a class="filter {{ 'on' if state == s }}" href="/applications?state={{ s|urlencode }}">{{ state_label(s) }} <b>{{ counts[s] }}</b></a>
+  <a class="filter {{ 'on' if state == s and not noreply }}" href="/applications?state={{ s|urlencode }}">{{ state_label(s) }} <b>{{ counts[s] }}</b></a>
   {% endif %}{% endfor %}
+  {% if quiet %}<a class="filter quiet {{ 'on' if noreply }}" href="/applications?noreply=1" title="Applied {{ no_reply_after }} or more days ago, and nothing heard since">{{ icon("clock", "sm") }}No reply yet <b>{{ quiet }}</b></a>{% endif %}
 </div>
 
 <div class="card">
@@ -32,7 +33,7 @@
     {% for j in jobs %}
       <tr class="clickable" data-href="/jobs/{{ j.id }}" data-row>
         <td><a class="title" href="/jobs/{{ j.id }}">{{ j.company }}</a> <span class="muted">· {{ j.role }}</span>
-          <div class="pills">{% if j.match_score is not none %}<span class="pill fit {{ 'hi' if j.match_score >= 8 }}">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ icon("map-pin") }}{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">{{ icon("banknote") }}pay {{ p.verdict }} market</span>{% endif %}{% if j.id in profile_changed %}<span class="pill warn" title="Your Profile changed after its PDFs were made: open it to rebuild them">Profile changed</span>{% endif %}</div>
+          <div class="pills">{% if j.match_score is not none %}<span class="pill fit {{ 'hi' if j.match_score >= 8 }}">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ icon("map-pin") }}{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">{{ icon("banknote") }}pay {{ p.verdict }} market</span>{% endif %}{% if j.id in profile_changed %}<span class="pill warn" title="Your Profile changed after its PDFs were made: open it to rebuild them">Profile changed</span>{% endif %}{% set quiet_days = no_reply_days(j) %}{% if quiet_days %}<span class="pill noreply" title="Applied {{ quiet_days }} days ago and nothing heard since: worth a follow-up">{{ icon("clock") }}No reply yet · {{ quiet_days }} days</span>{% endif %}</div>
           {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</td>
         <td>{{ state_badge(j.state) }}</td>
         {% set applied_label, applied_day = applied_or_rejected(j) %}
@@ -45,7 +46,7 @@
               <a class="mitem" role="menuitem" href="/jobs/{{ j.id }}">{{ icon("eye") }}Open</a>
               <hr><div class="mlabel">Move to</div>
               <form method="post" action="/jobs/{{ j.id }}/state">
-                <input type="hidden" name="next" value="/applications{{ '?state=' ~ state|urlencode if state }}">
+                <input type="hidden" name="next" value="/applications{{ '?state=' ~ state|urlencode if state }}{{ ('&' if state else '?') ~ 'noreply=1' if noreply }}">
                 {% for s in user_states %}<button class="mitem {{ 'on' if s == j.state }}" role="menuitem" name="state" value="{{ s }}" {{ 'disabled' if s == j.state }}>{{ icon(state_icons.get(s, "circle-dot")) }}{{ state_label(s) }}</button>{% endfor %}
               </form>
             </div>
@@ -55,6 +56,13 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
+  {% elif noreply %}
+  <div class="empty">
+    <div class="art">{{ icon("circle-check", "xl") }}</div>
+    <h2>Nothing to chase</h2>
+    <p>Every application from the last {{ no_reply_after }} days is still fresh, or has had an answer.</p>
+    <div class="actions"><a class="btn" href="/applications">Show all</a></div>
   </div>
   {% elif state %}
   <div class="empty">

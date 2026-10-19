@@ -17,6 +17,25 @@
   {{ lh.summary }}
   {% if last_hunt_ready %}<div class="actions"><a class="btn small primary" href="#approve">{{ icon("circle-dot") }}{{ last_hunt_ready }} {{ "package is" if last_hunt_ready == 1 else "packages are" }} waiting for your approval: review {{ "it" if last_hunt_ready == 1 else "them" }}</a></div>
   {% elif lh.status == "done" and not last_hunt_built %}<br><span class="hint">No new packages this time. Widen your search keywords or preferences, or try more sites.</span>{% endif %}
+  {% if site_stats %}
+  <details class="sitestats" {{ 'open' if lh.status == 'done' and not last_hunt_built }}><summary>What each site found</summary>
+    <div class="statgrid">
+    {% for key, r in site_stats.items() %}
+      <div class="statsite"><h3>{{ r.label }} <span class="muted">· {{ r.found }} found, {{ r.pages }} page{{ "s" if r.pages != 1 }}</span></h3>
+        <div class="bar" role="img" aria-label="{{ r.known }} already known, {{ r.avoid + r.low_pay + r.unreadable + r.other }} skipped, {{ r.not_fit }} not a fit, {{ r.matched }} matched">
+          {% for k, cls in (("known", "known"), ("avoid", "skip"), ("low_pay", "skip"), ("unreadable", "skip"), ("other", "skip"), ("not_fit", "nofit"), ("matched", "match")) %}{% if r[k] %}<i class="{{ cls }}" style="flex:{{ r[k] }}"></i>{% endif %}{% endfor %}</div>
+        <p class="hint">{% for k, name in stat_names.items() if r[k] %}{{ r[k] }} {{ name }}{{ "es" if k == "matched" and r[k] != 1 }}{{ ", " if not loop.last }}{% else %}Nothing came up.{% endfor %}{% if r.stopped_early %}. {{ r.stopped_early }} keyword{{ "s" if r.stopped_early != 1 }} stopped early: a page held only jobs already known{% endif %}.</p>
+        {% if r.keywords|length > 1 or (r.keywords and "" not in r.keywords) %}
+        <ul class="kwlist">{% for kw, k in r.keywords.items()|sort(attribute="1.new", reverse=true) %}
+          <li class="{{ 'dud' if not k.new }}"><span class="kw">“{{ kw }}”</span><span class="muted">{{ k.found }} found · {{ k.new }} new{% if k.matched %} · <b>{{ k.matched }} match{{ "es" if k.matched != 1 }}</b>{% endif %}</span></li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    {% endfor %}
+    </div>
+    {% set duds = [] %}{% for key, r in site_stats.items() %}{% for kw, k in r.keywords.items() if kw and not k.new and k.found %}{% if kw not in duds %}{% set _ = duds.append(kw) %}{% endif %}{% endfor %}{% endfor %}
+    {% if duds %}<p class="hint mb0">Nothing new for {% for d in duds %}“{{ d }}”{{ ", " if not loop.last }}{% endfor %} this time. If that keeps happening, swap {{ "it" if duds|length == 1 else "them" }} on <a href="/scope">Preferences</a>.</p>{% endif %}
+  </details>
+  {% endif %}
   </div>
 </div>
 {% endif %}

@@ -177,8 +177,9 @@ def match_report_md(company: str, role: str, mr: dict, warnings: list[str], filt
     lines += ["## Key requirements (from the posting)"]
     for i, req in enumerate(_as_list(mr.get("requirements")), 1):
         if isinstance(req, dict):
+            must = " (must have)" if req.get("must_have") in (True, "true", "yes") else ""
             lines.append(f"{i}. {req.get('requirement', '')}  → addressed by: {req.get('addressed_by', '-')}  "
-                         f"[{req.get('strength', '?')}]")
+                         f"[{req.get('strength', '?')}]{must}")
     for title, key in (("What this version emphasizes", "emphasized"), ("De-emphasized / omitted", "deemphasized"),
                        ("Gaps (requirements you don't fully meet - NOT invented in the resume)", "gaps")):
         lines += ["", f"## {title}"] + [f"- {x}" for x in _as_list(mr.get(key))] + ([] if mr.get(key) else ["- (none)"])
@@ -187,6 +188,28 @@ def match_report_md(company: str, role: str, mr: dict, warnings: list[str], filt
     score = mr.get("score", "?")
     lines += ["", f"## Tailoring score: {score}/10 - {mr.get('score_reason', '')}", ""]
     return "\n".join(lines)
+
+
+_REQ_LINE = re.compile(r"^\d+\.\s+(?P<req>.*?)\s+→ addressed by:\s*(?P<by>.*?)\s+\[(?P<strength>[^\]]*)\](?P<must> \(must have\))?\s*$")
+
+
+def requirements(md_text: str) -> dict:
+    """The match report's requirements as a checklist for the job page:
+    {"items": [{"text", "by", "strength": strong|partial|gap|"", "must"}], "marked": whether the report says which
+    are must-haves (reports made before it did don't)}. Must-haves come first."""
+    items, inside = [], False
+    for line in (md_text or "").splitlines():
+        if line.startswith("## "):
+            inside = line.startswith("## Key requirements")
+            continue
+        m = _REQ_LINE.match(line.strip()) if inside else None
+        if m:
+            strength = m["strength"].strip().lower()
+            items.append({"text": m["req"].strip(), "by": "" if m["by"].strip() in ("-", "") else m["by"].strip(),
+                          "strength": strength if strength in ("strong", "partial", "gap") else "",
+                          "must": bool(m["must"])})
+    items.sort(key=lambda r: not r["must"])
+    return {"items": items, "marked": any(r["must"] for r in items)}
 
 
 def report_html(md_text: str) -> str:

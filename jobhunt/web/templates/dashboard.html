@@ -48,6 +48,9 @@
   <div class="qcard needs" data-row>
     <span class="logo" aria-hidden="true">{{ initials(j.company) }}</span>
     <div class="what"><a class="role" href="/jobs/{{ j.id }}">{{ j.role }}</a><span class="co">{{ j.company }}</span>
+      {% set pt = pay_text(j.salary) %}{% set when = posted_text(j.posted_at) %}{% set gone = ad_closed(j) %}
+      {% if pt or when or gone %}<div class="facts-line" data-ad-job="{{ j.id }}">{% if gone %}<span class="pill closed" title="{{ gone.site }}, checked {{ ago_text(gone.checked_at) }}: {{ gone.why }}">{{ icon("circle-x") }}Ad closed</span>{% endif %}{% if pt %}<span class="fact" title="{{ j.salary }}">{{ icon("banknote", "sm") }}{{ pt }}</span>{% endif %}{% if when %}<span class="fact">{{ icon("clock", "sm") }}{{ when }}</span>{% endif %}</div>
+      {% else %}<div class="facts-line" data-ad-job="{{ j.id }}" hidden></div>{% endif %}
       {% set why = why_needs_you(j) %}{% if why %}<div class="whyline">{{ icon("circle-alert", "sm") }}<span>{{ why|truncate(140) }}</span></div>{% endif %}</div>
     <div class="acts"><a class="btn small primary" href="/jobs/{{ j.id }}">{{ icon("chevron-right") }}Open</a>
       {% with next = "/", cls = "" %}{% include "_applied.html" %}{% endwith %}</div>
@@ -75,3 +78,4 @@
 </div>
 {% endif %}
 {% endblock %}
+{% block scripts %}{% if ready or needs_you %}<script src="{{ static_url('ads.js') }}"></script>{% endif %}{% endblock %}

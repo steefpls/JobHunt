@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
@@ -22,11 +22,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 
-from .. import (achievements, company, db, demo_board, hunt, llm, login_check, marketpay, paths, profile, refresh,
-               render, secrets_store, tuning, updates)
+from .. import (achievements, adcheck, company, db, demo_board, hunt, llm, login_check, marketpay, paths, profile,
+               refresh, render, secrets_store, tuning, updates)
 from .. import ask as ask_mod
 from .. import settings as settings_mod
 from .. import sites, statuscheck, workmode
+from ..extract import salary_range_monthly
 from ..sites import SITE_STATUS, apply_site
 
 HERE = Path(__file__).resolve().parent
@@ -67,6 +68,47 @@ def ago_text(ts: str, now: datetime | None = None) -> str:
     else:
         n, unit = secs // (365 * 86400), "year"
     return f"{n} {unit}{'s' if n != 1 else ''} ago"
+
+
+def posted_text(day: str, today: date | None = None) -> str:
+    """When the board says a job was posted, in words: "posted today", "posted 3 days ago" ('' = it didn't say)."""
+    try:
+        days = ((today or date.today()) - date.fromisoformat((day or "")[:10])).days
+    except ValueError:
+        return ""
+    if days <= 0:
+        return "posted today"
+    if days == 1:
+        return "posted yesterday"
+    if days < 30:
+        return f"posted {days} days ago"
+    return "posted 30+ days ago"
+
+
+def pay_text(salary: str) -> str:
+    """The pay on a card, short: '$5.5k-8k a month'. '' when it isn't stated; as written when it isn't monthly."""
+    lo, hi = salary_range_monthly(salary or "")
+    if not hi:
+        text = " ".join((salary or "").split())
+        return text if len(text) <= 28 else text[:27] + "…"
+
+    def k(n):
+        return f"{n / 1000:.1f}".rstrip("0").rstrip(".") + "k" if n >= 1000 else f"{n:,.0f}"
+    return f"${k(lo)} a month" if not lo or round(lo) == round(hi) else f"${k(lo)}-{k(hi)} a month"
+
+
+NO_REPLY_DAYS = 14  # an Applied job this long without news gets the "No reply yet" tag
+
+
+def no_reply_days(job: dict, today: date | None = None) -> int:
+    """Days since an Applied job was applied for, once that's NO_REPLY_DAYS or more with no news (0 otherwise)."""
+    if job.get("state") != "Applied":
+        return 0
+    try:
+        days = ((today or date.today()) - date.fromisoformat((job.get("date_applied") or "")[:10])).days
+    except ValueError:
+        return 0
+    return days if days >= NO_REPLY_DAYS else 0
 
 
 _static_hashes: dict[str, str] = {}
@@ -132,6 +174,10 @@ templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
 templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Dashboard's Applied / rejected column
 templates.env.globals["ago_text"] = ago_text  # "2 days ago": when a job's state last changed
+templates.env.globals["posted_text"] = posted_text  # "posted 3 days ago", as the board said
+templates.env.globals["pay_text"] = pay_text  # "$5.5k-8k a month" on the cards
+templates.env.globals["no_reply_days"] = no_reply_days  # the "No reply yet" tag on Applied jobs
+templates.env.globals["ad_closed"] = adcheck.closed  # the ad has closed on its site
 
 # MyCareersFuture isn't here: its applications need Singpass, so you finish them in your own browser
 # and a login in JobHunt's browser would never be used.
@@ -334,14 +380,17 @@ def create_app(port: int = 8765) -> FastAPI:
                     last_hunt=db.last_run("hunt"))
 
     @app.get("/applications", response_class=HTMLResponse)
-    def applications(request: Request, state: str = ""):
-        """Every job JobHunt prepared, filterable by state."""
-        jobs = db.list_jobs(state or None)
+    def applications(request: Request, state: str = "", noreply: int = 0):
+        """Every job JobHunt prepared, filterable by state (or by "No reply yet")."""
+        everything = db.list_jobs()
+        quiet = sum(1 for j in everything if no_reply_days(j))
+        jobs = [j for j in everything if (not state or j["state"] == state) and (not noreply or no_reply_days(j))]
         contact, profile_text = profile.load_contact(), profile.load_profile()  # once, not per row
         profile_changed = {j["id"] for j in jobs
                            if refresh.profile_changes(j, paths.jobs_dir() / j["folder"], contact, profile_text)}
         return page(request, "applications.html", jobs=jobs, counts=db.state_counts(), profile_changed=profile_changed,
                     states=db.STATES, user_states=db.USER_STATES, state=state, replies=statuscheck.load_state(),
+                    noreply=bool(noreply), quiet=quiet, no_reply_after=NO_REPLY_DAYS,
                     replies_todo=sum(len(v) for v in statuscheck.jobs_to_check().values()),
                     spend=db.total_spend(), runs=db.list_runs(5))
 
@@ -357,7 +406,8 @@ def create_app(port: int = 8765) -> FastAPI:
             return back("/", err="No such job.")
         folder = paths.jobs_dir() / job["folder"]
         report = folder / "match_report.md"
-        report_html = render.report_html(report.read_text(encoding="utf-8")) if report.exists() else ""
+        report_md = report.read_text(encoding="utf-8") if report.exists() else ""
+        report_html = render.report_html(report_md) if report_md else ""
         has_package = (folder / "resume.pdf").is_file() if job["folder"] else False
         help_ = hunt.needs_you_fix(job)
         co = company.load(job)
@@ -371,7 +421,8 @@ def create_app(port: int = 8765) -> FastAPI:
                     report_html=report_html, calls=db.job_calls(job_id), user_states=db.USER_STATES,
                     human_apply=apply_site(job["source"], job["apply_url"]) in hunt.HUMAN_APPLY_SITES, has_package=has_package,
                     why=db.why_needs_you(job), help=help_, can_retry=help_["retry"] and has_package,
-                    reject_why=db.reject_text(job),
+                    reject_why=db.reject_text(job), reqs=render.requirements(report_md), ad=adcheck.load(job),
+                    ad_checkable=bool(adcheck.where(job)), ad_quick=adcheck.where(job) in adcheck.QUICK, ad_due=adcheck.due(job),
                     profile_changes=refresh.profile_changes(job, folder), letter_dated=letter_dated,
                     history=[l for l in (job.get("history") or "").splitlines() if l.strip()])
 
@@ -414,6 +465,18 @@ def create_app(port: int = 8765) -> FastAPI:
         db.update_job(job_id, by="you", **fields)
         db.add_history(job_id, f"You undid that: back to {state_label(state)}.")
         return back(local_path(next, f"/jobs/{job_id}"), msg=f"Undone: {job['company']} is back in {state_label(state)}.")
+
+    @app.post("/api/ads/check")
+    async def ads_check(request: Request):
+        """Whether the ads waiting for you are still open (MyCareersFuture and LinkedIn: one plain request each,
+        a few at a time; JobStreet's are checked as a hunt starts). ?job=<id> checks just that job, now."""
+        one = request.query_params.get("job", "")
+        if one.isdigit():
+            job = db.get_job(int(one))
+            if not job or adcheck.where(job) not in adcheck.QUICK:
+                return JSONResponse({})
+            return JSONResponse({job["id"]: adcheck.check_quick(job)})
+        return JSONResponse(adcheck.check_due_quick())
 
     @app.post("/replies/check")
     def replies_check():
@@ -895,7 +958,8 @@ def create_app(port: int = 8765) -> FastAPI:
                     practice_first=not s["hunt"].get("sites_chosen") and not db.practice_hunt_done(),
                     events=db.recent_events(150), last_hunt=last_hunt,
                     last_hunt_ready=db.count_jobs(last_hunt["id"], "Ready") if last_hunt else 0,
-                    last_hunt_built=db.count_jobs(last_hunt["id"]) if last_hunt else 0)
+                    last_hunt_built=db.count_jobs(last_hunt["id"]) if last_hunt else 0,
+                    site_stats=_site_stats(last_hunt), stat_names=hunt.SiteStats.NAMES)
 
     @app.post("/hunt/start")
     async def hunt_start(request: Request):
@@ -987,6 +1051,7 @@ def create_app(port: int = 8765) -> FastAPI:
             "apply": {"max_steps": int(num("max_steps", 30, 3, 200)), "show_browser": f.get("show_browser") == "on",
                       "allow_register": f.get("allow_register") == "on"},
             "hunt": {"max_candidates": int(num("max_candidates", 60, 1, 2000)), "check_replies": f.get("check_replies") == "on"},
+            "notify": f.get("notify") == "on",
         }
         if patch["pacing"]["max_delay_s"] < patch["pacing"]["min_delay_s"]:
             patch["pacing"]["max_delay_s"] = patch["pacing"]["min_delay_s"]
@@ -1007,6 +1072,15 @@ def create_app(port: int = 8765) -> FastAPI:
         return back("/settings", msg="Forgot every posting seen so far; the next hunt will look at them again.")
 
     return app
+
+
+def _site_stats(run: dict | None) -> dict:
+    """A hunt's counts per site and keyword (hunt.SiteStats), {} for a hunt from before they were kept."""
+    try:
+        data = json.loads((run or {}).get("site_stats") or "{}")
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 class _MCFSearch:

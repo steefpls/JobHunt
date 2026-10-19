@@ -70,6 +70,7 @@ DEFAULTS = {
     # Saved logins for application sites. Only the name and the allowed sites are
     # kept here; the username and password are in Windows Credential Manager.
     "logins": [],  # [{"name": "default", "domains": ["greenhouse.io"]}]
+    "notify": True,  # Windows notifications (from the browser tab) when a hunt finishes or a job needs you
     "custom_prices": {},  # {"model-id": {"in": usd_per_million, "out": usd_per_million}}
     "demo_board_url": "",  # set automatically to this server's /demo; tests override it
 }

@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     reject_note TEXT NOT NULL DEFAULT '',   -- ... and anything you typed
     salary TEXT NOT NULL DEFAULT '',        -- the pay as the posting stated it
     company_info TEXT NOT NULL DEFAULT '',  -- the company summary as JSON (company.py), '' = none yet
-    market_pay TEXT NOT NULL DEFAULT ''     -- what similar jobs pay, as JSON (marketpay.py), '' = not checked yet
+    market_pay TEXT NOT NULL DEFAULT '',    -- what similar jobs pay, as JSON (marketpay.py), '' = not checked yet
+    posted_at TEXT NOT NULL DEFAULT '',     -- the day the board says the job was posted, '' = it didn't say
+    ad_status TEXT NOT NULL DEFAULT ''      -- whether the ad is still open on its site, as JSON (adcheck.py)
 );
 CREATE TABLE IF NOT EXISTS seen (
     url TEXT PRIMARY KEY,
@@ -76,7 +78,8 @@ CREATE TABLE IF NOT EXISTS runs (
     cost_usd REAL NOT NULL DEFAULT 0,
     tokens_in INTEGER NOT NULL DEFAULT 0,
     tokens_out INTEGER NOT NULL DEFAULT 0,
-    summary TEXT NOT NULL DEFAULT ''
+    summary TEXT NOT NULL DEFAULT '',
+    site_stats TEXT NOT NULL DEFAULT ''  -- a hunt's counts per site and keyword, as JSON (hunt.SiteStats)
 );
 CREATE TABLE IF NOT EXISTS llm_calls (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -132,7 +135,9 @@ def connect() -> sqlite3.Connection:
 _ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": "TEXT NOT NULL DEFAULT ''",
                            "history": "TEXT NOT NULL DEFAULT ''", "reject_reason": "TEXT NOT NULL DEFAULT ''",
                            "reject_note": "TEXT NOT NULL DEFAULT ''", "salary": "TEXT NOT NULL DEFAULT ''",
-                           "company_info": "TEXT NOT NULL DEFAULT ''", "market_pay": "TEXT NOT NULL DEFAULT ''"},
+                           "company_info": "TEXT NOT NULL DEFAULT ''", "market_pay": "TEXT NOT NULL DEFAULT ''",
+                           "posted_at": "TEXT NOT NULL DEFAULT ''", "ad_status": "TEXT NOT NULL DEFAULT ''"},
+                  "runs": {"site_stats": "TEXT NOT NULL DEFAULT ''"},
                   "seen": {"salary": "TEXT NOT NULL DEFAULT ''", "apply_url": "TEXT NOT NULL DEFAULT ''"}}
 
 
@@ -179,14 +184,15 @@ def _query(sql: str, args=()) -> list[dict]:
 # ── jobs ──────────────────────────────────────────────────────────────
 
 def add_job(*, source, url, company, role, location="", apply_url="", posting_text="",
-            folder="", notes="", history="", match_score=None, run_id=None, state="Found", salary="") -> int:
+            folder="", notes="", history="", match_score=None, run_id=None, state="Found", salary="",
+            posted_at="") -> int:
     ts = now()
     cur = _exec(
         "INSERT INTO jobs (created_at, updated_at, source, url, company, role, location, apply_url,"
-        " posting_text, state, folder, notes, history, match_score, run_id, salary)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " posting_text, state, folder, notes, history, match_score, run_id, salary, posted_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (ts, ts, source, url, company, role, location, apply_url, posting_text, state, folder, notes,
-         _stamp(history) if history else "", match_score, run_id, salary or ""),
+         _stamp(history) if history else "", match_score, run_id, salary or "", posted_at or ""),
     )
     _exec("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,'jobhunt')", (cur.lastrowid, ts, state))
     return cur.lastrowid
@@ -220,6 +226,12 @@ def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:
         if old and old[0]["state"] != fields["state"]:
             _exec("INSERT INTO job_states (job_id, ts, state, by) VALUES (?,?,?,?)",
                   (job_id, fields["updated_at"], fields["state"], by))
+
+
+def set_ad_status(job_id: int, status_json: str) -> None:
+    """Save whether a job's ad is still open. Leaves updated_at alone, as set_company_info does."""
+    with _lock:
+        _exec("UPDATE jobs SET ad_status = ? WHERE id = ?", (status_json, job_id))
 
 
 def set_company_info(job_id: int, info_json: str) -> None:
@@ -447,6 +459,10 @@ def start_run(kind: str, params: str = "") -> int:
 
 def finish_run(run_id: int, status: str, summary: str = "") -> None:
     _exec("UPDATE runs SET finished_at = ?, status = ?, summary = ? WHERE id = ?", (now(), status, summary, run_id))
+
+
+def set_site_stats(run_id: int, stats_json: str) -> None:
+    _exec("UPDATE runs SET site_stats = ? WHERE id = ?", (stats_json, run_id))
 
 
 def recover_interrupted() -> None:

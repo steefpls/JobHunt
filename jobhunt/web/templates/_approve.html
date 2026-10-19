@@ -5,6 +5,9 @@
     <span class="logo" aria-hidden="true">{{ initials(j.company) }}</span>
     <div class="what"><a class="role" href="/jobs/{{ j.id }}">{{ j.role }}</a><span class="co">{{ j.company }}</span>
       <div class="pills">{% if j.match_score is not none %}<span class="pill fit {{ 'hi' if j.match_score >= 8 }}" title="How well it matches your profile and preferences">fit {{ j.match_score|int }}/10</span>{% endif %}{% set wm = work_mode(j) %}{% if wm.kind %}<span class="pill work" title="The posting says: {{ wm.quote }}">{{ icon("map-pin") }}{{ wm.kind }}</span>{% endif %}{% set p = market_pay(j) %}{% if p and p.verdict and p.verdict != "in line" %}<span class="pill {{ p.verdict }}" title="This job: {{ p.job }} a month. Similar jobs: {{ p.text }}">{{ icon("banknote") }}pay {{ p.verdict }} market</span>{% endif %}{% if human %}<span class="pill" title="This site needs you to apply yourself (Singpass)">{{ icon("hand") }}you apply</span>{% endif %}</div>
+      {% set pt = pay_text(j.salary) %}{% set when = posted_text(j.posted_at) %}{% set gone = ad_closed(j) %}
+      {% if pt or when or gone %}<div class="facts-line" data-ad-job="{{ j.id }}">{% if gone %}<span class="pill closed" title="{{ gone.site }}, checked {{ ago_text(gone.checked_at) }}: {{ gone.why }}">{{ icon("circle-x") }}Ad closed</span>{% endif %}{% if pt %}<span class="fact" title="{{ j.salary }}">{{ icon("banknote", "sm") }}{{ pt }}</span>{% endif %}{% if when %}<span class="fact">{{ icon("clock", "sm") }}{{ when }}</span>{% endif %}</div>
+      {% else %}<div class="facts-line" data-ad-job="{{ j.id }}" hidden></div>{% endif %}
       {% set line = company_line(j) %}{% if line %}<div class="coline">{{ line }}</div>{% endif %}</div>
     <div class="acts">
       {% if human %}<a class="btn small primary" href="/jobs/{{ j.id }}">{{ icon("eye") }}Apply yourself</a>

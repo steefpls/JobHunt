@@ -12,7 +12,9 @@
       {% if job.location %}<span>{{ icon("map-pin", "sm") }}{{ job.location }}</span>{% endif %}
       <span>{{ icon("search", "sm") }}{{ job.source }}</span>
       <span title="{{ job.created_at.replace('T', ' ')[:16] }}">{{ icon("clock", "sm") }}found {{ ago_text(job.created_at) or job.created_at[:10] }}</span>
+      {% set when = posted_text(job.posted_at) %}{% if when %}<span title="As {{ job.source }} said when JobHunt found it">{{ icon("calendar-check", "sm") }}{{ when }}</span>{% endif %}
       {% if job.date_applied %}<span>{{ icon("send", "sm") }}applied {{ job.date_applied }}</span>{% endif %}
+      {% set quiet_days = no_reply_days(job) %}{% if quiet_days %}<span class="pill noreply" style="margin:0" title="Nothing heard since: worth a follow-up">{{ icon("clock") }}No reply yet · {{ quiet_days }} days</span>{% endif %}
       {% if job.match_score is not none %}<span class="pill fit {{ 'hi' if job.match_score >= 8 }}" style="margin:0">fit {{ job.match_score|int }}/10</span>{% endif %}
       {% set wm = work_mode(job) %}{% if wm.kind %}<span class="pill work" style="margin:0" title="The posting says: {{ wm.quote }}">{{ icon("house") }}{{ wm.kind }}</span>{% endif %}
       {% for f in wm.flex %}<span class="pill work" style="margin:0" title="Ticked on MyCareersFuture">{{ f }}</span>{% endfor %}
@@ -24,8 +26,9 @@
 {# The one place to act on this job: what to do next, its main button, and the rest under More #}
 {% set au = job.apply_url or job.url %}{# a MyCareersFuture search: /apply looks for the job itself first #}
 {% set apply_href = ('/jobs/' ~ job.id ~ '/apply') if au.startswith(mcf_search) else au|web_url %}
-<div class="actionbar" id="next">
+<div class="actionbar" id="next" data-ad-job="{{ job.id }}" data-ad-check="{{ 1 if ad_quick and ad_due and job.state in ('Ready', 'Needs you') else 0 }}">
   <div class="what">
+    {% if ad and ad.state == "closed" %}<div class="adclosed" id="adClosed">{{ icon("circle-x", "sm") }}<span><b>This ad has closed.</b> {{ ad.why[:1]|upper }}{{ ad.why[1:] }} (checked {{ ago_text(ad.checked_at) or "just now" }}).{% if job.state in ("Ready", "Needs you") %} Applying probably won't work now.{% endif %}</span></div>{% endif %}
     {% if job.state == "Ready" and not human_apply %}
       <b>Ready to send</b>Check the resume and cover letter below, then let JobHunt fill in the application.
         It stops and hands it to you if anything needs a person.
@@ -47,6 +50,7 @@
         <a class="mitem" role="menuitem" href="{{ job.url|web_url }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }}Open posting ↗</a>
         <form method="post" action="/jobs/{{ job.id }}/open-folder"><button class="mitem" role="menuitem" title="data/jobs/{{ job.folder }}">{{ icon("folder-open") }}Open folder</button></form>
         <a class="mitem" role="menuitem" href="/ask?job={{ job.id }}">{{ icon("message-circle-question") }}Ask about this job</a>
+        {% if ad_quick %}<button type="button" class="mitem" role="menuitem" data-ad-now="{{ job.id }}">{{ icon("refresh-cw") }}Check the ad is still open</button>{% endif %}
         <hr><div class="mlabel">Status</div>
         <form method="post" action="/jobs/{{ job.id }}/state"><input type="hidden" name="next" value="/jobs/{{ job.id }}">
           {% for s in user_states %}<button class="mitem {{ 'on' if s == job.state }}" role="menuitem" name="state" value="{{ s }}" {{ 'disabled' if s == job.state }}>{{ icon(state_icons.get(s, "circle-dot")) }}{{ state_label(s) }}</button>{% endfor %}
@@ -146,6 +150,29 @@
   {% endif %}
 </div>
 
+{% if reqs["items"] %}
+{% set shown = reqs["items"]|selectattr("must")|list if reqs.marked else reqs["items"] %}
+{% set met = shown|selectattr("strength", "equalto", "strong")|list|length %}
+<div class="card reqs" id="requirements">
+  <div class="cardhead"><h2>{{ icon("list-checks") }}{{ "Must haves" if reqs.marked else "Key requirements" }}</h2>
+    <span class="muted">{{ met }} of {{ shown|length }} met from your resume</span></div>
+  <ul class="checklist">
+  {% for r in shown %}
+    <li class="{{ r.strength or 'unknown' }}"><span class="mark" aria-label="{{ {'strong': 'Met', 'partial': 'Partly met', 'gap': 'Not on your resume'}.get(r.strength, 'Not judged') }}">{{ icon({"strong": "check", "partial": "circle-dot", "gap": "x"}.get(r.strength, "circle-dot"), "sm") }}</span>
+      <div><span class="req">{{ r.text }}</span>{% if r.by %}<span class="by">{{ "Missing: " if r.strength == "gap" else "" }}{{ r.by }}</span>{% endif %}</div></li>
+  {% endfor %}
+  </ul>
+  {% if reqs.marked and shown|length < reqs["items"]|length %}
+  {% set extra = reqs["items"]|rejectattr("must")|list %}
+  <details class="nice"><summary>Nice to have ({{ extra|selectattr("strength", "equalto", "strong")|list|length }} of {{ extra|length }} met)</summary>
+    <ul class="checklist">{% for r in extra %}<li class="{{ r.strength or 'unknown' }}"><span class="mark" aria-label="{{ {'strong': 'Met', 'partial': 'Partly met', 'gap': 'Not on your resume'}.get(r.strength, 'Not judged') }}">{{ icon({"strong": "check", "partial": "circle-dot", "gap": "x"}.get(r.strength, "circle-dot"), "sm") }}</span>
+      <div><span class="req">{{ r.text }}</span>{% if r.by %}<span class="by">{{ "Missing: " if r.strength == "gap" else "" }}{{ r.by }}</span>{% endif %}</div></li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+  <p class="hint mb0">Ticked from the match report, which reads the posting against your resume.{% if not reqs.marked %} Packages built from now on say which ones the posting calls must-haves.{% endif %}</p>
+</div>
+{% endif %}
+
 <div class="card files">
   <div class="cardhead"><h2>{{ icon("file-text") }}Files</h2>
     {% if files and not (profile_changes or letter_dated) %}{# when the notice is up, its button is the one #}
@@ -244,4 +271,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ static_url('job.js') }}"></script>
+<script src="{{ static_url('ads.js') }}"></script>
 {% endblock %}

@@ -141,7 +141,7 @@ TAILOR_SHAPE = """{
  },
  "cover_letter": {"greeting": "Dear Hiring Team,", "paragraphs": ["opening: why this company and role, citing something concrete from the posting", "body: strongest relevant achievements with numbers", "optional second body paragraph", "close (no sign-off or name: the letter template adds 'Sincerely' and the name)"]},
  "match_report": {
-  "requirements": [{"requirement": "from the posting", "addressed_by": "the resume bullet or skill that covers it", "strength": "strong|partial|gap"}],
+  "requirements": [{"requirement": "from the posting", "must_have": true, "addressed_by": "the resume bullet or skill that covers it, or what is missing", "strength": "strong|partial|gap"}],
   "emphasized": ["what was moved up or reworded for this role, and why"],
   "deemphasized": ["what was left out as less relevant"],
   "gaps": ["requirements the candidate does not fully meet"],
@@ -159,6 +159,10 @@ def tailor_prompt(profile_text: str, contact: dict, posting) -> tuple[str, str]:
         "experienced candidates put Experience first. Keep the resume to one page (roughly 3-5 bullets per recent role).\n"
         "The cover letter is about 250-350 words, specific to this company, plain and confident, no clichés.\n"
         "References and referees are never experience entries; leave them out of the resume.\n"
+        "In match_report.requirements list every requirement the posting states, must-haves first. must_have is true "
+        "when the posting says it is required (\"must\", \"required\", \"minimum\", or under Requirements), false when "
+        "it is preferred or nice to have. strength is strong only when the profile shows it plainly, partial when it "
+        "shows something close, gap when it doesn't.\n"
         + HONESTY_RULES + "\n" + UNTRUSTED_RULES
         + "\nReply with one JSON object only, no markdown."
     )

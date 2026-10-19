@@ -73,6 +73,8 @@
       <label class="check mt3"><input type="checkbox" name="show_browser" {{ 'checked' if settings.apply.show_browser }}> Show the browser while it applies</label>
       <label class="check"><input type="checkbox" name="allow_register" {{ 'checked' if settings.apply.allow_register }}> Allow creating new accounts on application sites with a saved login</label>
       <label class="check"><input type="checkbox" name="check_replies" {{ 'checked' if settings.hunt.check_replies }}> Before a hunt, check Indeed and JobStreet for employers who said no</label>
+      <label class="check"><input type="checkbox" name="notify" id="notifyBox" {{ 'checked' if settings.notify }}> Windows notifications when a hunt finishes or a job needs you</label>
+      <p class="hint mt0" id="notifyState" hidden></p>
     </div>
   </div>
 </div>

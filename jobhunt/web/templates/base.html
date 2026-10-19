@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="{{ static_url('style.css') }}">
 <script src="{{ static_url('theme.js') }}"></script>
 </head>
-<body data-party="{{ party }}" data-name="{{ first_name }}">
+<body data-party="{{ party }}" data-name="{{ first_name }}" data-notify="{{ 1 if settings.notify else 0 }}">
 {% set ready_n = nav_counts.get("Ready", 0) %}{% set needs_n = nav_counts.get("Needs you", 0) %}
 <header class="topbar">
   <button type="button" class="iconbtn" id="menuBtn" aria-label="Open the menu" aria-controls="side" aria-expanded="false">{{ icon("menu") }}</button>

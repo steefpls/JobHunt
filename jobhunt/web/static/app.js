@@ -322,3 +322,63 @@ document.addEventListener('keydown', function (ev) {
   open();
   window.addEventListener('hashchange', open);
 })();
+
+// Windows notifications (through the browser) when a hunt finishes or a job needs you, while you're
+// looking at something else. One tab says it, not every tab: localStorage remembers what was said.
+(function () {
+  if (document.body.dataset.notify !== '1' || !('Notification' in window)) return;
+  let wasBusy = null, wasKind = '';
+
+  function say(title, body) {
+    if (Notification.permission !== 'granted' || (!document.hidden && document.hasFocus())) return;
+    try {
+      const n = new Notification(title, {body: body, tag: 'jobhunt-' + title});
+      n.onclick = function () { window.focus(); location.href = '/'; n.close(); };
+    } catch (e) { /* some browsers only notify from a service worker: then there's no notification */ }
+  }
+
+  function once(key, value) {  // true the first time any tab sees this value
+    if (localStorage.getItem(key) === String(value)) return false;
+    localStorage.setItem(key, String(value));
+    return true;
+  }
+
+  async function tick() {
+    let s;
+    try { s = await (await fetch('/api/status?after=999999999')).json(); } catch (e) { return; }
+    const needs = (s.counts && s.counts['Needs you']) || 0, ready = (s.counts && s.counts.Ready) || 0;
+    const before = parseInt(localStorage.getItem('jhNeeds') || '0', 10);
+    localStorage.setItem('jhNeeds', String(needs));
+    if (needs > before && wasBusy !== null) {
+      say(needs - before === 1 ? 'A job needs you' : (needs - before) + ' jobs need you',
+          'JobHunt stopped on an application and handed it to you. Open To review to finish it.');
+    }
+    if (wasBusy && !s.busy && wasKind === 'hunt' && s.run_id && once('jhHuntDone', s.run_id)) {
+      const title = {done: 'Hunt finished', stopped: 'Hunt stopped', capped: 'Hunt stopped at a spending cap',
+                     error: 'Hunt stopped with a problem'}[s.last_status] || 'Hunt finished';
+      say(title, (ready ? ready + (ready === 1 ? ' package is' : ' packages are') + ' waiting for you. ' : '') + (s.last_result || ''));
+    }
+    wasBusy = !!s.busy;
+    if (s.busy) wasKind = s.kind;
+  }
+  tick();
+  setInterval(tick, 5000);
+})();
+
+// Turning notifications on asks the browser once, from a click (browsers only ask after one).
+(function () {
+  if (!('Notification' in window)) return;
+  function askOnce() { if (Notification.permission === 'default') Notification.requestPermission().then(showState); }
+  const box = document.getElementById('notifyBox'), state = document.getElementById('notifyState');
+  function showState() {
+    if (!state || !box) return;
+    const p = Notification.permission;
+    state.hidden = !box.checked;
+    state.textContent = p === 'granted' ? 'Notifications are allowed. They show when the JobHunt tab is open but you are in another window.'
+      : p === 'denied' ? 'Your browser is blocking JobHunt\'s notifications. To allow them, click the icon left of the address bar, then Notifications: Allow.'
+      : 'Your browser asks whether to allow them when you tick this.';
+  }
+  if (box) { box.addEventListener('change', function () { if (box.checked) askOnce(); showState(); }); showState(); }
+  const hunt = document.getElementById('huntForm');
+  if (hunt && document.body.dataset.notify === '1') hunt.addEventListener('submit', askOnce);
+})();

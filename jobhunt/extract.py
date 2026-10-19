@@ -26,6 +26,7 @@ class Listing:
     location: str = ""
     salary: str = ""  # as the search card shows it, if it does
     salary_max_monthly: float = 0.0  # top of that range in SGD a month; 0 = not stated or not comparable
+    posted: str = ""  # the day the board says it was posted (ISO date), '' = it doesn't say
     extra: dict = field(default_factory=dict)
 
 
@@ -43,6 +44,7 @@ class Posting:
     # what the board says about the company, kept while reading the posting so the company summary needn't
     # load the page again: {"board_page": url} or {"label", "url", "text", "website"} (see company.py)
     company_info: dict = field(default_factory=dict)
+    posted: str = ""  # the day the board says it was posted (ISO date), '' = it doesn't say
 
 
 # ── salary ────────────────────────────────────────────────────────────
@@ -266,3 +268,40 @@ def generic_posting(page_html: str, source: str, url: str, body_selectors=None,
         location=select_text(page_html, location_sel) if location_sel else "",
         text=main_text(page_html, body_selectors),
     )
+
+
+# ── when a job was posted ─────────────────────────────────────────────
+
+_AGO_RE = re.compile(r"(\d+)\s*\+?\s*(m|min|minutes?|h|hrs?|hours?|d|days?|w|wks?|weeks?|mo|mths?|months?)\b\+?\s*ago", re.I)
+_AGO_DAYS = {"m": 0, "h": 0, "d": 1, "w": 7, "mo": 30, "mt": 30}
+
+
+def posted_date(value, today=None) -> str:
+    """When a board says a job was posted, as an ISO date ('' when it doesn't say in a way code can read).
+    Takes a date ('2026-10-18', '2026-10-18T06:49:33Z'), epoch milliseconds (Indeed's pubDate), or the
+    card's own words: '19h ago', '7d ago', '30d+ ago', '3 days ago', 'Just posted', 'Today'."""
+    from datetime import date, datetime, timedelta, timezone
+    today = today or date.today()
+    if isinstance(value, (int, float)) and value > 0:
+        try:
+            return datetime.fromtimestamp(value / 1000 if value > 1e11 else value, tz=timezone.utc).date().isoformat()
+        except (OverflowError, OSError, ValueError):
+            return ""
+    text = clean_whitespace(str(value or ""))
+    m = re.match(r"(\d{4}-\d{2}-\d{2})", text)
+    if m:
+        try:
+            return date.fromisoformat(m.group(1)).isoformat()
+        except ValueError:
+            return ""
+    low = text.lower()
+    if re.search(r"\b(just posted|just now|today|new)\b", low) and not _AGO_RE.search(low):
+        return today.isoformat()
+    if "yesterday" in low:
+        return (today - timedelta(days=1)).isoformat()
+    m = _AGO_RE.search(low)
+    if not m:
+        return ""
+    unit = m.group(2).lower()
+    per = _AGO_DAYS["mo"] if unit.startswith("mo") or unit.startswith("mt") else _AGO_DAYS.get(unit[0], 0)
+    return (today - timedelta(days=int(m.group(1)) * per)).isoformat()

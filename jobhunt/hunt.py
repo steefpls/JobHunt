@@ -19,8 +19,8 @@ import time
 import traceback
 from datetime import datetime, timedelta
 
-from . import (company, db, marketpay, profile, prompts, refresh, render, secrets_store, settings as settings_mod, sites,
-               statuscheck, tuning)
+from . import (adcheck, company, db, marketpay, profile, prompts, refresh, render, secrets_store,
+               settings as settings_mod, sites, statuscheck, tuning)
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
@@ -117,7 +117,7 @@ def build_package(task: Task, browser: BrowserSession, posting: Posting, verdict
     job_id = db.add_job(source=posting.source, url=posting.url, company=posting.company, role=posting.title,
                         location=posting.location, apply_url=posting.apply_url or posting.url,
                         posting_text=posting.text, folder=folder.name, history=doubts, salary=posting.salary,
-                        match_score=_num(verdict.get("score")), run_id=task.run_id)
+                        match_score=_num(verdict.get("score")), run_id=task.run_id, posted_at=posting.posted)
     task.current_job = job_id
     listing_key = f"listing:{posting.url}"
     for call_id in task.listing_calls.pop(listing_key, []):
@@ -354,8 +354,53 @@ def _avoid_hit(words: list[str], *texts: str) -> str | None:
     return None
 
 
+class SiteStats:
+    """What a hunt did with each site's results, per site and per keyword (shown on the Hunt page when it
+    ends), so a site or keyword that finds nothing new is easy to spot."""
+    COUNTS = ("found", "known", "avoid", "low_pay", "not_fit", "unreadable", "other", "matched")
+    NAMES = {"known": "already known", "avoid": "avoid word", "low_pay": "pay too low", "not_fit": "not a fit",
+             "unreadable": "couldn't be read", "other": "same company or over the hunt's limit", "matched": "match"}
+
+    def __init__(self):
+        self.sites: dict = {}
+
+    def site(self, site) -> dict:
+        return self.sites.setdefault(site.key, {"label": site.label, "pages": 0, "stopped_early": 0, "keywords": {},
+                                                **{c: 0 for c in self.COUNTS}})
+
+    def add(self, site, listing, what: str) -> None:
+        """Count one listing as `what` (one of COUNTS: "found" once for every listing, then what became of it)."""
+        row = self.site(site)
+        row[what] += 1
+        kw = row["keywords"].setdefault(listing.extra.get("keyword") or "", {"found": 0, "new": 0, "matched": 0})
+        if what == "found":
+            kw["found"] += 1
+        elif what != "known":
+            kw["new"] += 1
+            kw["matched"] += what == "matched"
+
+    def lines(self) -> list[str]:
+        """'JobStreet: 40 found: 25 already known, 3 pay too low, 9 not a fit, 2 matches.'"""
+        out = []
+        for row in self.sites.values():
+            parts = [f"{row[k]} {name}{'es' if k == 'matched' and row[k] != 1 else ''}"
+                     for k, name in self.NAMES.items() if row[k]]
+            line = f"{row['label']}: {row['found']} found" + (": " + ", ".join(parts) if parts else "") + "."
+            if row["stopped_early"]:
+                line += (f" {row['stopped_early']} keyword{'s' if row['stopped_early'] != 1 else ''} stopped early, on a"
+                         " page holding only jobs already known.")
+            out.append(line)
+        return out
+
+
+def _known(listing, seen_here: set) -> bool:
+    """Already judged or tracked (the hunt loop's own test, nothing opened), or listed earlier this run."""
+    return (listing.url in seen_here or db.was_seen(listing.url)
+            or db.is_duplicate(listing.url, listing.company, listing.title, listing.salary))
+
+
 def candidates(task: Task, ctx: SiteContext, site_keys: list[str], keywords: list[str], location: str,
-               max_pages: int = 5, blocked: dict | None = None):
+               max_pages: int = 5, blocked: dict | None = None, stats: SiteStats | None = None):
     """Round-robin over sites, then keywords, page by page; yields (site, listing).
 
     `blocked` maps a site's key to why it was dropped for this run. A site that
@@ -365,7 +410,7 @@ def candidates(task: Task, ctx: SiteContext, site_keys: list[str], keywords: lis
     gens = []
     for key in site_keys:
         site = get_site(key, task.settings)
-        gens.append((site, _site_listings(task, ctx, site, keywords, location, max_pages)))
+        gens.append((site, _site_listings(task, ctx, site, keywords, location, max_pages, stats)))
     while gens:
         for site, gen in list(gens):
             if site.key in blocked:
@@ -388,10 +433,14 @@ def candidates(task: Task, ctx: SiteContext, site_keys: list[str], keywords: lis
                 gens.remove((site, gen))
 
 
-def _site_listings(task, ctx, site, keywords, location, max_pages):
+def _site_listings(task, ctx, site, keywords, location, max_pages, stats: SiteStats | None = None):
     """One failed search page skips to the next keyword. Two failures in a row, or no search page
-    working at all, give up on the site (the error goes up to `candidates`)."""
+    working at all, give up on the site (the error goes up to `candidates`).
+
+    On a site that lists the newest jobs first, a page where every job is already known means the
+    pages after it are older still: that keyword stops there and the next one starts."""
     failures, worked, last_error = 0, False, None
+    seen_here: set = set()
     for kw in keywords:
         for page_no in range(max_pages):
             task.check_stop()
@@ -409,10 +458,25 @@ def _site_listings(task, ctx, site, keywords, location, max_pages):
                          "trying the next keyword.", "warn")
                 break
             failures, worked = 0, True
-            task.log(f"{site.label}: '{kw}' page {page_no + 1}: {len(listings)} results")
+            if stats is not None:
+                stats.site(site)["pages"] += 1
+            all_known = bool(listings) and getattr(site, "newest_first", False) and all(_known(l, seen_here) for l in listings)
+            more = page_no + 1 < min(max_pages, getattr(site, "page_limit", max_pages))
+            if all_known and more:
+                task.log(f"{site.label}: '{kw}' page {page_no + 1}: all {len(listings)} already known, so the older "
+                         "pages are skipped; moving on.")
+                if stats is not None:
+                    stats.site(site)["stopped_early"] += 1
+            else:
+                task.log(f"{site.label}: '{kw}' page {page_no + 1}: {len(listings)} results")
             if not listings:
                 break
+            for listing in listings:
+                listing.extra.setdefault("keyword", kw)
+                seen_here.add(listing.url)
             yield from listings
+            if all_known:
+                break
     if last_error is not None and not worked:
         raise last_error
 
@@ -507,30 +571,43 @@ def run_hunt(task: Task) -> str:
     ctx = SiteContext(browser, s["pacing"], task.stop_event, lambda m: task.log(m))
     matched, ready, examined, skipped_known = 0, 0, 0, 0
     companies, tried, blocked = set(), set(), {}
+    stats = SiteStats()
     max_candidates = int(s["hunt"].get("max_candidates") or 60)
     try:
-        for site, listing in candidates(task, ctx, site_keys, keywords, s["scope"].get("location", ""), blocked=blocked):
+        try:  # first, whether the ads waiting for you are still open (JobStreet and Indeed need this browser)
+            adcheck.run(ctx, log=task.log, stop_event=task.stop_event)
+        except Exception as e:  # never worth losing the hunt over
+            task.log(f"Ads: the check broke ({type(e).__name__}); carrying on with the hunt.", "warn")
+        task.check_stop()
+        for site, listing in candidates(task, ctx, site_keys, keywords, s["scope"].get("location", ""), blocked=blocked,
+                                        stats=stats):
             task.check_stop()
             task.current_job = None
             if matched >= target or examined >= max_candidates:
                 break
+            stats.add(site, listing, "found")
             if site.key in blocked or listing.url in tried:
+                stats.add(site, listing, "known")
                 continue  # tried: the same posting can come up again under another keyword
             tried.add(listing.url)
             if db.was_seen(listing.url) or db.is_duplicate(listing.url, listing.company, listing.title, listing.salary):
                 skipped_known += 1
+                stats.add(site, listing, "known")
                 continue
             hit = _avoid_hit(avoid, listing.title, listing.company)
             if hit:
                 db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", f"avoid word: {hit}", salary=listing.salary)
                 task.log(f"Skip (avoid word '{hit}'): {listing.company} - {listing.title}")
+                stats.add(site, listing, "avoid")
                 continue
             if listing.company and db.company_key(listing.company) in companies:
+                stats.add(site, listing, "other")
                 continue  # one application per company per run
             reason = _below_floor(listing.salary_max_monthly, floor)
             if reason:  # the search card already shows the pay: no need to open the posting
                 db.mark_seen(listing.url, listing.source, listing.company, listing.title, "skip", reason, salary=listing.salary)
                 task.log(f"Skip ({reason}): {listing.company} - {listing.title}")
+                stats.add(site, listing, "low_pay")
                 continue
             examined += 1
             try:
@@ -538,10 +615,12 @@ def run_hunt(task: Task) -> str:
             except SiteBlocked as e:
                 blocked[site.key] = f"{site.label} (blocked or needs login)"
                 task.log(f"{site.label}: blocked or needs login ({e}); skipping this site for this run.", "warn")
+                stats.add(site, listing, "unreadable")
                 continue
             except Exception as e:
                 db.mark_seen(listing.url, listing.source, listing.company, listing.title, "error", str(e)[:200], salary=listing.salary)
                 task.log(f"Could not read posting {listing.url}: {type(e).__name__}", "warn")
+                stats.add(site, listing, "unreadable")
                 continue
             dup = db.duplicate_of(listing.url, posting.company, posting.title, posting.salary, posting.apply_url)
             if dup:  # the posting's own company and title, and its pay, can say more than the search card did
@@ -549,17 +628,20 @@ def run_hunt(task: Task) -> str:
                              f"same job as one already seen on {dup['source']}", salary=posting.salary,
                          apply_url=posting.apply_url)
                 task.log(f"Skip (same job already seen on {dup['source']}): {posting.company} - {posting.title}")
+                stats.add(site, listing, "known")
                 continue
             if len(posting.text) < 80:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", "posting text too short", salary=posting.salary,
                          apply_url=posting.apply_url)
                 task.log(f"Posting had no readable text, skipped: {listing.url}", "warn")
+                stats.add(site, listing, "unreadable")
                 continue
             reason = _below_floor(posting.salary_max_monthly, floor)
             if reason:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip", reason, salary=posting.salary,
                          apply_url=posting.apply_url)
                 task.log(f"Skip ({reason}): {posting.company} - {posting.title}")
+                stats.add(site, listing, "low_pay")
                 continue
             try:
                 verdict = judge(task, posting, scope_text, profile_text, expected_salary, dislikes)
@@ -569,17 +651,20 @@ def run_hunt(task: Task) -> str:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", f"filter: {e}"[:200], salary=posting.salary,
                          apply_url=posting.apply_url)
                 task.log(f"Could not judge {posting.company} - {posting.title}: {e}", "warn")
+                stats.add(site, listing, "unreadable")
                 continue
             if not verdict["apply"]:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "skip",
                              "; ".join(map(str, verdict["reasons"])), salary=posting.salary,
                          apply_url=posting.apply_url)
                 task.log(f"Not a fit: {posting.company} - {posting.title} ({'; '.join(map(str, verdict['reasons']))[:160]})")
+                stats.add(site, listing, "not_fit")
                 continue
             db.mark_seen(listing.url, listing.source, posting.company, posting.title, "match",
                          "; ".join(map(str, verdict["reasons"])), salary=posting.salary,
                          apply_url=posting.apply_url)
             task.log(f"Match ({verdict.get('score')}/10): {posting.company} - {posting.title}")
+            stats.add(site, listing, "matched")
             job_id = build_package(task, browser, posting, verdict, ctx)
             companies.add(db.company_key(posting.company))
             matched += 1
@@ -595,9 +680,13 @@ def run_hunt(task: Task) -> str:
             summary += f" {matched - ready} match(es) failed while building: see Error on the Dashboard."
         if blocked:
             summary += " Skipped for this run: " + ", ".join(blocked.values()) + "."
+        for line in stats.lines():
+            task.log(line)
         task.log("Hunt finished: " + summary)
         return summary
     finally:
+        if stats.sites:  # kept for the Hunt page, also when the hunt was stopped
+            db.set_site_stats(task.run_id, json.dumps(stats.sites))
         browser.close()
 
 

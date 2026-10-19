@@ -27,8 +27,8 @@ import httpx
 from bs4 import BeautifulSoup
 
 from . import company, workmode
-from .extract import (Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, salary_range_monthly,
-                      salary_top_monthly, select_text)
+from .extract import (Listing, Posting, clean_whitespace, generic_posting, html_to_text, monthly, posted_date,
+                      salary_range_monthly, salary_top_monthly, select_text)
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/141.0.0.0 Safari/537.36")
@@ -171,7 +171,8 @@ class DemoSite:
             if not a:
                 continue
             out.append(Listing(source=self.key, url=_abs(url, a.get("href")), title=clean_whitespace(a.get_text(" ")),
-                               company=select_text(card, ".company"), location=select_text(card, ".location")))
+                               company=select_text(card, ".company"), location=select_text(card, ".location"),
+                               posted=posted_date(select_text(card, ".posted"))))
         return out
 
     def fetch(self, ctx, listing):
@@ -188,6 +189,7 @@ class DemoSite:
 class MyCareersFutureSite:
     key = "mycareersfuture"
     label = "MyCareersFuture"
+    newest_first = True  # sortBy new_posting_date: a page of jobs already known means the rest are older still
     API = "https://api.mycareersfuture.gov.sg/v2"
 
     def search(self, ctx, keyword, location, page_no):
@@ -203,7 +205,8 @@ class MyCareersFutureSite:
         return Listing(source=self.key, url=meta.get("jobDetailsUrl") or f"https://www.mycareersfuture.gov.sg/job/{r['uuid']}",
                        title=r.get("title", ""), company=company,
                        location=", ".join(d.get("location", "") for d in districts) or "Singapore",
-                       salary=salary, salary_max_monthly=salary_max, extra={"uuid": r["uuid"]})
+                       salary=salary, salary_max_monthly=salary_max, posted=posted_date(meta.get("newPostingDate")),
+                       extra={"uuid": r["uuid"]})
 
     @staticmethod
     def salary(r: dict) -> tuple[str, float]:
@@ -238,7 +241,8 @@ class MyCareersFutureSite:
         p = Posting(source=self.key, url=listing.url, title=r.get("title") or listing.title,
                     company=(r.get("hiringCompany") or {}).get("name") or (r.get("postedCompany") or {}).get("name") or listing.company,
                     location=listing.location, text="\n\n".join(parts), apply_url=listing.url, salary=salary,
-                    salary_max_monthly=salary_max, company_info=company.mcf_info(r, listing.url))
+                    salary_max_monthly=salary_max, company_info=company.mcf_info(r, listing.url),
+                    posted=posted_date((r.get("metadata") or {}).get("newPostingDate")) or listing.posted)
         return p
 
 
@@ -247,6 +251,8 @@ class MyCareersFutureSite:
 class LinkedInSite:
     key = "linkedin"
     label = "LinkedIn"
+    # Not newest first: the public search ignores every sort setting (sortBy=DD gives the same order, checked
+    # live on 2026-10-20), so its pages are always all read.
 
     def search(self, ctx, keyword, location, page_no):
         url = ("https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"
@@ -265,12 +271,13 @@ class LinkedInSite:
                 continue
             job_id = m.group(1)
             salary = select_text(card, ".job-search-card__salary-info")
+            when = card.select_one("time[datetime]")
             out.append(Listing(source=self.key, url=f"https://www.linkedin.com/jobs/view/{job_id}/",
                                title=select_text(card, ".base-search-card__title"),
                                company=select_text(card, ".base-search-card__subtitle"),
                                location=select_text(card, ".job-search-card__location"),
                                salary=salary, salary_max_monthly=salary_top_monthly(salary),
-                               extra={"job_id": job_id}))
+                               posted=posted_date(when.get("datetime") if when else ""), extra={"job_id": job_id}))
         return out
 
     def fetch(self, ctx, listing):
@@ -302,13 +309,14 @@ class JobStreetSite:
     key = "jobstreet"
     label = "JobStreet"
     BASE = "https://sg.jobstreet.com"
+    newest_first = True  # sortmode=ListedDate
 
     def search(self, ctx, keyword, location, page_no):
         slug = re.sub(r"[^a-z0-9]+", "-", keyword.lower()).strip("-")
         url = f"{self.BASE}/{quote(slug)}-jobs"
         if location:
             url += f"/in-{quote(re.sub(r'[^A-Za-z0-9]+', '-', location).strip('-'))}"
-        url += f"?page={page_no + 1}"
+        url += f"?page={page_no + 1}&sortmode=ListedDate"  # newest first
         return self.parse_search(ctx.get_html(url))
 
     def parse_search(self, html: str) -> list:
@@ -324,7 +332,8 @@ class JobStreetSite:
             out.append(Listing(source=self.key, url=url, title=clean_whitespace(a.get_text(" ")),
                                company=select_text(card, "[data-automation='jobCompany']"),
                                location=select_text(card, "[data-automation='jobLocation']"),
-                               salary=salary, salary_max_monthly=salary_top_monthly(salary)))
+                               salary=salary, salary_max_monthly=salary_top_monthly(salary),
+                               posted=posted_date(select_text(card, "[data-automation='jobListingDate']"))))
         return out
 
     def fetch(self, ctx, listing):
@@ -419,6 +428,7 @@ class IndeedSite:
     label = "Indeed"
     BASE = "https://sg.indeed.com"
     TAB = "indeed"  # the search page stays open here while other sites load theirs
+    newest_first = True  # sort=date
     needs_window = True  # see above: the hunt's browser runs as a real (minimized) window
 
     def __init__(self):
@@ -466,6 +476,7 @@ class IndeedSite:
                        company=clean_whitespace(r.get("company") or ""),
                        location=clean_whitespace(r.get("formattedLocation") or ""),
                        salary=salary, salary_max_monthly=salary_top_monthly(salary),
+                       posted=posted_date(r.get("pubDate") or r.get("formattedRelativeTime") or ""),
                        extra={"easy_apply": r["indeedApplyEnabled"]} if "indeedApplyEnabled" in r else {})
 
     def fetch(self, ctx, listing):
@@ -576,6 +587,7 @@ def _fill_from_listing(p: Posting, listing: Listing) -> Posting:
     p.title = p.title or listing.title
     p.company = p.company or listing.company
     p.location = p.location or listing.location
+    p.posted = p.posted or listing.posted
     if not p.salary and listing.salary:
         p.salary, p.salary_max_monthly = listing.salary, listing.salary_max_monthly
     return p

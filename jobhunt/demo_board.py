@@ -88,7 +88,8 @@ def demo_search(q: str = "", l: str = "", page: int = 0):
     hits = [j for j in JOBS if not words or any(w in (j["title"] + " " + j["description"]).lower() for w in words)]
     cards = "".join(
         f'<div class="job-card"><a class="job-link" href="/demo/job/{j["id"]}">{html.escape(j["title"])}</a>'
-        f'<div class="company">{html.escape(j["company"])}</div><div class="location">{html.escape(j["location"])}</div></div>'
+        f'<div class="company">{html.escape(j["company"])}</div><div class="location">{html.escape(j["location"])}</div>'
+        f'<div class="posted">{j["id"] * 2 - 1}d ago</div></div>'
         for j in hits)
     return _page(f"Jobs: {q}", f"<h1>Search results for {html.escape(q)}</h1>{cards or '<p>No jobs found.</p>'}")
 
