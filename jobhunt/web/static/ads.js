@@ -34,6 +34,14 @@
     line.hidden = false;
   }
 
+  function countClosed() {  // To review's "Reject all closed" bar shows once any card says Ad closed
+    const bar = document.getElementById('closedBar');
+    if (!bar) return;
+    const n = document.querySelectorAll('.facts-line .pill.closed').length;
+    bar.querySelector('[data-closed-text]').textContent = n + (n === 1 ? ' job here has' : ' jobs here have') + ' a closed ad.';
+    bar.hidden = !n;
+  }
+
   function markJob(r) {  // the job page says so above what to do next
     const what = document.querySelector('#next .what');
     if (!what || document.getElementById('adClosed')) return;
@@ -65,6 +73,7 @@
   } else if (document.querySelector('.facts-line[data-ad-job]')) {
     ask('').then(function (all) {
       Object.keys(all).forEach(function (id) { if (all[id] && all[id].state === 'closed') markCard(id, all[id]); });
+      countClosed();
     });
   }
 })();

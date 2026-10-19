@@ -89,12 +89,15 @@
 
 <div class="toasts" id="toasts" role="status" aria-live="polite">
   {% if msg or err or warn %}{% set tone = 'ok' if msg else ('err' if err else 'warn') %}
-  <div class="toast {{ tone }} flash" data-ttl="{{ 9000 if err or undo or restore else 5000 }}">
+  <div class="toast {{ tone }} flash" data-ttl="{{ 9000 if err or undo or undo_all or restore else 5000 }}">
     {{ icon({"ok": "circle-check", "err": "circle-alert", "warn": "triangle-alert"}[tone]) }}
     <div class="tbody">{{ msg or err or warn }}</div>
     <div class="tact">
       {% if undo %}<form method="post" action="/jobs/{{ undo.job_id }}/undo" class="inline">
         <input type="hidden" name="state" value="{{ undo.state }}"><input type="hidden" name="next" value="{{ here }}">
+        <button class="tbtn">{{ icon("undo-2", "sm") }}Undo</button></form>{% endif %}
+      {% if undo_all %}<form method="post" action="/jobs/undo-all" class="inline">
+        <input type="hidden" name="jobs" value="{{ undo_all }}"><input type="hidden" name="next" value="{{ here }}">
         <button class="tbtn">{{ icon("undo-2", "sm") }}Undo</button></form>{% endif %}
       {% if restore %}<form method="post" action="/profile/cv/restore" class="inline">
         <input type="hidden" name="name" value="{{ restore }}"><button class="tbtn">{{ icon("undo-2", "sm") }}Undo</button></form>{% endif %}

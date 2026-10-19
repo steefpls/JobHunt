@@ -24,6 +24,7 @@ USER_STATES = ["Ready", "Applied", "Needs you", "Interview", "Offer", "Rejected"
 # The quick picks when you reject a package (all optional). Saved on the job and read by the next hunts.
 REJECT_REASONS = ["Pay too low", "Wrong location", "Too senior", "Too junior", "Not my field", "Don't like the company",
                   "Other"]
+AD_CLOSED = "Ad closed"  # the reason "Reject all closed" gives (never a quick pick, and not a taste the AI learns from)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -269,7 +270,7 @@ def needs_you(job_id: int, kind: str, reason: str) -> None:
 
 def reject(job_id: int, reasons: list[str], note: str = "") -> None:
     """You turned a package down ('Not for me'), saying why if you like."""
-    reasons = [r for r in REJECT_REASONS if r in reasons]  # only the quick picks, in their usual order
+    reasons = [r for r in REJECT_REASONS + [AD_CLOSED] if r in reasons]  # only the quick picks, in their usual order
     note = " ".join((note or "").split())[:300]
     update_job(job_id, state="Not for me", by="you", reject_reason="; ".join(reasons), reject_note=note)
     add_history(job_id, "You rejected it" + (": " + reject_text(get_job(job_id) or {}) if reasons or note
@@ -285,7 +286,8 @@ def reject_text(job: dict) -> str:
 def recent_rejections(limit: int = 10) -> list[dict]:
     """Your latest rejections that came with a reason, newest first."""
     return _query("SELECT company, role, reject_reason, reject_note FROM jobs WHERE state = 'Not for me'"
-                  " AND (reject_reason != '' OR reject_note != '') ORDER BY updated_at DESC, id DESC LIMIT ?", (limit,))
+                  " AND (reject_reason != '' OR reject_note != '') AND reject_reason != ?"
+                  " ORDER BY updated_at DESC, id DESC LIMIT ?", (AD_CLOSED, limit))
 
 
 def why_needs_you(job: dict) -> str:
@@ -390,6 +392,13 @@ def applied_since(source: str, since_iso: str) -> int:
     rows = _query("SELECT COUNT(*) AS n FROM jobs WHERE source = ? AND state = 'Applied' AND updated_at >= ?",
                   (source, since_iso))
     return rows[0]["n"]
+
+
+def first_applied_since(source: str, since_iso: str) -> str:
+    """When the earliest of those applications was made ('' if none): pacing waits until it is an hour old."""
+    rows = _query("SELECT MIN(updated_at) AS t FROM jobs WHERE source = ? AND state = 'Applied' AND updated_at >= ?",
+                  (source, since_iso))
+    return rows[0]["t"] or ""
 
 
 def seen_stats() -> dict:

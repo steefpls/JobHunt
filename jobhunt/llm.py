@@ -51,6 +51,14 @@ FALLBACK_PRICE = (1.00, 5.00)  # used for unknown models, deliberately on the hi
 STAGE_MODEL_FALLBACK = {"company": "filter"}
 
 
+MAX_RETRY_WAIT_S = 60  # the longest "retry after" worth waiting out before trying a call again
+
+
+def _minutes(seconds: float) -> str:
+    m = max(1, round(seconds / 60))
+    return f"{m} minute{'s' if m != 1 else ''}" if m < 120 else f"{round(m / 60)} hours"
+
+
 class LLMError(Exception):
     """A model call failed in a way the user should see (bad key, no credit...)."""
 
@@ -430,12 +438,17 @@ class LLMClient:
                 time.sleep(delay)
                 delay *= 2
                 continue
+            try:
+                asked = float(r.headers.get("retry-after", ""))
+            except ValueError:
+                asked = 0.0
+            if r.status_code == 429 and asked > MAX_RETRY_WAIT_S:
+                # a usage limit that resets in minutes or hours: waiting a minute three times (and looking stuck)
+                # can't help, so say so at once
+                raise RateLimited("The AI provider's usage limit was reached, so the run stopped cleanly. It says to "
+                                  f"try again in about {_minutes(asked)}.")
             if r.status_code in (429, 500, 502, 503, 504) and attempt < 3:
-                try:
-                    wait = min(60.0, float(r.headers.get("retry-after", delay)))
-                except ValueError:
-                    wait = delay
-                time.sleep(wait)
+                time.sleep(asked or delay)
                 delay *= 2
                 continue
             if r.status_code == 429:

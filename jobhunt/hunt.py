@@ -490,8 +490,14 @@ def wait_for_rate_limit(task: Task, source: str) -> None:
         since = (datetime.now() - timedelta(hours=1)).isoformat(timespec="seconds")
         if db.applied_since(source, since) < cap:
             return
-        if not announced:
-            task.log(f"Pacing: {cap} applications in the last hour on {source}; waiting before the next one.")
+        if not announced:  # say until when, so a long wait doesn't look like a hang
+            first = db.first_applied_since(source, since)
+            try:
+                until = (datetime.fromisoformat(first) + timedelta(hours=1)).strftime("%H:%M")
+            except ValueError:
+                until = ""
+            task.log(f"Pacing: {cap} applications in the last hour on {source}; waiting "
+                     + (f"until about {until} " if until else "") + "before the next one (Stop ends the hunt).")
             announced = True
         for _ in range(60):
             task.check_stop()

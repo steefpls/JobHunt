@@ -256,6 +256,8 @@ def apply_system_prompt(allow_register: bool) -> str:
         "- " + account_rule + "\n"
         "- Never tick marketing, newsletter or 'share my data with partners' boxes.\n"
         "- Multi-page forms: go page by page; don't assume what a later page holds.\n"
+        "- Dropdowns (select or combobox): use select_option with the choice's text, never fill. If the page says "
+        "a field is wrong or missing, fix that field before pressing Next or Submit again.\n"
         "- After pressing the final submit button, look for a clear confirmation on the page (e.g. 'Thank you for "
         "applying', 'Application submitted'). Only then call finish(status='submitted') and quote that exact "
         "confirmation text. A page that merely moved on is not a confirmation.\n"

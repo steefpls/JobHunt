@@ -733,6 +733,12 @@ details.pastask summary .hint { margin: 0; flex-shrink: 0; }
   background: var(--bad-bg); border: 1px solid var(--bad-line); color: var(--bad-ink); }
 .adclosed .i { flex: none; margin-top: 2px; }
 .actionbar .what .adclosed b { display: inline; font-size: inherit; }
+.closedbar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 8px 8px 8px 12px; margin-bottom: var(--sp-4);
+  border-radius: var(--radius-sm); background: var(--bad-bg); border: 1px solid var(--bad-line); color: var(--bad-ink); }
+.closedbar[hidden] { display: none; }
+.closedbar > .i { flex: none; }
+.closedbar .what { flex: 1; min-width: 12em; font-weight: 600; }
+.closedbar form { margin: 0; }
 .pop { animation: pop-in var(--dur, .22s) var(--ease-ios, ease-out); }
 @keyframes pop-in { from { opacity: 0; transform: scale(.94); } }
 @media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
@@ -766,6 +772,13 @@ details.sitestats > summary { cursor: pointer; font-weight: 600; font-size: var(
 .statsite .bar .nofit { background: var(--chip-ink2); opacity: .45; }
 .statsite .bar .match { background: var(--ok); }
 .statsite .hint { margin: 6px 0 4px; }
+/* the Hunt page's summary of the saved pay floor and keywords */
+.huntscope { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; margin-bottom: var(--sp-4);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+.huntscope .row { display: flex; gap: 10px; align-items: baseline; }
+.huntscope .lbl { flex: none; width: 6.5em; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.huntscope .kws { display: flex; flex-wrap: wrap; gap: 4px; }
+.huntscope .kwtag { border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; background: var(--field); }
 .kwlist { list-style: none; margin: 0; padding: 0; font-size: var(--fs-sm); }
 .kwlist li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-top: 1px dashed var(--line); }
 .kwlist li .kw { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -39,6 +39,15 @@
 </div>
 {% endif %}
 
+{% if ready or needs_you %}
+<div class="closedbar" id="closedBar" {{ 'hidden' if not closed_n }}>
+  {{ icon("circle-x") }}<span class="what" data-closed-text>{{ closed_n }} {{ "job here has" if closed_n == 1 else "jobs here have" }} a closed ad.</span>
+  <form method="post" action="/jobs/reject-closed" class="inline" data-confirm="Every job on this page tagged Ad closed moves to Not for me, with the reason Ad closed. You can undo it straight after."
+        data-confirm-title="Reject every closed ad?" data-confirm-ok="Reject them" data-confirm-icon="circle-x">
+    <button class="btn small">{{ icon("circle-x") }}Reject all closed</button></form>
+</div>
+{% endif %}
+
 {% if needs_you %}
 <h2 class="section-title">{{ icon("hand") }}Needs you <span class="count">{{ needs_you|length }}</span></h2>
 <p class="hint mt0">JobHunt stopped on {{ "these" if needs_you|length > 1 else "this one" }} and handed {{ "them" if needs_you|length > 1 else "it" }} to you:

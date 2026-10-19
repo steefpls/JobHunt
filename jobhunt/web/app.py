@@ -85,6 +85,16 @@ def posted_text(day: str, today: date | None = None) -> str:
     return "posted 30+ days ago"
 
 
+def undo_pairs(text: str) -> list[tuple[int, str]]:
+    """"12:Ready,13:Needs you" -> [(12, "Ready"), (13, "Needs you")], leaving out anything that isn't one."""
+    out = []
+    for part in (text or "").split(","):
+        job_id, _, state = part.strip().partition(":")
+        if job_id.isdigit() and state in db.STATES:
+            out.append((int(job_id), state))
+    return out
+
+
 def pay_text(salary: str) -> str:
     """The pay on a card, short: '$5.5k-8k a month'. '' when it isn't stated; as written when it isn't monthly."""
     lo, hi = salary_range_monthly(salary or "")
@@ -329,15 +339,14 @@ def create_app(port: int = 8765) -> FastAPI:
         name_ = (profile.load_contact().get("name") or "").split()
         tune = request.query_params.get("tune", "")  # just rejected a job: offer one change to the Scope
         ctx.update(suggestion=tuning.suggest(db.get_job(int(tune))) if tune.isdigit() else None)
-        undo = request.query_params.get("undo", "")  # "12:Ready": the job just changed, and the state to put back
-        undo_id, _, undo_state = undo.partition(":")
+        undo = undo_pairs(request.query_params.get("undo", ""))  # the jobs that just changed, and the states to put back
         counts = db.state_counts()
         ctx.setdefault("nav", {"job": "applications"}.get(name.split(".")[0], name.split(".")[0]))
         ctx.update(request=request, status=hunt.runner.status(), settings=s,
                    msg=request.query_params.get("msg", ""), err=request.query_params.get("err", ""),
                    warn=request.query_params.get("warn", ""), nav_counts=counts,
-                   undo={"job_id": int(undo_id), "state": undo_state}
-                   if undo_id.isdigit() and undo_state in db.STATES else None,
+                   undo={"job_id": undo[0][0], "state": undo[0][1]} if len(undo) == 1 else None,
+                   undo_all=",".join(f"{i}:{st}" for i, st in undo) if len(undo) > 1 else "",
                    subscription=s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS,
                    key_saved=secrets_store.has_secret(secrets_store.api_key_name(s["provider"])),
                    updates=updates.info(), here=request.url.path, waiting=counts.get("Ready", 0),
@@ -348,9 +357,10 @@ def create_app(port: int = 8765) -> FastAPI:
         return templates.TemplateResponse(request, name, ctx)
 
     def back(url: str, msg: str = "", err: str = "", party: str = "", warn: str = "",
-             undo: tuple[int, str] | None = None) -> RedirectResponse:
+             undo: tuple[int, str] | list[tuple[int, str]] | None = None) -> RedirectResponse:
         """Back to a page, with a message for its toast (the page's script takes it out of the address again).
-        undo=(job_id, state) adds an Undo button to the toast that puts the job back in that state."""
+        undo=(job_id, state) adds an Undo button to the toast that puts the job back in that state;
+        a list of them, one Undo for them all."""
         url, hash_, fragment = url.partition("#")  # the message goes before any #fragment, or it never shows
         sep = "&" if "?" in url else "?"
         if msg:
@@ -360,7 +370,8 @@ def create_app(port: int = 8765) -> FastAPI:
         elif warn:
             url += f"{sep}warn={quote(warn)}"
         if undo:
-            url += f"{'&' if '?' in url else '?'}undo={undo[0]}:{quote(undo[1])}"
+            pairs = [undo] if isinstance(undo, tuple) else undo
+            url += f"{'&' if '?' in url else '?'}undo=" + ",".join(f"{i}:{quote(st)}" for i, st in pairs)
         if party:
             url += f"{'&' if '?' in url else '?'}party={party}"
         return RedirectResponse(url + hash_ + fragment, status_code=303)
@@ -375,8 +386,9 @@ def create_app(port: int = 8765) -> FastAPI:
         checklist = [("Add your AI key", "/accounts" not in todo, "/accounts"),
                      ("Build your profile", "/profile" not in todo, "/profile"),
                      ("Set your search scope", "/scope" not in todo, "/scope")]
+        ready, needs_you = db.list_jobs("Ready"), db.list_jobs("Needs you")
         return page(request, "dashboard.html", counts=db.state_counts(), checklist=checklist, replies=statuscheck.news(),
-                    ready=db.list_jobs("Ready"), needs_you=db.list_jobs("Needs you"),
+                    ready=ready, needs_you=needs_you, closed_n=sum(1 for j in ready + needs_you if adcheck.closed(j)),
                     last_hunt=db.last_run("hunt"))
 
     @app.get("/applications", response_class=HTMLResponse)
@@ -451,12 +463,11 @@ def create_app(port: int = 8765) -> FastAPI:
         return back(url + hash_ + fragment, msg="Rejected: JobHunt won't suggest this job again.",
                     undo=(job_id, before["state"]) if before["state"] != "Not for me" else None)
 
-    @app.post("/jobs/{job_id}/undo")
-    def undo_state(job_id: int, state: str = Form(...), next: str = Form("")):
-        """The toast's Undo: puts a job back in the state it had before the last click."""
+    def put_back(job_id: int, state: str) -> dict | None:
+        """Puts a job back in the state it had before the last click (None when that can't be done now)."""
         job = db.get_job(job_id)
         if not job or state not in db.STATES or state == "Applying":
-            return back(local_path(next, "/"), err="That can't be undone now.")
+            return None
         fields = {"state": state}
         if job["state"] == "Not for me":
             fields.update(reject_reason="", reject_note="")
@@ -464,7 +475,36 @@ def create_app(port: int = 8765) -> FastAPI:
             fields["date_applied"] = ""
         db.update_job(job_id, by="you", **fields)
         db.add_history(job_id, f"You undid that: back to {state_label(state)}.")
+        return job
+
+    @app.post("/jobs/{job_id}/undo")
+    def undo_state(job_id: int, state: str = Form(...), next: str = Form("")):
+        """The toast's Undo: puts a job back in the state it had before the last click."""
+        job = put_back(job_id, state)
+        if not job:
+            return back(local_path(next, "/"), err="That can't be undone now.")
         return back(local_path(next, f"/jobs/{job_id}"), msg=f"Undone: {job['company']} is back in {state_label(state)}.")
+
+    @app.post("/jobs/undo-all")
+    def undo_all(jobs: str = Form(""), next: str = Form("")):
+        """The toast's Undo after a change to several jobs at once ("12:Ready,13:Needs you")."""
+        done = [j for j in (put_back(i, st) for i, st in undo_pairs(jobs)) if j]
+        if not done:
+            return back(local_path(next, "/"), err="That can't be undone now.")
+        return back(local_path(next, "/"), msg=f"Undone: {len(done)} job{'s are' if len(done) != 1 else ' is'} back.")
+
+    @app.post("/jobs/reject-closed")
+    def reject_closed():
+        """To review's "Reject all closed": every waiting job whose ad has closed goes to Not for me, with one Undo."""
+        done = []
+        for j in db.list_jobs("Ready") + db.list_jobs("Needs you"):
+            if adcheck.closed(j):
+                db.reject(j["id"], [db.AD_CLOSED])
+                done.append((j["id"], j["state"]))
+        if not done:
+            return back("/", warn="No job waiting here has a closed ad.")
+        n = len(done)
+        return back("/", msg=f"Rejected {n} job{'s' if n != 1 else ''} whose ad has closed.", undo=done)
 
     @app.post("/api/ads/check")
     async def ads_check(request: Request):
@@ -959,7 +999,8 @@ def create_app(port: int = 8765) -> FastAPI:
                     events=db.recent_events(150), last_hunt=last_hunt,
                     last_hunt_ready=db.count_jobs(last_hunt["id"], "Ready") if last_hunt else 0,
                     last_hunt_built=db.count_jobs(last_hunt["id"]) if last_hunt else 0,
-                    site_stats=_site_stats(last_hunt), stat_names=hunt.SiteStats.NAMES)
+                    site_stats=_site_stats(last_hunt), stat_names=hunt.SiteStats.NAMES,
+                    floor=profile.salary_floor(), keywords=[k for k in s["scope"].get("keywords", []) if k.strip()])
 
     @app.post("/hunt/start")
     async def hunt_start(request: Request):

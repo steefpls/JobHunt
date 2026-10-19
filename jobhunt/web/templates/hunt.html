@@ -44,6 +44,13 @@
   <div class="card">
     <h2>Start a hunt</h2>
     <form method="post" action="/hunt/start" id="huntForm">
+      <div class="huntscope" id="huntScope">
+        <div class="row"><span class="lbl">{{ icon("banknote", "sm") }}Pay floor</span>
+          <span>{% if floor %}<b>${{ "{:,.0f}".format(floor) }} a month</b> <span class="muted">· jobs paying less are skipped</span>{% else %}<span class="muted">None saved: no job is skipped for its pay</span>{% endif %}</span></div>
+        <div class="row"><span class="lbl">{{ icon("search", "sm") }}Keywords</span>
+          <span class="kws">{% for k in keywords %}<span class="kwtag">{{ k }}</span>{% else %}<span class="muted">None saved yet</span>{% endfor %}</span></div>
+        <a class="btn small ghost" href="/scope">{{ icon("sliders-horizontal") }}Change in Preferences</a>
+      </div>
       <label for="jobsInput">How many packages to build</label>
       <input type="number" name="jobs" min="1" max="200" value="{{ settings.hunt.jobs }}" id="jobsInput" style="max-width:140px">
       <fieldset>
