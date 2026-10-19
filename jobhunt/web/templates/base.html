@@ -35,6 +35,8 @@
       <div class="runstate" id="sideRun" role="status">
         <span class="dot {{ 'live' if status.busy }}"></span><span class="txt">{{ 'Working: ' ~ status.kind if status.busy else 'Idle' }}</span>
       </div>
+      {% if spend_total.tin + spend_total.tout %}<a href="/applications#aiuse" class="sidebtn spend" id="sideSpend"
+        title="Every AI call since you started using JobHunt: {{ "{:,}".format((spend_total.tin + spend_total.tout)|int) }} tokens.{% if subscription %} Your flat plan covers it: this is what the same calls would cost at pay-per-use prices.{% endif %}">{{ icon("banknote") }}<span>${{ ("%.4f" if spend_total.cost < 1 else "%.2f")|format(spend_total.cost) }} {{ "est. AI cost" if subscription else "spent on AI" }}</span></a>{% endif %}
       {% if trophies %}<a href="/achievements" class="sidebtn trophies {{ 'on' if nav == 'achievements' }}">{{ icon("trophy") }}{{ trophies }} achievement{{ 's' if trophies != 1 }}</a>{% endif %}
       <button type="button" class="sidebtn themebtn" id="themeBtn">{{ icon("sun-moon") }}<span>Theme: auto</span></button>
       <div class="version" id="sideVersion">JobHunt version <b>{{ updates.version }}</b><br>

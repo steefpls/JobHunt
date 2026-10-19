@@ -72,6 +72,7 @@
       <label for="f_max_steps">Most steps per application</label><input type="number" id="f_max_steps" name="max_steps" min="3" max="200" value="{{ settings.apply.max_steps }}">
       <label class="check mt3"><input type="checkbox" name="show_browser" {{ 'checked' if settings.apply.show_browser }}> Show the browser while it applies</label>
       <label class="check"><input type="checkbox" name="allow_register" {{ 'checked' if settings.apply.allow_register }}> Allow creating new accounts on application sites with a saved login</label>
+      <label class="check"><input type="checkbox" name="check_replies" {{ 'checked' if settings.hunt.check_replies }}> Before a hunt, check Indeed and JobStreet for employers who said no</label>
     </div>
   </div>
 </div>

@@ -60,7 +60,8 @@ DEFAULTS = {
     },
     "apply": {"max_steps": 30, "show_browser": True, "allow_register": False},
     # sites_chosen: you picked sites that include a real one; until then the Hunt page suggests them (hunt.suggested_sites)
-    "hunt": {"jobs": 10, "sites": ["demo"], "sites_chosen": False, "auto_submit": False, "max_candidates": 60},
+    "hunt": {"jobs": 10, "sites": ["demo"], "sites_chosen": False, "auto_submit": False, "max_candidates": 60,
+             "check_replies": True},  # check_replies: before a hunt, read what Indeed and JobStreet say (statuscheck.py)
     "scope": {
         "keywords": [],  # search terms typed into each job site
         "location": "Singapore",

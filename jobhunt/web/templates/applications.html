@@ -4,8 +4,17 @@
 <div class="pagehead">
   <div><h1>Applications</h1>
     <p class="sub">Every job JobHunt prepared for you. Open one to see its resume, cover letter and match report.</p></div>
-  <a class="btn" href="/export.csv">{{ icon("download") }}Export CSV</a>
+  <div class="headacts">
+    {% if replies_todo %}<form method="post" action="/replies/check"><button class="btn" {{ 'disabled' if status.busy }}
+      title="Reads your applied jobs on Indeed and JobStreet and moves the ones an employer turned down">{{ icon("refresh-cw") }}Check for replies</button></form>{% endif %}
+    <a class="btn" href="/export.csv">{{ icon("download") }}Export CSV</a>
+  </div>
 </div>
+{% if replies_todo or replies.checked_at %}
+<p class="hint replynote">{{ icon("inbox", "sm") }}<span>{% if replies.checked_at %}Indeed and JobStreet last checked for replies {{ ago_text(replies.checked_at) or "just now" }}.{% else %}Indeed and JobStreet haven't been checked for replies yet.{% endif %}
+  {% for key, r in (replies.sites or {}).items() if r.state != "ok" and r.checked_at == replies.checked_at %} {{ r.detail[:1]|upper }}{{ r.detail[1:] }}.{% endfor %}
+  {% if settings.hunt.check_replies %}Each hunt checks first when it's been 6 hours.{% endif %}</span></p>
+{% endif %}
 
 <div class="filters" role="navigation" aria-label="Filter by status">
   <a class="filter {{ 'on' if not state }}" href="/applications">All <b>{{ counts.values()|sum }}</b></a>
@@ -66,7 +75,7 @@
 
 {% if runs or spend.tin + spend.tout %}
 <details class="card" id="aiuse">
-  <summary><b>AI use and recent runs</b> <span class="muted">· {{ "{:,}".format((spend.tin + spend.tout)|int) }} tokens all time{% if spend.cost > 0 %} · ${{ ("%.4f" if spend.cost < 1 else "%.2f")|format(spend.cost) }}{% if subscription %} at API prices (covered by your plan){% endif %}{% endif %}</span></summary>
+  <summary><b>AI use and recent runs</b> <span class="muted">· {{ "{:,}".format((spend.tin + spend.tout)|int) }} tokens all time{% if spend.cost > 0 %} · total estimated cost ${{ ("%.4f" if spend.cost < 1 else "%.2f")|format(spend.cost) }}{% if subscription %} at API prices (covered by your plan){% endif %}{% endif %}</span></summary>
   {% if jobs %}
   <div class="tablewrap mt3"><table>
     <thead><tr><th>Job</th><th>Tokens</th><th>Cost</th></tr></thead>

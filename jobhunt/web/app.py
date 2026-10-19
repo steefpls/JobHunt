@@ -26,7 +26,7 @@ from .. import (achievements, company, db, demo_board, hunt, llm, login_check, m
                render, secrets_store, tuning, updates)
 from .. import ask as ask_mod
 from .. import settings as settings_mod
-from .. import sites, workmode
+from .. import sites, statuscheck, workmode
 from ..sites import SITE_STATUS, apply_site
 
 HERE = Path(__file__).resolve().parent
@@ -296,7 +296,7 @@ def create_app(port: int = 8765) -> FastAPI:
                    key_saved=secrets_store.has_secret(secrets_store.api_key_name(s["provider"])),
                    updates=updates.info(), here=request.url.path, waiting=counts.get("Ready", 0),
                    human_apply_sites=hunt.HUMAN_APPLY_SITES, toasts=toasts, trophies=achievements.earned_count(),
-                   first_name=name_[0] if name_ else "",
+                   first_name=name_[0] if name_ else "", spend_total=db.total_spend(),
                    party=request.query_params.get("party", "") if request.query_params.get("party") in
                    ("offer", "interview") else "")
         return templates.TemplateResponse(request, name, ctx)
@@ -329,7 +329,7 @@ def create_app(port: int = 8765) -> FastAPI:
         checklist = [("Add your AI key", "/accounts" not in todo, "/accounts"),
                      ("Build your profile", "/profile" not in todo, "/profile"),
                      ("Set your search scope", "/scope" not in todo, "/scope")]
-        return page(request, "dashboard.html", counts=db.state_counts(), checklist=checklist,
+        return page(request, "dashboard.html", counts=db.state_counts(), checklist=checklist, replies=statuscheck.news(),
                     ready=db.list_jobs("Ready"), needs_you=db.list_jobs("Needs you"),
                     last_hunt=db.last_run("hunt"))
 
@@ -341,7 +341,8 @@ def create_app(port: int = 8765) -> FastAPI:
         profile_changed = {j["id"] for j in jobs
                            if refresh.profile_changes(j, paths.jobs_dir() / j["folder"], contact, profile_text)}
         return page(request, "applications.html", jobs=jobs, counts=db.state_counts(), profile_changed=profile_changed,
-                    states=db.STATES, user_states=db.USER_STATES, state=state,
+                    states=db.STATES, user_states=db.USER_STATES, state=state, replies=statuscheck.load_state(),
+                    replies_todo=sum(len(v) for v in statuscheck.jobs_to_check().values()),
                     spend=db.total_spend(), runs=db.list_runs(5))
 
     @app.get("/export.csv")
@@ -413,6 +414,24 @@ def create_app(port: int = 8765) -> FastAPI:
         db.update_job(job_id, by="you", **fields)
         db.add_history(job_id, f"You undid that: back to {state_label(state)}.")
         return back(local_path(next, f"/jobs/{job_id}"), msg=f"Undone: {job['company']} is back in {state_label(state)}.")
+
+    @app.post("/replies/check")
+    def replies_check():
+        """Applications' "Check for replies": read what Indeed and JobStreet say about jobs he applied for."""
+        if not statuscheck.jobs_to_check():
+            return back("/applications", msg="Nothing to check: no Applied jobs from Indeed or JobStreet.")
+        try:
+            if profile_busy_reason():
+                raise RuntimeError(profile_busy_reason())
+            hunt.runner.start("replies")
+        except RuntimeError as e:
+            return back("/applications", err=str(e))
+        return back("/hunt", msg="Checking Indeed and JobStreet for replies: follow it here.")
+
+    @app.post("/replies/seen")
+    def replies_seen():
+        statuscheck.dismiss_news()
+        return back("/")
 
     @app.post("/tune")
     def tune_scope(job_id: int = Form(0), next: str = Form("")):
@@ -967,7 +986,7 @@ def create_app(port: int = 8765) -> FastAPI:
                        "action_delay_s": num("action_delay_s", 0.8, 0, 30)},
             "apply": {"max_steps": int(num("max_steps", 30, 3, 200)), "show_browser": f.get("show_browser") == "on",
                       "allow_register": f.get("allow_register") == "on"},
-            "hunt": {"max_candidates": int(num("max_candidates", 60, 1, 2000))},
+            "hunt": {"max_candidates": int(num("max_candidates", 60, 1, 2000)), "check_replies": f.get("check_replies") == "on"},
         }
         if patch["pacing"]["max_delay_s"] < patch["pacing"]["min_delay_s"]:
             patch["pacing"]["max_delay_s"] = patch["pacing"]["min_delay_s"]

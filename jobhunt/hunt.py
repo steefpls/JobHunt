@@ -20,7 +20,7 @@ import traceback
 from datetime import datetime, timedelta
 
 from . import (company, db, marketpay, profile, prompts, refresh, render, secrets_store, settings as settings_mod, sites,
-               tuning)
+               statuscheck, tuning)
 from .applyagent import ApplyAgent
 from .browser import BrowserBusy, BrowserSession
 from .extract import Posting
@@ -491,6 +491,15 @@ def run_hunt(task: Task) -> str:
     dislikes = tuning.dislikes_text()  # why you turned recent packages down
     task.log(f"Hunt started: up to {target} jobs from {', '.join(site_keys)}; "
              f"{'AUTO-SUBMIT' if auto_submit else 'draft mode (nothing is submitted)'}; caps: {caps_text(s)}.")
+    if s["hunt"].get("check_replies", True) and statuscheck.due():
+        # first, what Indeed and JobStreet say about jobs he applied for (its own browser, closed before the hunt's)
+        try:
+            statuscheck.run(make_browser, log=task.log, stop_event=task.stop_event)
+        except BrowserBusy:
+            raise
+        except Exception as e:  # never worth losing the hunt over
+            task.log(f"Replies: the check broke ({type(e).__name__}); carrying on with the hunt.", "warn")
+        task.check_stop()
     # Some sites (Indeed) show their human check to a browser without a window: with one of those
     # ticked, the hunt's browser is a real window, started minimized.
     window = any(getattr(get_site(k, s), "needs_window", False) for k in site_keys)
@@ -736,8 +745,15 @@ def caps_text(s: dict) -> str:
     return ", ".join(parts) or "none"
 
 
+def run_status_check(task: Task) -> str:
+    """Applications' "Check for replies": what Indeed and JobStreet say about jobs he applied for. No AI call."""
+    state = statuscheck.run(make_browser, log=task.log, stop_event=task.stop_event)
+    task.check_stop()
+    return statuscheck.summary(state)
+
+
 TASKS = {"hunt": run_hunt, "apply": run_apply, "profile": run_profile, "scope": run_scope,
-         "rebuild": run_rebuild_pdfs, "company": run_company}
+         "rebuild": run_rebuild_pdfs, "company": run_company, "replies": run_status_check}
 
 
 # ── the background runner ─────────────────────────────────────────────

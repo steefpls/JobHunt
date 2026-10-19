@@ -43,8 +43,8 @@
       $('stopBtn').disabled = !s.busy;
       $('startBtn').disabled = s.busy || !READY;
       if (wasBusy && !s.busy) {
-        // Building the profile or drafting the scope: go back to that page with the result.
-        const back = {profile: '/profile', scope: '/scope'}[s.last_kind];
+        // Building the profile, drafting the scope or checking for replies: go back to that page with the result.
+        const back = {profile: '/profile', scope: '/scope', replies: '/'}[s.last_kind];
         if (back) {
           const key = s.last_status === 'done' ? 'msg' : 'err';
           location.replace(back + '?' + key + '=' + encodeURIComponent(s.last_result || 'Finished.'));

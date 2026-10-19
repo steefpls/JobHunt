@@ -22,6 +22,23 @@
 </div>
 {% endif %}
 
+{% if replies %}
+<div class="card replies rise" id="replies">
+  <div class="cardhead"><h2>{{ icon(state_icons["Rejected"]) }}Replies from job sites <span class="count">{{ replies|length }}</span></h2>
+    <form method="post" action="/replies/seen"><button class="btn small ghost">{{ icon("check") }}Got it</button></form></div>
+  <p class="hint mt0">{{ "These employers" if replies|length > 1 else "This employer" }} said no on the job site, so JobHunt moved
+    {{ "them" if replies|length > 1 else "it" }} to Employer said no. If one is wrong, press Undo.</p>
+  <ul class="replylist">
+  {% for j in replies %}
+    <li><span class="logo" aria-hidden="true">{{ initials(j.company) }}</span>
+      <div class="what"><a class="role" href="/jobs/{{ j.id }}">{{ j.company }}</a><span class="muted">{{ j.role }} · {{ j.site }} · {{ ago_text(j.moved_at) or "just now" }}</span></div>
+      <form method="post" action="/jobs/{{ j.id }}/undo"><input type="hidden" name="state" value="Applied"><input type="hidden" name="next" value="/">
+        <button class="btn small" aria-label="Undo: put {{ j.company }} back in Applied">{{ icon("undo-2") }}Undo</button></form></li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 {% if needs_you %}
 <h2 class="section-title">{{ icon("hand") }}Needs you <span class="count">{{ needs_you|length }}</span></h2>
 <p class="hint mt0">JobHunt stopped on {{ "these" if needs_you|length > 1 else "this one" }} and handed {{ "them" if needs_you|length > 1 else "it" }} to you:

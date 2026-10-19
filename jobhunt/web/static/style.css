@@ -704,3 +704,19 @@ details.pastask summary .q { flex: 1; min-width: 0; overflow: hidden; text-overf
 details.pastask summary .hint { margin: 0; flex-shrink: 0; }
 .pastbody { padding-top: 12px; }
 .btn.copied { color: var(--ok); }
+
+/* replies from job sites (statuscheck.py) */
+.headacts { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+.headacts form { margin: 0; }
+.replynote { display: flex; gap: 8px; align-items: flex-start; margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); }
+.replynote .i { flex: none; margin-top: 2px; }
+.replies .cardhead form { margin: 0; }
+.replylist { list-style: none; margin: 0; padding: 0; }
+.replylist li { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--line); }
+.replylist li:first-child { border-top: 0; }
+.replylist .what { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.replylist .what .muted { font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.replylist form { margin: 0; }
+.replylist .logo { width: 36px; height: 36px; border-radius: 10px; background: var(--bad-bg); color: var(--bad-ink); display: inline-flex;
+  align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex: 0 0 auto; text-transform: uppercase; }
+.replylist .what .role { font-weight: 600; color: var(--ink); }

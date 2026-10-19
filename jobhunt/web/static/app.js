@@ -312,3 +312,13 @@ document.addEventListener('keydown', function (ev) {
   const f = ev.target.form;
   if (f && f.requestSubmit) f.requestSubmit();
 });
+
+// A link to a folded section (the sidebar's AI cost -> /applications#aiuse) opens it.
+(() => {
+  const open = () => {
+    const el = location.hash.length > 1 && document.getElementById(location.hash.slice(1));
+    if (el && el.tagName === 'DETAILS') { el.open = true; el.scrollIntoView({block: 'start'}); }
+  };
+  open();
+  window.addEventListener('hashchange', open);
+})();
