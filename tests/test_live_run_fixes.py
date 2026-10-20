@@ -394,3 +394,37 @@ def test_a_second_launch_leaves_the_running_jobhunt_alone(monkeypatch):
         with pytest.raises(SystemExit, match="another program"):
             entry.main()
     assert entry.port_free(port)
+
+
+def test_a_posting_page_without_job_text_gets_one_more_look(demo_server, secrets, candidate, fake_llm, monkeypatch):
+    """Zech's JobStreet hunt once read a page with no job text (a passing bot check): one more look, then skip."""
+    _prepare(demo_server)
+    real, looks = sites.DemoSite.fetch, []
+
+    def fetch(self, ctx, listing):
+        posting = real(self, ctx, listing)
+        looks.append(listing.url)
+        if looks.count(listing.url) == 1:
+            posting.text = ""  # the first look comes back empty
+        return posting
+    monkeypatch.setattr(sites.DemoSite, "fetch", fetch)
+    run = _hunt(1)
+    assert run["status"] == "done", run["summary"]
+    assert len(db.list_jobs()) == 1 and looks[0] == looks[1]
+
+
+def test_a_posting_still_without_job_text_is_tried_next_hunt(demo_server, secrets, candidate, fake_llm, monkeypatch):
+    _prepare(demo_server)
+    real = sites.DemoSite.fetch
+
+    def fetch(self, ctx, listing):
+        posting = real(self, ctx, listing)
+        posting.text = ""
+        return posting
+    monkeypatch.setattr(sites.DemoSite, "fetch", fetch)
+    run = _hunt(1)
+    assert run["status"] == "done" and not db.list_jobs()
+    log = " ".join(e["message"] for e in db._query("SELECT message FROM events WHERE run_id = ?", (run["id"],)))
+    assert "looking once more" in log and "tried again next hunt" in log
+    url = db._query("SELECT url, decision FROM seen")[0]
+    assert url["decision"] == "error" and not db.was_seen(url["url"])  # not counted as seen: read again next time

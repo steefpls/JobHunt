@@ -626,16 +626,25 @@ def run_hunt(task: Task) -> str:
                 stats.add(site, listing, "low_pay")
                 continue
             examined += 1
-            try:
-                posting = site.fetch(ctx, listing)
-            except SiteBlocked as e:
-                blocked[site.key] = f"{site.label} (blocked or needs login)"
-                task.log(f"{site.label}: blocked or needs login ({e}); skipping this site for this run.", "warn")
-                stats.add(site, listing, "unreadable")
-                continue
-            except Exception as e:
-                db.mark_seen(listing.url, listing.source, listing.company, listing.title, "error", str(e)[:200], salary=listing.salary)
-                task.log(f"Could not read posting {listing.url}: {type(e).__name__}", "warn")
+            posting = None
+            for look in (1, 2):  # a page without the job text (a passing bot check, a half-loaded page) gets one more look
+                try:
+                    posting = site.fetch(ctx, listing)
+                except SiteBlocked as e:
+                    blocked[site.key] = f"{site.label} (blocked or needs login)"
+                    task.log(f"{site.label}: blocked or needs login ({e}); skipping this site for this run.", "warn")
+                    posting = None
+                    break
+                except Exception as e:
+                    db.mark_seen(listing.url, listing.source, listing.company, listing.title, "error", str(e)[:200], salary=listing.salary)
+                    task.log(f"Could not read posting {listing.url}: {type(e).__name__}", "warn")
+                    posting = None
+                    break
+                if len(posting.text) >= 80 or look == 2:
+                    break
+                task.log(f"{site.label}: the page came back without the job text (often a passing bot check); "
+                         f"looking once more: {listing.url}")
+            if posting is None:
                 stats.add(site, listing, "unreadable")
                 continue
             dup = db.duplicate_of(listing.url, posting.company, posting.title, posting.salary, posting.apply_url)
@@ -649,7 +658,8 @@ def run_hunt(task: Task) -> str:
             if len(posting.text) < 80:
                 db.mark_seen(listing.url, listing.source, posting.company, posting.title, "error", "posting text too short", salary=posting.salary,
                          apply_url=posting.apply_url)
-                task.log(f"Posting had no readable text, skipped: {listing.url}", "warn")
+                task.log(f"{site.label}: the page still had no job text on a second look (often the site's bot check), "
+                         f"so it's skipped for now and tried again next hunt: {listing.url}", "warn")
                 stats.add(site, listing, "unreadable")
                 continue
             reason = _below_floor(posting.salary_max_monthly, floor)
