@@ -8,6 +8,7 @@ Applied jobs from that site on it, and reads the words on its card. No AI call.
 What it will and won't do:
   - It only ever moves an Applied job to Rejected ("Employer said no"). A vague status ("Viewed",
     "Response seems unlikely", "Job closed") changes nothing, and nothing is ever moved to Interview or Offer.
+    A job past Applied (Interview, Offer, an offer accepted or turned down) is never looked at.
   - A job you moved yourself after the site moved it (the Undo on the To review page) is never moved again.
   - MyCareersFuture needs Singpass, and LinkedIn's limits make reading it risky: neither is checked.
 

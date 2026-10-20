@@ -248,7 +248,7 @@ def refresh_package(folder: Path, company: str, role: str, contact: dict,
 
 
 # A job in one of these has had its documents sent (or is sending them): they're history, so no notice.
-SENT_STATES = ("Applying", "Applied", "Interview", "Offer", "Rejected", "Not for me")
+SENT_STATES = ("Applying", "Applied", "Interview", "Offer", "Accepted", "Declined", "Rejected", "Not for me")
 
 
 def profile_changes(job: dict, folder: Path, contact: dict | None = None, profile_text: str | None = None) -> list[str]:

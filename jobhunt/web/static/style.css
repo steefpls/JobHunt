@@ -211,8 +211,8 @@ td .title:hover { color: var(--brand); }
 .badge.Ready { background: var(--blue-bg); color: var(--brand); }
 .badge.Applied, .badge.LoggedIn { background: var(--ok-bg); color: var(--ok); }
 .badge.Interview { background: var(--gold-bg); color: var(--warn-ink); }
-.badge.Offer { background: var(--ok); color: #fff; }
-:root[data-theme=dark] .badge.Offer { color: #0b1a12; }
+.badge.Offer, .badge.Accepted { background: var(--ok); color: #fff; }
+:root[data-theme=dark] .badge.Offer, :root[data-theme=dark] .badge.Accepted { color: #0b1a12; }
 .badge.Needs\ you, .badge.LoggedOut { background: var(--orange-bg); color: var(--warn); }
 .badge.Error, .badge.Rejected { background: var(--bad-bg); color: var(--bad); }
 .badge.Applying, .badge.Found { background: var(--purple-bg); color: var(--purple); }
@@ -265,7 +265,7 @@ label.check { font-weight: 400; display: flex; gap: 10px; align-items: center; m
 label.check input { width: 16px; height: 16px; accent-color: var(--brand); flex: 0 0 auto; margin: 0; }
 fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 legend { font-weight: 600; font-size: var(--fs-sm); padding: 0; margin: var(--sp-3) 0 var(--sp-1); }
-input[type=text], input[type=email], input[type=password], input[type=number], input[type=tel], select, textarea {
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=tel], input[type=date], select, textarea {
   width: 100%; padding: 8px 11px; min-height: 38px; border: 1px solid var(--field-line); border-radius: var(--radius-sm); font: inherit;
   background: var(--field); color: var(--ink);
   transition: border-color var(--dur-fast) var(--ease-ios), box-shadow var(--dur-fast) var(--ease-ios); }
@@ -550,6 +550,14 @@ a.src:hover { text-decoration: none; background: var(--blue-line); }
 .paygrid .hint { display: block; margin: 0 0 2px; }
 .paygrid b { font-size: var(--fs-lg); display: block; margin-bottom: 4px; }
 .paygrid .pill { margin-left: 0; }
+/* The job page's box for an offer's pay and dates */
+.offergrid { grid-template-columns: repeat(3, 1fr); margin-top: var(--sp-3); }
+@media (max-width: 600px) { .offergrid { grid-template-columns: 1fr; } }
+.offernote { white-space: pre-wrap; margin: 0 0 var(--sp-3); }
+.offerrow > div { min-width: 170px; }
+.offeredit > summary { list-style: none; }
+.offeredit > summary::-webkit-details-marker { display: none; }
+.offeredit[open] > summary { margin-bottom: var(--sp-1); }
 
 /* Reject: a small panel asking why, over the row it belongs to */
 details.reject { display: inline-block; position: relative; }

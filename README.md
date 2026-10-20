@@ -104,7 +104,8 @@ never sent to the AI as text.
 5. **Dashboard**: every package, with the ones waiting for your approval at the top,
    each with a one-line note on the company (what it does, where, how big).
    Open one to see the company summary first, preview the PDFs and match report, approve it, open its folder, or set
-   Interview / Offer / Rejected. A job marked **Needs you** says why JobHunt stopped,
+   Interview / Offer / Rejected. A job in Offer has **Accepted** and **Turned it down**, and a box for the pay,
+   start date and answer-by date. A job marked **Needs you** says why JobHunt stopped,
    links to the fix (a missing screening answer, a login, a cap) and, where it can,
    offers *Try again*. The Notes box is yours; what JobHunt did is listed under it.
 

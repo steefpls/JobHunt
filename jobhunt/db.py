@@ -19,8 +19,12 @@ from . import paths
 from .extract import salary_range_monthly
 
 # "Rejected" is the employer saying no (it counts toward achievements); "Not for me" is you turning a package down.
-STATES = ["Found", "Ready", "Applying", "Applied", "Needs you", "Error", "Interview", "Offer", "Rejected", "Not for me"]
-USER_STATES = ["Ready", "Applied", "Needs you", "Interview", "Offer", "Rejected", "Not for me"]  # settable from the UI
+# "Accepted" and "Declined" are how an Offer ended: you took it, or you turned it down.
+STATES = ["Found", "Ready", "Applying", "Applied", "Needs you", "Error", "Interview", "Offer", "Accepted", "Declined",
+          "Rejected", "Not for me"]
+USER_STATES = ["Ready", "Applied", "Needs you", "Interview", "Offer", "Accepted", "Declined", "Rejected",
+               "Not for me"]  # settable from the UI
+OFFER_STATES = ("Offer", "Accepted", "Declined")  # had an offer: the job page shows the box for its pay and dates
 # The quick picks when you reject a package (all optional). Saved on the job and read by the next hunts.
 REJECT_REASONS = ["Pay too low", "Wrong location", "Too senior", "Too junior", "Not my field", "Don't like the company",
                   "Other"]
@@ -56,7 +60,11 @@ CREATE TABLE IF NOT EXISTS jobs (
     company_info TEXT NOT NULL DEFAULT '',  -- the company summary as JSON (company.py), '' = none yet
     market_pay TEXT NOT NULL DEFAULT '',    -- what similar jobs pay, as JSON (marketpay.py), '' = not checked yet
     posted_at TEXT NOT NULL DEFAULT '',     -- the day the board says the job was posted, '' = it didn't say
-    ad_status TEXT NOT NULL DEFAULT ''      -- whether the ad is still open on its site, as JSON (adcheck.py)
+    ad_status TEXT NOT NULL DEFAULT '',     -- whether the ad is still open on its site, as JSON (adcheck.py)
+    offer_pay TEXT NOT NULL DEFAULT '',     -- an offer, as you noted it: the pay, in your words
+    offer_start TEXT NOT NULL DEFAULT '',   -- ... the start date (YYYY-MM-DD)
+    offer_answer_by TEXT NOT NULL DEFAULT '', -- ... the day you have to answer by (YYYY-MM-DD)
+    offer_note TEXT NOT NULL DEFAULT ''     -- ... and anything else you typed
 );
 CREATE TABLE IF NOT EXISTS seen (
     url TEXT PRIMARY KEY,
@@ -137,7 +145,9 @@ _ADDED_COLUMNS = {"jobs": {"reason": "TEXT NOT NULL DEFAULT ''", "reason_kind": 
                            "history": "TEXT NOT NULL DEFAULT ''", "reject_reason": "TEXT NOT NULL DEFAULT ''",
                            "reject_note": "TEXT NOT NULL DEFAULT ''", "salary": "TEXT NOT NULL DEFAULT ''",
                            "company_info": "TEXT NOT NULL DEFAULT ''", "market_pay": "TEXT NOT NULL DEFAULT ''",
-                           "posted_at": "TEXT NOT NULL DEFAULT ''", "ad_status": "TEXT NOT NULL DEFAULT ''"},
+                           "posted_at": "TEXT NOT NULL DEFAULT ''", "ad_status": "TEXT NOT NULL DEFAULT ''",
+                           "offer_pay": "TEXT NOT NULL DEFAULT ''", "offer_start": "TEXT NOT NULL DEFAULT ''",
+                           "offer_answer_by": "TEXT NOT NULL DEFAULT ''", "offer_note": "TEXT NOT NULL DEFAULT ''"},
                   "runs": {"site_stats": "TEXT NOT NULL DEFAULT ''"},
                   "seen": {"salary": "TEXT NOT NULL DEFAULT ''", "apply_url": "TEXT NOT NULL DEFAULT ''"}}
 
@@ -201,7 +211,7 @@ def add_job(*, source, url, company, role, location="", apply_url="", posting_te
 
 _JOB_FIELDS = {"company", "role", "location", "apply_url", "posting_text", "state", "date_applied",
                "folder", "notes", "match_score", "reason", "reason_kind", "history", "reject_reason", "reject_note",
-               "company_info", "market_pay"}
+               "company_info", "market_pay", "offer_pay", "offer_start", "offer_answer_by", "offer_note"}
 
 
 def update_job(job_id: int, by: str = "jobhunt", **fields) -> None:
@@ -275,6 +285,21 @@ def reject(job_id: int, reasons: list[str], note: str = "") -> None:
     update_job(job_id, state="Not for me", by="you", reject_reason="; ".join(reasons), reject_note=note)
     add_history(job_id, "You marked it Not interested" + (": " + reject_text(get_job(job_id) or {}) if reasons or note
                                              else " (no reason given)."))
+
+
+def _day(text: str) -> str:
+    """'2026-11-03' as typed in a date box, or '' when it isn't a date."""
+    text = (text or "").strip()[:10]
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        return ""
+
+
+def set_offer(job_id: int, pay: str = "", start: str = "", answer_by: str = "", note: str = "") -> None:
+    """Save your notes on an offer: the pay, the start date, the day you have to answer by, and a note."""
+    update_job(job_id, offer_pay=" ".join((pay or "").split())[:100], offer_start=_day(start),
+               offer_answer_by=_day(answer_by), offer_note=(note or "").strip()[:2000])
 
 
 def reject_text(job: dict) -> str:
@@ -413,12 +438,14 @@ def add_job_spend(job_id: int, tokens_in: int, tokens_out: int, cost: float) -> 
 
 def applied_or_rejected(job: dict) -> tuple[str, str]:
     """(label, day) for the Applications "Applied or ended" column: the date applied, or for a job never
-    applied to, the day it was rejected (the employer said no) or turned down (Not for me).
+    applied to, the day it was rejected (the employer said no), turned down (Not for me), or its offer
+    accepted or declined.
     ('', '') when no date was recorded: an old job shows a dash, never a guess."""
     day = (job.get("date_applied") or "").strip()[:10]
     if day:
         return "Applied", day
-    if job.get("state") in ("Rejected", "Not for me") and job.get("last_state") == job.get("state"):
+    ended = ("Rejected", "Not for me", "Accepted", "Declined")
+    if job.get("state") in ended and job.get("last_state") == job.get("state"):
         day = (job.get("last_state_ts") or "").strip()[:10]
         if day:
             return job["state"], day
@@ -427,7 +454,8 @@ def applied_or_rejected(job: dict) -> tuple[str, str]:
 
 EXPORT_COLUMNS = ["id", "created_at", "source", "company", "role", "location", "url", "apply_url", "state",
                   "date_applied", "applied_or_rejected_date", "state_changed_at", "folder", "notes", "reason",
-                  "reject_reason", "reject_note", "history", "match_score", "cost_usd", "tokens_in", "tokens_out"]
+                  "reject_reason", "reject_note", "offer_pay", "offer_start", "offer_answer_by", "offer_note", "history",
+                  "match_score", "cost_usd", "tokens_in", "tokens_out"]
 
 
 def export_csv() -> str:

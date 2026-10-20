@@ -39,6 +39,13 @@
     {% elif job.state == "Ready" %}
       <b>Apply yourself</b>This site needs Singpass, so you finish it in your own browser.
         {% if has_package %}Attach the resume and cover letter from Files, then press I applied.{% else %}Then press I applied.{% endif %}
+    {% elif job.state == "Offer" %}
+      <b>You have an offer</b>Once you've given them your answer, press Accepted or Turned it down.
+        Note the pay and dates below while you decide.
+    {% elif job.state == "Accepted" %}
+      <b>You accepted the offer</b>Congratulations! Your notes on the offer are below.
+    {% elif job.state == "Declined" %}
+      <b>You turned the offer down</b>It stays here with your notes on the offer, in case they help later.
     {% else %}
       <b>{{ state_label(job.state) }}</b>Move it along with Status as things happen.
     {% endif %}
@@ -63,7 +70,11 @@
             data-confirm-title="Send this application?" data-confirm-ok="Submit application">
         <button class="btn primary" {{ 'disabled title="Waiting for the current task to finish"' if status.busy }}>{{ icon("send") }}Approve &amp; apply</button>
       </form>
-    {% else %}
+    {% elif job.state == "Offer" %}{# how the offer ended: each one's toast has an Undo #}
+      <form method="post" action="/jobs/{{ job.id }}/state" class="inline"><input type="hidden" name="next" value="/jobs/{{ job.id }}">
+        <button class="btn" name="state" value="Declined" title="You told them no">{{ icon(state_icons["Declined"]) }}Turned it down</button>
+        <button class="btn primary" name="state" value="Accepted" title="You told them yes">{{ icon(state_icons["Accepted"]) }}Accepted</button></form>
+    {% elif job.state not in offer_states %}
       <a class="btn {{ 'primary' if job.state in ('Ready', 'Needs you') }}" href="{{ apply_href }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }}Open apply page ↗</a>
     {% endif %}
     {% if job.state in ("Ready", "Needs you") %}{% with j = job, next = "/jobs/" ~ job.id, cls = "big" %}{% include "_applied.html" %}
@@ -84,6 +95,39 @@
   </form>
   {% endif %}
   <p class="hint mb0">{% if has_package %}{{ help.advice }}{% else %}Open the apply page and finish it there, then press I applied.{% endif %}</p>
+</div>
+{% endif %}
+
+{# An offer's pay and dates, as you typed them (no AI): the form until something is saved, then what you saved #}
+{% if job.state in offer_states %}
+{% set offer_saved = job.offer_pay or job.offer_start or job.offer_answer_by or job.offer_note %}
+{% macro offer_form() %}
+  <form method="post" action="/jobs/{{ job.id }}/offer" data-guard>
+    <div class="row offerrow">
+      <div><label for="offerPay">Pay offered</label>
+        <input type="text" id="offerPay" name="pay" value="{{ job.offer_pay }}" maxlength="100" placeholder="e.g. $6,500 a month + bonus"></div>
+      <div><label for="offerStart">Start date</label><input type="date" id="offerStart" name="start" value="{{ job.offer_start }}"></div>
+      <div><label for="offerAnswer">Answer by</label><input type="date" id="offerAnswer" name="answer_by" value="{{ job.offer_answer_by }}"></div>
+    </div>
+    <label for="offerNote">Note</label>
+    <textarea class="plain" id="offerNote" name="note" maxlength="2000" style="min-height:80px"
+      placeholder="Anything else: leave, benefits, who to reply to...">{{ job.offer_note }}</textarea>
+    <div class="actions"><button class="btn small">{{ icon("check") }}Save offer details</button><span class="savestate hint" data-savestate></span></div>
+  </form>
+{% endmacro %}
+<div class="card offer" id="offer">
+  <div class="cardhead"><h2>{{ icon("banknote") }}The offer</h2>{% if not offer_saved %}<span class="muted">What they offered, for your own record</span>{% endif %}</div>
+  {% if offer_saved %}
+  <div class="paygrid offergrid">
+    <div><span class="hint">Pay offered</span><b>{{ job.offer_pay or "—" }}</b></div>
+    <div><span class="hint">Start date</span><b>{{ long_date(job.offer_start) or "—" }}</b></div>
+    <div><span class="hint">Answer by</span><b>{{ long_date(job.offer_answer_by) or "—" }}</b></div>
+  </div>
+  {% if job.offer_note %}<p class="offernote">{{ job.offer_note }}</p>{% endif %}
+  <details class="offeredit"><summary class="btn small">Edit</summary>{{ offer_form() }}</details>
+  {% else %}
+  {{ offer_form() }}
+  {% endif %}
 </div>
 {% endif %}
 

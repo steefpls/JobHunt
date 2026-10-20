@@ -192,7 +192,8 @@ def values(flags: dict | None = None) -> dict:
         j = jobs.get(jid)
         return (j and j["state"] in states) or any(h["state"] in states for h in history.get(jid, []))
 
-    applied = {jid for jid, j in jobs.items() if j["date_applied"] or ever(jid, "Applied", "Interview", "Offer")}
+    offered = db.OFFER_STATES  # an offer you accepted or turned down was still an offer (and an interview before it)
+    applied = {jid for jid, j in jobs.items() if j["date_applied"] or ever(jid, "Applied", "Interview", *offered)}
     per_day: dict[date, int] = {}
     same_day = 0
     for jid in applied:
@@ -218,8 +219,8 @@ def values(flags: dict | None = None) -> dict:
         return n
 
     rejected_at = sorted(h["ts"] for hs in history.values() for h in hs if h["state"] == "Rejected")
-    first_interviews = [next(h["ts"] for h in hs if h["state"] in ("Interview", "Offer"))
-                        for hs in history.values() if any(h["state"] in ("Interview", "Offer") for h in hs)]
+    first_interviews = [next(h["ts"] for h in hs if h["state"] in ("Interview", *offered))
+                        for hs in history.values() if any(h["state"] in ("Interview", *offered) for h in hs)]
     comeback = max((sum(1 for r in rejected_at if r <= ts) for ts in first_interviews), default=0)
     month_ago = (date.today() - timedelta(days=30)).isoformat()
 
@@ -238,8 +239,8 @@ def values(flags: dict | None = None) -> dict:
         "hands_on": after_needs_you("you"),
         "second_wind": after_needs_you("jobhunt"),
         "globetrotter": len({jobs[j]["source"] for j in applied}),
-        "foot_in_door": sum(1 for jid in jobs if ever(jid, "Interview", "Offer")),
-        "options": sum(1 for jid in jobs if ever(jid, "Offer")),
+        "foot_in_door": sum(1 for jid in jobs if ever(jid, "Interview", *offered)),
+        "options": sum(1 for jid in jobs if ever(jid, *offered)),
         "thick_skin": sum(1 for jid in jobs if ever(jid, "Rejected")),
         "ghost_town": sum(1 for j in jobs.values() if j["state"] == "Applied" and j["date_applied"]
                           and j["date_applied"] <= month_ago),

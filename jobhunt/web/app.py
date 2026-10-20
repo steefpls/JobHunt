@@ -107,6 +107,15 @@ def pay_text(salary: str) -> str:
     return f"${k(lo)} a month" if not lo or round(lo) == round(hi) else f"${k(lo)}-{k(hi)} a month"
 
 
+def long_date(day: str) -> str:
+    """'2026-11-03' -> '3 November 2026' ('' when it isn't a date)."""
+    try:
+        d = date.fromisoformat((day or "")[:10])
+    except ValueError:
+        return ""
+    return f"{d.day} {d:%B %Y}"
+
+
 NO_REPLY_DAYS = 14  # an Applied job this long without news gets the "No reply yet" tag
 
 
@@ -143,10 +152,11 @@ def icon(name: str, cls: str = "", label: str = "") -> Markup:
 
 
 # What a state is called on screen (the stored names stay as they are: the CSV export and old data use them)
-STATE_LABELS = {"Not for me": "Not interested", "Rejected": "Employer said no", "Found": "Found", "Applying": "Applying now"}
+STATE_LABELS = {"Not for me": "Not interested", "Rejected": "Employer said no", "Found": "Found", "Applying": "Applying now",
+                "Accepted": "Accepted the offer", "Declined": "Turned the offer down"}
 STATE_ICONS = {"Ready": "circle-dot", "Needs you": "hand", "Applied": "send", "Interview": "calendar-check",
-               "Offer": "party-popper", "Rejected": "circle-x", "Not for me": "circle-pause", "Error": "triangle-alert",
-               "Applying": "loader-circle", "Found": "search"}
+               "Offer": "party-popper", "Accepted": "handshake", "Declined": "circle-minus", "Rejected": "circle-x",
+               "Not for me": "circle-pause", "Error": "triangle-alert", "Applying": "loader-circle", "Found": "search"}
 
 
 def state_label(state: str) -> str:
@@ -182,9 +192,11 @@ templates.env.globals["mcf_search"] = sites.MCF_SEARCH
 templates.env.globals["work_mode"] = workmode.of  # remote / hybrid / on-site, when the posting says
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
+templates.env.globals["offer_states"] = db.OFFER_STATES  # the job page's box for an offer's pay and dates
 templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Applications date column
 templates.env.globals["ago_text"] = ago_text  # "2 days ago": when a job's state last changed
 templates.env.globals["posted_text"] = posted_text  # "posted 3 days ago", as the board said
+templates.env.globals["long_date"] = long_date  # "3 November 2026": an offer's dates
 templates.env.globals["pay_text"] = pay_text  # "$5.5k-8k a month" on the cards
 templates.env.globals["no_reply_days"] = no_reply_days  # the "No reply yet" tag on Applied jobs
 templates.env.globals["ad_closed"] = adcheck.closed  # the ad has closed on its site
@@ -446,10 +458,12 @@ def create_app(port: int = 8765) -> FastAPI:
         db.update_job(job_id, state=state, by="you")
         cheer = {"Offer": " Congratulations! 🎉", "Interview": " Nice one. Go get it!"}.get(state, "")
         done = {"Not for me": "Marked Not interested: JobHunt won't suggest this job again.",
-                "Applied": "Marked as Applied today. Good luck!"}
+                "Applied": "Marked as Applied today. Good luck!",
+                "Accepted": "Marked the offer as accepted. Congratulations, and well done! 🎉",
+                "Declined": "Marked the offer as turned down."}
         undo = (job_id, before["state"]) if before and before["state"] != state else None
         return back(local_path(next, f"/jobs/{job_id}"), msg=done.get(state, f"Marked as {state_label(state)}.{cheer}"),
-                    party={"Offer": "offer", "Interview": "interview"}.get(state, ""), undo=undo)
+                    party={"Offer": "offer", "Accepted": "offer", "Interview": "interview"}.get(state, ""), undo=undo)
 
     @app.post("/jobs/{job_id}/reject")
     def reject_job(job_id: int, reasons: list[str] = Form([]), note: str = Form(""), next: str = Form("")):
@@ -544,6 +558,15 @@ def create_app(port: int = 8765) -> FastAPI:
             return back(local_path(next, "/scope"), msg="Nothing to change: your Scope already covers that.")
         tuning.apply(sug)
         return back(local_path(next, "/scope"), msg=sug["done"])
+
+    @app.post("/jobs/{job_id}/offer")
+    def set_offer(job_id: int, pay: str = Form(""), start: str = Form(""), answer_by: str = Form(""),
+                  note: str = Form("")):
+        """The job page's offer box: the pay, start date, answer-by date and a note, as you typed them."""
+        if not db.get_job(job_id):
+            return back("/", err="No such job.")
+        db.set_offer(job_id, pay, start, answer_by, note)
+        return back(f"/jobs/{job_id}#offer", msg="Offer details saved.")
 
     @app.post("/jobs/{job_id}/notes")
     def set_notes(job_id: int, notes: str = Form("")):

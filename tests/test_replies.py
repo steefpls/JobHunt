@@ -88,6 +88,16 @@ def test_turned_down_jobs_move_and_nothing_else_does(sites):
     assert {j["id"] for j in news} == {acme, delta} and {j["site"] for j in news} == {"Indeed", "JobStreet"}
 
 
+def test_an_offer_accepted_or_turned_down_is_never_moved(sites):
+    """The site still shows the card as "Not suitable", but he's had an offer since: his answer stands."""
+    accepted = _job("jobstreet", "https://sg.jobstreet.com/job/11111111", "Delta Systems", "QA Engineer", "Accepted")
+    declined = _job("jobstreet", "https://sg.jobstreet.com/job/22222222", "Epsilon Pte Ltd", "Support Engineer",
+                    "Declined")
+    applied = _job("indeed", "https://sg.indeed.com/viewjob?jk=aaaaaaaaaaaaaaaa", "ACME PTE. LTD.", "Software Engineer")
+    statuscheck.run(sites)
+    assert [db.get_job(j)["state"] for j in (accepted, declined, applied)] == ["Accepted", "Declined", "Rejected"]
+
+
 def test_a_job_put_back_after_a_site_moved_it_is_never_moved_again(sites):
     acme = _job("indeed", "https://sg.indeed.com/viewjob?jk=aaaaaaaaaaaaaaaa", "Acme", "Software Engineer")
     statuscheck.run(sites)
