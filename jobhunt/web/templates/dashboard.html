@@ -42,9 +42,9 @@
 {% if ready or needs_you %}
 <div class="closedbar" id="closedBar" {{ 'hidden' if not closed_n }}>
   {{ icon("circle-x") }}<span class="what" data-closed-text>{{ closed_n }} {{ "job here has" if closed_n == 1 else "jobs here have" }} a closed ad.</span>
-  <form method="post" action="/jobs/reject-closed" class="inline" data-confirm="Every job on this page tagged Ad closed moves to Not for me, with the reason Ad closed. You can undo it straight after."
-        data-confirm-title="Reject every closed ad?" data-confirm-ok="Reject them" data-confirm-icon="circle-x">
-    <button class="btn small">{{ icon("circle-x") }}Reject all closed</button></form>
+  <form method="post" action="/jobs/reject-closed" class="inline" data-confirm="Every job on this page tagged Ad closed moves to Not interested, with the reason Ad closed. You can undo it straight after."
+        data-confirm-title="Not interested in every closed ad?" data-confirm-ok="Mark them Not interested" data-confirm-icon="circle-x">
+    <button class="btn small">{{ icon("circle-x") }}Not interested in all closed</button></form>
 </div>
 {% endif %}
 

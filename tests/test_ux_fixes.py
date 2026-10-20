@@ -301,14 +301,14 @@ def test_a_hunt_whose_packages_were_dealt_with_doesnt_say_it_found_nothing(clien
 def test_reject_drops_a_package_without_counting_as_an_employer_rejection(client):
     finished_hunt("done", "2 package(s) built", ready_jobs=2)
     hunt_page = client.get("/hunt").text
-    assert hunt_page.count(">Reject</button>") == 2 and 'name="next" value="/hunt"' in hunt_page
-    assert client.get("/").text.count(">Reject</button>") == 2
+    assert hunt_page.count(">Not interested</button>") == 2 and 'name="next" value="/hunt"' in hunt_page
+    assert client.get("/").text.count(">Not interested</button>") == 2
     jid = db.list_jobs("Ready")[0]["id"]
     r = client.post(f"/jobs/{jid}/state", data={"state": "Not for me", "next": "/hunt"}, headers=SAME_ORIGIN,
                     follow_redirects=False)
-    assert r.headers["location"].startswith("/hunt?msg=Rejected")
+    assert r.headers["location"].startswith("/hunt?msg=Marked")
     assert db.get_job(jid)["state"] == "Not for me" and len(db.list_jobs("Ready")) == 1
-    assert client.get("/hunt").text.count(">Reject</button>") == 1
+    assert client.get("/hunt").text.count(">Not interested</button>") == 1
     assert db.is_duplicate(db.get_job(jid)["url"], "", "")  # a later hunt won't build it again
     assert not db.list_jobs("Rejected")
 

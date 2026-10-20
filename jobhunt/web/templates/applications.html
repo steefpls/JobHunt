@@ -28,7 +28,7 @@
   {% if jobs %}
   <div class="tablewrap cards">
   <table class="apps">
-    <thead><tr><th>Job</th><th>Status</th><th>Applied / rejected</th><th>Last change</th><th><span class="sr">Actions</span></th></tr></thead>
+    <thead><tr><th>Job</th><th>Status</th><th>Applied or ended</th><th>Last change</th><th><span class="sr">Actions</span></th></tr></thead>
     <tbody class="rise">
     {% for j in jobs %}
       <tr class="clickable" data-href="/jobs/{{ j.id }}" data-row>

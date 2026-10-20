@@ -34,7 +34,7 @@
     line.hidden = false;
   }
 
-  function countClosed() {  // To review's "Reject all closed" bar shows once any card says Ad closed
+  function countClosed() {  // To review's "Not interested in all closed" bar shows once any card says Ad closed
     const bar = document.getElementById('closedBar');
     if (!bar) return;
     const n = document.querySelectorAll('.facts-line .pill.closed').length;

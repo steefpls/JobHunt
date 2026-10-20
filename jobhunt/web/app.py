@@ -182,7 +182,7 @@ templates.env.globals["mcf_search"] = sites.MCF_SEARCH
 templates.env.globals["work_mode"] = workmode.of  # remote / hybrid / on-site, when the posting says
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
-templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Dashboard's Applied / rejected column
+templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Applications date column
 templates.env.globals["ago_text"] = ago_text  # "2 days ago": when a job's state last changed
 templates.env.globals["posted_text"] = posted_text  # "posted 3 days ago", as the board said
 templates.env.globals["pay_text"] = pay_text  # "$5.5k-8k a month" on the cards
@@ -445,7 +445,7 @@ def create_app(port: int = 8765) -> FastAPI:
         before = db.get_job(job_id)
         db.update_job(job_id, state=state, by="you")
         cheer = {"Offer": " Congratulations! 🎉", "Interview": " Nice one. Go get it!"}.get(state, "")
-        done = {"Not for me": "Rejected: JobHunt won't suggest this job again.",
+        done = {"Not for me": "Marked Not interested: JobHunt won't suggest this job again.",
                 "Applied": "Marked as Applied today. Good luck!"}
         undo = (job_id, before["state"]) if before and before["state"] != state else None
         return back(local_path(next, f"/jobs/{job_id}"), msg=done.get(state, f"Marked as {state_label(state)}.{cheer}"),
@@ -460,7 +460,7 @@ def create_app(port: int = 8765) -> FastAPI:
         url, hash_, fragment = local_path(next, f"/jobs/{job_id}").partition("#")
         if tuning.suggest(db.get_job(job_id)):
             url += f"{'&' if '?' in url else '?'}tune={job_id}"
-        return back(url + hash_ + fragment, msg="Rejected: JobHunt won't suggest this job again.",
+        return back(url + hash_ + fragment, msg="Marked Not interested: JobHunt won't suggest this job again.",
                     undo=(job_id, before["state"]) if before["state"] != "Not for me" else None)
 
     def put_back(job_id: int, state: str) -> dict | None:
@@ -495,7 +495,7 @@ def create_app(port: int = 8765) -> FastAPI:
 
     @app.post("/jobs/reject-closed")
     def reject_closed():
-        """To review's "Reject all closed": every waiting job whose ad has closed goes to Not for me, with one Undo."""
+        """To review's "Not interested in all closed": every waiting job whose ad has closed goes to Not for me, with one Undo."""
         done = []
         for j in db.list_jobs("Ready") + db.list_jobs("Needs you"):
             if adcheck.closed(j):
@@ -504,7 +504,7 @@ def create_app(port: int = 8765) -> FastAPI:
         if not done:
             return back("/", warn="No job waiting here has a closed ad.")
         n = len(done)
-        return back("/", msg=f"Rejected {n} job{'s' if n != 1 else ''} whose ad has closed.", undo=done)
+        return back("/", msg=f"Marked {n} job{'s' if n != 1 else ''} whose ad has closed as Not interested.", undo=done)
 
     @app.post("/api/ads/check")
     async def ads_check(request: Request):

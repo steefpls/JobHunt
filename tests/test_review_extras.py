@@ -27,7 +27,7 @@ def test_reject_all_closed_shows_only_when_an_ad_has_closed():
     assert 'id="closedBar" hidden' in html  # kept for the page's ad check to reveal
     _closed(a)
     html = client.get("/").text
-    assert 'id="closedBar" >' in html and "1 job here has a closed ad." in html and "Reject all closed" in html
+    assert 'id="closedBar" >' in html and "1 job here has a closed ad." in html and "Not interested in all closed" in html
 
 
 def test_reject_all_closed_rejects_each_closed_ad_with_the_reason_and_one_undo():
@@ -38,7 +38,7 @@ def test_reject_all_closed_rejects_each_closed_ad_with_the_reason_and_one_undo()
     adcheck.save(live, "mycareersfuture", "open")
     client = TestClient(create_app())
     r = client.post("/jobs/reject-closed", headers=SAME_ORIGIN, follow_redirects=False)
-    assert r.status_code == 303 and "Rejected%202%20jobs" in r.headers["location"]
+    assert r.status_code == 303 and "Marked%202%20jobs" in r.headers["location"]
     for j in (gone, gone2):
         job = db.get_job(j)
         assert job["state"] == "Not for me" and job["reject_reason"] == db.AD_CLOSED

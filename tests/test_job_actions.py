@@ -65,7 +65,7 @@ def test_needs_you_rows_and_the_job_page_have_i_applied(client):
 # ── Reject asks why ───────────────────────────────────────────────────
 
 def reject_panel(page: str, jid: int) -> str:
-    m = re.search(r'<details class="reject">\s*<summary[^>]*>Reject</summary>\s*<form method="post" action="/jobs/%d/reject"'
+    m = re.search(r'<details class="reject">\s*<summary[^>]*>Not interested</summary>\s*<form method="post" action="/jobs/%d/reject"'
                   r'.*?</details>' % jid, page, re.S)
     return m.group(0) if m else ""
 
@@ -78,7 +78,7 @@ def test_reject_opens_a_panel_with_reasons_instead_of_rejecting_at_once(client):
         for reason in db.REJECT_REASONS:
             assert f'name="reasons" value="{reason}"' in panel.replace("&#39;", "'")
         assert 'name="note"' in panel and f'name="next" value="{path}"' in panel
-        assert "data-close-details" in panel and ">Cancel</button>" in panel and ">Reject</button>" in panel
+        assert "data-close-details" in panel and ">Cancel</button>" in panel and ">Not interested</button>" in panel
         assert "data-confirm" not in panel and "data-guard" not in panel  # no clash with those handlers
     assert db.get_job(jid)["state"] == "Ready"  # showing the panel changes nothing
 
@@ -88,12 +88,12 @@ def test_reject_with_reasons_saves_them_and_the_job_page_shows_them(client):
     r = client.post(f"/jobs/{jid}/reject", headers=SAME_ORIGIN, follow_redirects=False,
                     data={"reasons": ["Too senior", "Wrong location", "Made up"], "note": "  Too far   from home ",
                           "next": "/hunt"})
-    assert r.status_code == 303 and r.headers["location"].startswith("/hunt?") and "msg=Rejected" in r.headers["location"]
+    assert r.status_code == 303 and r.headers["location"].startswith("/hunt?") and "msg=Marked" in r.headers["location"]
     job = db.get_job(jid)
     assert job["state"] == "Not for me"
     assert job["reject_reason"] == "Wrong location; Too senior"  # the quick picks only, in the usual order
     assert job["reject_note"] == "Too far from home"
-    assert 'You rejected it: Wrong location; Too senior. "Too far from home"' in job["history"]
+    assert 'You marked it Not interested: Wrong location; Too senior. "Too far from home"' in job["history"]
     page = client.get(f"/jobs/{jid}").text
     assert "You turned this one down" in page and "Wrong location; Too senior." in page
     assert "Too far from home" in page and not reject_panel(page, jid)

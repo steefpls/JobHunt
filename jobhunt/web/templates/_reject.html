@@ -1,12 +1,12 @@
-{# Reject: opens a small panel asking why (optional), then turns the package down. Needs: j, next (cls: optional). #}
+{# Not interested (you turning it down, never the employer): opens a small panel asking why (optional), then turns the package down. Needs: j, next (cls: optional). #}
 <details class="reject">
-  <summary class="btn small danger{{ ' ' ~ cls if cls }}" title="Not interested: JobHunt drops it and won't suggest it again" aria-haspopup="dialog">Reject</summary>
+  <summary class="btn small danger{{ ' ' ~ cls if cls }}" title="Not interested: JobHunt drops it and won't suggest it again" aria-haspopup="dialog">Not interested</summary>
   <form method="post" action="/jobs/{{ j.id }}/reject" class="rejectpanel" data-leave>
     <input type="hidden" name="next" value="{{ next }}">
     <b>Why not this one?</b> <span class="hint">Optional: it teaches your next hunts.</span>
     <div class="chips">{% for r in reject_reasons %}<label class="chip"><input type="checkbox" name="reasons" value="{{ r }}"><span>{{ r }}</span></label>{% endfor %}</div>
-    <input type="text" name="note" maxlength="300" placeholder="Anything else? (optional)" aria-label="Why you rejected it, in your words">
-    <div class="actions"><button class="btn small danger solid">Reject</button>
+    <input type="text" name="note" maxlength="300" placeholder="Anything else? (optional)" aria-label="Why it is not for you, in your words">
+    <div class="actions"><button class="btn small danger solid">Not interested</button>
       <button type="button" class="btn small ghost" data-close-details>Cancel</button></div>
   </form>
 </details>

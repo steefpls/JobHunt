@@ -273,7 +273,7 @@ def reject(job_id: int, reasons: list[str], note: str = "") -> None:
     reasons = [r for r in REJECT_REASONS + [AD_CLOSED] if r in reasons]  # only the quick picks, in their usual order
     note = " ".join((note or "").split())[:300]
     update_job(job_id, state="Not for me", by="you", reject_reason="; ".join(reasons), reject_note=note)
-    add_history(job_id, "You rejected it" + (": " + reject_text(get_job(job_id) or {}) if reasons or note
+    add_history(job_id, "You marked it Not interested" + (": " + reject_text(get_job(job_id) or {}) if reasons or note
                                              else " (no reason given)."))
 
 
@@ -412,7 +412,7 @@ def add_job_spend(job_id: int, tokens_in: int, tokens_out: int, cost: float) -> 
 
 
 def applied_or_rejected(job: dict) -> tuple[str, str]:
-    """(label, day) for the Dashboard's Applied / rejected column: the date applied, or for a job never
+    """(label, day) for the Applications "Applied or ended" column: the date applied, or for a job never
     applied to, the day it was rejected (the employer said no) or turned down (Not for me).
     ('', '') when no date was recorded: an old job shows a dash, never a guess."""
     day = (job.get("date_applied") or "").strip()[:10]

@@ -102,7 +102,7 @@ def test_after_a_reject_one_yes_changes_the_scope(client, candidate):
     jid = db.add_job(source="jobstreet", url="https://js/9", company="Acme", role="Lead Backend Engineer", state="Ready")
     r = client.post(f"/jobs/{jid}/reject", data={"reasons": "Too senior", "next": "/hunt"}, headers=SAME_ORIGIN,
                     follow_redirects=False)
-    assert r.headers["location"].startswith(f"/hunt?tune={jid}&msg=Rejected")
+    assert r.headers["location"].startswith(f"/hunt?tune={jid}&msg=Marked")
     page = client.get(r.headers["location"]).text
     assert "Skip jobs with &#34;lead&#34; in the title?" in page and "Yes, skip &#34;lead&#34;" in page
     assert "No thanks" in page
