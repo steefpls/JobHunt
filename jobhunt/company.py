@@ -77,8 +77,9 @@ _LEGAL_WORDS = {"pte", "ltd", "limited", "private", "llp", "llc", "inc", "incorp
                 "holdings", "group", "international", "and"}
 # A recruiter writing for an employer it doesn't name. EA = Singapore's employment agency licence.
 # Only strong signs: "our clients" (plural) is how any consultancy talks about its customers, and a bare
-# R1234567 is as likely a requisition number as an EA personnel number.
-_AGENCY_RE = re.compile(r"\b(our (?:esteemed |valued )?client\b|on behalf of (?:our|a|the) client\b|"
+# R1234567 is as likely a requisition number as an EA personnel number. Nor is "our client's innovation
+# journey": a company talking about its customers (ST Engineering's own careers site).
+_AGENCY_RE = re.compile(r"\b(our (?:esteemed |valued )?client\b(?!\s*['’]s\b)|on behalf of (?:our|a|the) client\b|"
                         r"EA\s*(?:licen[cs]e\b|reg(?:istration)?\b\.?|no\b\.?|personnel\b)|"
                         r"recruitment (?:agency|firm|consultancy)\b|employment agency\b|\b\d{2}C\d{4}\b)", re.I)
 _NOT_BEFORE = re.compile(r"\b(?:not|never|nor)\s+(?:an?\s+)?$", re.I)

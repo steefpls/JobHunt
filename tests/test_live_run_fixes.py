@@ -257,7 +257,13 @@ def test_an_unreadable_tailor_reply_is_asked_again(demo_server, secrets, candida
     assert run["status"] == "done", run["summary"]
     [job] = db.list_jobs()
     assert job["state"] == "Ready" and len(tailor_calls) == 2
-    assert run["summary"].startswith("1 package(s) built")
+    assert run["summary"].startswith("1 package(s) built") and "Stopped at the 1 you asked for." in run["summary"]
+
+
+def test_why_a_hunt_stopped_short_is_said():
+    assert hunt.stop_reason(3, 10, 60, 60).startswith("Stopped after reading 60 new postings, the most allowed in Settings")
+    assert hunt.stop_reason(3, 10, 12, 60) == "Stopped because the searches ran out of new postings."
+    assert hunt.stop_reason(10, 10, 60, 60) == "Stopped at the 10 you asked for."
 
 
 def test_a_cover_letter_is_signed_once(demo_server, secrets, candidate, fake_llm, data_dir):

@@ -383,6 +383,9 @@ def test_a_name_with_a_legal_ending_only_matches_that_legal_form(monkeypatch):
     ("EA North region manager wanted.", False),
     ("We are not a recruitment agency; we hire for ourselves.", False),
     ("EA Reg No: R1234567", True),
+    ("We support our client’s innovation journey through design thinking.", False),
+    ("We support our client's innovation journey.", False),
+    ("Our client is a leading bank.", True),
 ])
 def test_agency_signs_are_whole_words_and_not_denials(text, agency):
     assert company.verify({"agency": "false"}, [company.Source("S1", "p", "u", "Title: x\n" + text, "posting")])["agency"] is agency

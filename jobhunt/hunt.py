@@ -542,6 +542,16 @@ def readiness_text(missing: list[tuple[str, str]]) -> str:
     return "Before a hunt can start: " + "; ".join(what[0].lower() + what[1:] for what, _ in missing) + "."
 
 
+def stop_reason(matched: int, target: int, examined: int, max_candidates: int) -> str:
+    """Why the hunt ended, so fewer packages than asked for never looks like a crash."""
+    if matched >= target:
+        return f"Stopped at the {target} you asked for."
+    if examined >= max_candidates:
+        return (f"Stopped after reading {max_candidates} new postings, the most allowed in Settings "
+                "(Most postings to read per hunt). Raise it to read further.")
+    return "Stopped because the searches ran out of new postings."
+
+
 def run_hunt(task: Task) -> str:
     p = task.params
     s = task.settings
@@ -684,6 +694,7 @@ def run_hunt(task: Task) -> str:
         summary = f"{ready} package(s) built from {examined} posting(s) examined ({skipped_known} already known)."
         if matched > ready:
             summary += f" {matched - ready} match(es) failed while building: see Error on the Dashboard."
+        summary += " " + stop_reason(matched, target, examined, max_candidates)
         if blocked:
             summary += " Skipped for this run: " + ", ".join(blocked.values()) + "."
         for line in stats.lines():
