@@ -121,6 +121,9 @@ def test_each_sites_answer_about_its_ad():
     assert adcheck.mcf_state(200, {"status": {"jobStatus": "Open"}, "metadata": {"expiryDate": "2026-11-01"}}, TODAY)[0] == "open"
     assert adcheck.mcf_state(200, {"status": {"jobStatus": "Closed"}}, TODAY) == ("closed", "MyCareersFuture marks it Closed")
     assert adcheck.mcf_state(200, {"status": {"jobStatus": "Open"}, "metadata": {"expiryDate": "2026-10-01"}}, TODAY)[0] == "closed"
+    assert adcheck.mcf_state(200, {"status": {"id": 103, "jobStatus": "Re-open"}, "metadata": {"expiryDate": "2026-11-19"}}, TODAY)[0] == "open"
+    old = {"ad_status": '{"state": "closed", "site": "mycareersfuture", "why": "MyCareersFuture marks it Re-open"}'}
+    assert adcheck.load(old) is None and adcheck.closed(old) is None and adcheck.due(old)
     assert adcheck.mcf_state(404, None)[0] == "closed"
     assert adcheck.mcf_state(503, None)[0] == "unknown"
     assert adcheck.linkedin_state(404, "")[0] == "closed"

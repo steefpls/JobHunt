@@ -36,6 +36,8 @@ def load(job: dict) -> dict | None:
         data = json.loads(job.get("ad_status") or "")
     except (TypeError, ValueError):
         return None
+    if isinstance(data, dict) and data.get("state") == "closed" and "Re-open" in str(data.get("why")):
+        return None  # read wrongly as closed before 2026-10-21: ask again
     return data if isinstance(data, dict) and data.get("state") else None
 
 
@@ -85,7 +87,8 @@ def mcf_state(status_code: int, data: dict | None, today: date | None = None) ->
     if status_code != 200 or not isinstance(data, dict):
         return "unknown", f"MyCareersFuture didn't answer (HTTP {status_code})"
     status = str(((data.get("status") or {}).get("jobStatus")) or "")
-    if status and status.lower() != "open":
+    # Only a closed status counts: a job taken down and posted again is "Re-open" (id 103), and it takes applications.
+    if any(w in status.lower() for w in ("close", "expire")):
         return "closed", f"MyCareersFuture marks it {status}"
     expiry = str((data.get("metadata") or {}).get("expiryDate") or "")[:10]
     try:
