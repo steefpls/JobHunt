@@ -368,6 +368,7 @@ details.menu[open] > summary { background: var(--hover); border-color: var(--lin
   transform-origin: top right; }
 details.menu.up .menupanel { top: auto; bottom: calc(100% + 6px); transform-origin: bottom right; }
 details.menu.left .menupanel { right: auto; left: 0; transform-origin: top left; }
+.menupanel.fixed { position: fixed; right: auto; bottom: auto; overflow-y: auto; }
 .menupanel .mlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 6px 10px 4px; }
 .menupanel .mitem { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; background: none;
   border-radius: 8px; font: inherit; color: var(--ink); cursor: pointer; text-align: left; }

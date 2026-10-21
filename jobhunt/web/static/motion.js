@@ -15,7 +15,7 @@
 
   function wanted(d) { const r = running.get(d); return r ? r.want : d.open; }
 
-  function finish(d, open) { running.delete(d); d.style.overflow = ''; d.open = open; }
+  function finish(d, open) { running.delete(d); d.style.overflow = ''; d.open = open; if (d.classList.contains('menu')) place(d); }
 
   function slide(d, open) {
     const from = d.getBoundingClientRect().height;  // mid-way through an earlier slide, if there is one
@@ -40,17 +40,42 @@
     const prev = running.get(d);
     if (prev) { prev.anim.onfinish = null; prev.anim.cancel(); }
     d.open = true;
+    if (d.classList.contains('menu')) place(d);
     const frames = [{ opacity: 0, transform: 'translateY(-4px) scale(.96)' }, { opacity: 1, transform: 'none' }];
     const anim = panel.animate(open ? frames : frames.slice().reverse(),
                                { duration: open ? 240 : 130, easing: open ? SPRING : EXIT });
     running.set(d, { anim: anim, want: open });
     anim.onfinish = function () {
-      running.delete(d); d.open = open;
+      running.delete(d); d.open = open; if (!open && d.classList.contains('menu')) place(d);
       if (open) { const f = panel.querySelector('.mitem:not([disabled]), input, button'); if (f && d.classList.contains('menu')) f.focus({preventScroll: true}); }
     };
   }
 
   const floating = d => d.classList.contains('reject') || d.classList.contains('menu');
+
+  // A menu inside a table's scroll box would be clipped by it, and the box would grow its own scrollbar.
+  // So it floats over the page instead, under its button, or above it when there's no room below.
+  // Phones already show it as a sheet along the bottom (style.css).
+  function place(d) {
+    const panel = d.querySelector(':scope > .menupanel');
+    if (!panel) return;
+    if (!d.open || !d.closest('.tablewrap') || window.matchMedia('(max-width: 600px)').matches) {
+      panel.classList.remove('fixed'); panel.style.top = panel.style.left = panel.style.maxHeight = ''; return;
+    }
+    panel.classList.add('fixed');
+    const b = d.querySelector('summary').getBoundingClientRect();
+    const w = panel.offsetWidth, h = panel.scrollHeight, gap = 6, edge = 8, vh = window.innerHeight;
+    const below = vh - b.bottom - gap - edge, above = b.top - gap - edge;
+    const down = h <= below || below >= above;
+    const room = down ? below : above;
+    panel.style.maxHeight = h > room ? room + 'px' : '';
+    panel.style.top = (down ? b.bottom + gap : b.top - gap - Math.min(h, room)) + 'px';
+    panel.style.left = Math.max(edge, Math.min(b.right - w, window.innerWidth - w - edge)) + 'px';
+    panel.style.transformOrigin = down ? 'top right' : 'bottom right';
+  }
+  function placeAll() { document.querySelectorAll('details.menu[open]').forEach(place); }
+  window.addEventListener('scroll', placeAll, true);
+  window.addEventListener('resize', placeAll);
 
   function setOpen(d, open) {
     if (wanted(d) === open) return;
