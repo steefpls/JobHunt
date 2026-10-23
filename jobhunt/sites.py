@@ -140,7 +140,8 @@ def is_human_check(title: str) -> bool:
 
 def check_blocked(html: str, final_url: str = "") -> None:
     head = (html or "")[:6000].lower()
-    soup_title = re.search(r"<title[^>]*>(.*?)</title>", head, re.S)
+    # Indeed's check page (2026-10-23) has 6 KB of style before its title
+    soup_title = re.search(r"<title[^>]*>(.*?)</title>", (html or "")[:20000].lower(), re.S)
     title = soup_title.group(1).strip() if soup_title else ""
     if is_human_check(title) or ("captcha" in head and "g-recaptcha" in head and len(html) < 20000):
         raise SiteBlocked(f"block page: {title[:80]!r}")

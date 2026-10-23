@@ -524,7 +524,7 @@ def create_app(port: int = 8765) -> FastAPI:
     @app.post("/api/ads/check")
     async def ads_check(request: Request):
         """Whether the ads waiting for you are still open (MyCareersFuture and LinkedIn: one plain request each,
-        a few at a time; JobStreet's are checked as a hunt starts). ?job=<id> checks just that job, now."""
+        a few at a time; JobStreet's and Indeed's are checked as a hunt starts). ?job=<id> checks just that job, now."""
         one = request.query_params.get("job", "")
         if one.isdigit():
             job = db.get_job(int(one))

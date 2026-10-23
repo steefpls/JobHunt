@@ -137,7 +137,8 @@ def test_each_sites_answer_about_its_ad():
 def test_which_site_answers_for_a_job():
     assert adcheck.where({"source": "indeed", "url": "https://sg.indeed.com/viewjob?jk=1",
                           "apply_url": "https://www.mycareersfuture.gov.sg/job/it/dev-0123456789abcdef0123456789abcdef"}) == "mycareersfuture"
-    assert adcheck.where({"source": "indeed", "url": "https://sg.indeed.com/viewjob?jk=1", "apply_url": ""}) == ""
+    assert adcheck.where({"source": "indeed", "url": "https://sg.indeed.com/viewjob?jk=1", "apply_url": ""}) == "indeed"
+    assert adcheck.where({"source": "demo", "url": "https://example.com/1"}) == ""
     assert adcheck.where({"source": "linkedin", "url": "https://www.linkedin.com/jobs/view/4300000001/"}) == "linkedin"
     assert adcheck.where({"source": "jobstreet", "url": "https://sg.jobstreet.com/job/1"}) == "jobstreet"
 
