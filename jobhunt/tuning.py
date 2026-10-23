@@ -86,7 +86,9 @@ def suggest(job: dict | None) -> dict | None:
     None when there's nothing useful to offer (or your Scope already does it)."""
     if not job or job.get("state") != "Not for me":
         return None
-    reasons = [r for r in (job.get("reject_reason") or "").split("; ") if r]
+    reasons = db.taste_reasons(job.get("reject_reason"))
+    if not reasons and db.AD_CLOSED in (job.get("reject_reason") or "").split("; "):
+        return None  # turned down because the ad closed: nothing in your Scope to change, the note included
     note = _one_line(job.get("reject_note"))
     s = settings_mod.load()
     avoid = s["scope"].get("avoid_words", [])

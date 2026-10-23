@@ -25,10 +25,10 @@ STATES = ["Found", "Ready", "Applying", "Applied", "Needs you", "Error", "Interv
 USER_STATES = ["Ready", "Applied", "Needs you", "Interview", "Offer", "Accepted", "Declined", "Rejected",
                "Not for me"]  # settable from the UI
 OFFER_STATES = ("Offer", "Accepted", "Declined")  # had an offer: the job page shows the box for its pay and dates
+AD_CLOSED = "Ad closed"  # also what "Not interested in all closed" gives: a fact about the ad, never a taste the AI learns
 # The quick picks when you reject a package (all optional). Saved on the job and read by the next hunts.
 REJECT_REASONS = ["Pay too low", "Wrong location", "Too senior", "Too junior", "Not my field", "Don't like the company",
-                  "Other"]
-AD_CLOSED = "Ad closed"  # the reason "Reject all closed" gives (never a quick pick, and not a taste the AI learns from)
+                  AD_CLOSED, "Other"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -280,7 +280,7 @@ def needs_you(job_id: int, kind: str, reason: str) -> None:
 
 def reject(job_id: int, reasons: list[str], note: str = "") -> None:
     """You turned a package down ('Not for me'), saying why if you like."""
-    reasons = [r for r in REJECT_REASONS + [AD_CLOSED] if r in reasons]  # only the quick picks, in their usual order
+    reasons = [r for r in REJECT_REASONS if r in reasons]  # only the quick picks, in their usual order
     note = " ".join((note or "").split())[:300]
     update_job(job_id, state="Not for me", by="you", reject_reason="; ".join(reasons), reject_note=note)
     add_history(job_id, "You marked it Not interested" + (": " + reject_text(get_job(job_id) or {}) if reasons or note
@@ -308,11 +308,18 @@ def reject_text(job: dict) -> str:
     return (reason + ("." if reason else "") + (f' "{note}"' if note else "")).strip()
 
 
+def taste_reasons(reason: str) -> list[str]:
+    """The quick picks in a saved reason that say what you like: "Ad closed" says nothing about that."""
+    return [r for r in (reason or "").split("; ") if r and r != AD_CLOSED]
+
+
 def recent_rejections(limit: int = 10) -> list[dict]:
-    """Your latest rejections that came with a reason, newest first."""
-    return _query("SELECT company, role, reject_reason, reject_note FROM jobs WHERE state = 'Not for me'"
+    """Your latest rejections that came with a reason, newest first. One turned down only because its ad closed
+    is left out, its note too (that says why it closed); with other reasons, those and the note count."""
+    rows = _query("SELECT company, role, reject_reason, reject_note FROM jobs WHERE state = 'Not for me'"
                   " AND (reject_reason != '' OR reject_note != '') AND reject_reason != ?"
                   " ORDER BY updated_at DESC, id DESC LIMIT ?", (AD_CLOSED, limit))
+    return [dict(r, reject_reason="; ".join(taste_reasons(r["reject_reason"]))) for r in rows]
 
 
 def why_needs_you(job: dict) -> str:

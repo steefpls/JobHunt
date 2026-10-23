@@ -1,4 +1,5 @@
-"""Reject all closed ads on To review, the Hunt page's pay floor and keywords, and the posted day on Applications."""
+"""Not interested in all closed (and "Ad closed" as a quick pick), the Hunt page's pay floor and keywords,
+and the posted day on Applications."""
 from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
@@ -67,6 +68,38 @@ def test_a_closed_ad_is_not_a_taste_the_ai_learns_from():
     db.reject(k, ["Wrong location"])
     assert [r["company"] for r in db.recent_rejections()] == ["Far Co"]
     assert tuning.suggest(db.get_job(j)) is None  # nothing to change in the Scope for a closed ad
+
+
+# ── "Ad closed" as a quick pick ─────────────────────────────────────
+
+def test_ad_closed_is_a_quick_pick_when_turning_one_job_down():
+    assert db.AD_CLOSED in db.REJECT_REASONS
+    jid = _job("Gone Co")
+    client = TestClient(create_app())
+    assert f'name="reasons" value="{db.AD_CLOSED}"' in client.get(f"/jobs/{jid}").text
+    client.post(f"/jobs/{jid}/reject", data={"reasons": [db.AD_CLOSED], "next": "/"}, headers=SAME_ORIGIN)
+    job = db.get_job(jid)
+    assert job["state"] == "Not for me" and job["reject_reason"] == db.AD_CLOSED
+
+
+def test_ad_closed_by_hand_is_not_a_taste_the_ai_learns_from_even_with_a_note():
+    j = _job("Gone Co")
+    db.reject(j, [db.AD_CLOSED], "Indeed says it expired")
+    assert db.recent_rejections() == [] and tuning.dislikes_text() == ""
+    assert tuning.suggest(db.get_job(j)) is None  # the note says why it closed: not a Scope line
+
+
+def test_ad_closed_with_other_reasons_keeps_only_those_as_tastes():
+    j = _job("Far Co")
+    db.reject(j, ["Ad closed", "Too senior", "Wrong location"], "too far anyway")
+    job = db.get_job(j)
+    assert job["reject_reason"] == "Wrong location; Too senior; Ad closed"  # your own record keeps all of it
+    assert db.reject_text(job) == 'Wrong location; Too senior; Ad closed. "too far anyway"'
+    [row] = db.recent_rejections()
+    assert row["reject_reason"] == "Wrong location; Too senior" and row["reject_note"] == "too far anyway"
+    assert "Ad closed" not in tuning.dislikes_text() and "Too senior" in tuning.dislikes_text()
+    db.reject(_job("Note Co"), ["Ad closed", "Other"], "agency")
+    assert db.recent_rejections()[0]["reject_reason"] == "Other"
 
 
 def test_undo_pairs_reads_only_real_jobs_and_states():

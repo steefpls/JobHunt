@@ -192,6 +192,7 @@ templates.env.globals["mcf_search"] = sites.MCF_SEARCH
 templates.env.globals["work_mode"] = workmode.of  # remote / hybrid / on-site, when the posting says
 templates.env.globals["why_needs_you"] = db.why_needs_you
 templates.env.globals["reject_reasons"] = db.REJECT_REASONS
+templates.env.globals["ad_closed"] = db.AD_CLOSED
 templates.env.globals["offer_states"] = db.OFFER_STATES  # the job page's box for an offer's pay and dates
 templates.env.globals["applied_or_rejected"] = db.applied_or_rejected  # the Applications date column
 templates.env.globals["ago_text"] = ago_text  # "2 days ago": when a job's state last changed
