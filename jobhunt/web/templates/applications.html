@@ -17,12 +17,21 @@
 {% endif %}
 
 <div class="filters" role="navigation" aria-label="Filter by status">
-  <a class="filter {{ 'on' if not state and not noreply }}" href="/applications">All <b>{{ counts.values()|sum }}</b></a>
-  {% for s in states %}{% if counts.get(s) %}
-  <a class="filter {{ 'on' if state == s and not noreply }}" href="/applications?state={{ s|urlencode }}">{{ state_label(s) }} <b>{{ counts[s] }}</b></a>
+  <a class="filter {{ 'on' if not state and not noreply }}" href="{{ apps_url(state='', noreply='') }}">All <b>{{ counts.values()|sum }}</b></a>
+  {% for s in states %}{% if counts.get(s) or state == s %}
+  <a class="filter {{ 'on' if state == s and not noreply }}" href="{{ apps_url(state=s, noreply='') }}">{{ state_label(s) }} <b>{{ counts.get(s, 0) }}</b></a>
   {% endif %}{% endfor %}
-  {% if quiet %}<a class="filter quiet {{ 'on' if noreply }}" href="/applications?noreply=1" title="Applied {{ no_reply_after }} or more days ago, and nothing heard since">{{ icon("clock", "sm") }}No reply yet <b>{{ quiet }}</b></a>{% endif %}
+  {% if quiet or noreply %}<a class="filter quiet {{ 'on' if noreply }}" href="{{ apps_url(noreply='1', state='') }}" title="Applied {{ no_reply_after }} or more days ago, and nothing heard since">{{ icon("clock", "sm") }}No reply yet <b>{{ quiet }}</b></a>{% endif %}
 </div>
+{% if show_sites %}
+<div class="filters sites" role="navigation" aria-label="Filter by where you apply">
+  <span class="flabel">Where you apply</span>
+  <a class="filter {{ 'on' if not site }}" href="{{ apps_url(site='') }}">Any site</a>
+  {% for k in site_list if site_counts.get(k) or site == k %}
+  <a class="filter {{ 'on' if site == k }}" href="{{ apps_url(site=k) }}">{{ site_names.get(k, k|title) }} <b>{{ site_counts.get(k, 0) }}</b></a>
+  {% endfor %}
+</div>
+{% endif %}
 
 <div class="card">
   {% if jobs %}
@@ -47,7 +56,7 @@
               <a class="mitem" role="menuitem" href="/jobs/{{ j.id }}">{{ icon("eye") }}Open</a>
               <hr><div class="mlabel">Move to</div>
               <form method="post" action="/jobs/{{ j.id }}/state">
-                <input type="hidden" name="next" value="/applications{{ '?state=' ~ state|urlencode if state }}{{ ('&' if state else '?') ~ 'noreply=1' if noreply }}">
+                <input type="hidden" name="next" value="{{ apps_url() }}">
                 {% for s in user_states %}<button class="mitem {{ 'on' if s == j.state }}" role="menuitem" name="state" value="{{ s }}" {{ 'disabled' if s == j.state }}>{{ icon(state_icons.get(s, "circle-dot")) }}{{ state_label(s) }}</button>{% endfor %}
               </form>
             </div>
@@ -57,6 +66,13 @@
     {% endfor %}
     </tbody>
   </table>
+  </div>
+  {% elif site %}
+  <div class="empty">
+    <div class="art">{{ icon("search", "xl") }}</div>
+    <h2>Nothing on {{ site_names.get(site, site|title) }}{{ " marked " ~ state_label(state) if state }}{{ " waiting for a reply" if noreply }}</h2>
+    <p>None of these applications is made on that site.</p>
+    <div class="actions"><a class="btn" href="{{ apps_url(site='') }}">Show every site</a></div>
   </div>
   {% elif noreply %}
   <div class="empty">

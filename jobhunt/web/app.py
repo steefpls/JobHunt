@@ -13,7 +13,8 @@ import sys
 import time
 from datetime import date, datetime
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from collections import Counter
+from urllib.parse import quote, urlencode, urlparse
 
 import httpx
 from fastapi import FastAPI, File, Form, Request, UploadFile
@@ -432,15 +433,31 @@ def create_app(port: int = 8765) -> FastAPI:
                     last_hunt=db.last_run("hunt"))
 
     @app.get("/applications", response_class=HTMLResponse)
-    def applications(request: Request, state: str = "", noreply: int = 0):
-        """Every job JobHunt prepared, filterable by state (or by "No reply yet")."""
+    def applications(request: Request, state: str = "", noreply: int = 0, site: str = ""):
+        """Every job JobHunt prepared, filterable by state (or by "No reply yet") and by where you apply.
+        Each row of chips counts within the other row's choice: the sites within the status picked, and so on."""
         everything = db.list_jobs()
-        quiet = sum(1 for j in everything if no_reply_days(j))
-        jobs = [j for j in everything if (not state or j["state"] == state) and (not noreply or no_reply_days(j))]
+        where = {j["id"]: sites.applied_on(j["source"], j["apply_url"]) for j in everything}
+        on_site = [j for j in everything if not site or where[j["id"]] == site]
+        quiet = sum(1 for j in on_site if no_reply_days(j))
+        in_state = [j for j in everything if (not state or j["state"] == state) and (not noreply or no_reply_days(j))]
+        site_counts = Counter(where[j["id"]] for j in in_state)
+        all_sites = set(where.values())
+        site_list = sorted(all_sites | ({site} if site else set()),
+                           key=lambda k: (list(sites.APPLIED_ON).index(k) if k in sites.APPLIED_ON else 99, k))
+        jobs = [j for j in in_state if not site or where[j["id"]] == site]
         contact, profile_text = profile.load_contact(), profile.load_profile()  # once, not per row
         profile_changed = {j["id"] for j in jobs
                            if refresh.profile_changes(j, paths.jobs_dir() / j["folder"], contact, profile_text)}
-        return page(request, "applications.html", jobs=jobs, counts=db.state_counts(), profile_changed=profile_changed,
+
+        def apps_url(**change) -> str:
+            """This page with some filters changed and the others kept."""
+            q = {"state": state, "noreply": "1" if noreply else "", "site": site, **change}
+            q = {k: v for k, v in q.items() if v}
+            return "/applications" + ("?" + urlencode(q) if q else "")
+        return page(request, "applications.html", jobs=jobs, counts=Counter(j["state"] for j in on_site),
+                    profile_changed=profile_changed, apps_url=apps_url, site=site, site_list=site_list,
+                    site_counts=site_counts, site_names=sites.APPLIED_ON, show_sites=len(all_sites) > 1 or site,
                     states=db.STATES, user_states=db.USER_STATES, state=state, replies=statuscheck.load_state(),
                     noreply=bool(noreply), quiet=quiet, no_reply_after=NO_REPLY_DAYS,
                     replies_todo=sum(len(v) for v in statuscheck.jobs_to_check().values()),

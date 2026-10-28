@@ -191,6 +191,10 @@ main { flex: 1; min-width: 0; padding: 32px 40px 72px; max-width: 1180px; }
 .filter:hover { border-color: var(--line-strong); text-decoration: none; }
 .filter.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
 .filter.on b { color: inherit; opacity: .75; }
+/* the second row, by where you apply: smaller, under the status chips */
+.filters.sites { align-items: center; gap: 4px; margin-top: calc(-1 * var(--sp-2)); }
+.filters.sites .filter { padding: 3px 10px; font-size: var(--fs-xs); }
+.filters.sites .flabel { color: var(--muted); font-size: var(--fs-xs); margin-right: 4px; }
 
 /* ── tables ───────────────────────────────────────────────────────── */
 .tablewrap { overflow-x: auto; margin: 0 -22px; padding: 0 22px; }

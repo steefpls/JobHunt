@@ -584,6 +584,30 @@ def apply_site(source: str, apply_url: str) -> str:
     return "mycareersfuture" if is_mcf_url(apply_url) else source
 
 
+# Where you apply for a job, for the Applications page's filter (in this order there).
+APPLIED_ON = {"jobstreet": "JobStreet", "indeed": "Indeed", "linkedin": "LinkedIn", "mycareersfuture": "MyCareersFuture",
+              "company": "Company site", "demo": "Practice board"}
+_BOARD_DOMAINS = {"jobstreet": "jobstreet.com", "indeed": "indeed.com", "linkedin": "linkedin.com"}
+
+
+def applied_on(source: str, apply_url: str) -> str:
+    """Where a job's application is made (a key of APPLIED_ON): MyCareersFuture when the apply link goes there,
+    the board itself when the link stays on it (JobStreet, LinkedIn, Indeed's own apply), "company" for the
+    employer's site (an Indeed "Apply on company site" link, or any other address), the practice board for
+    its fake jobs."""
+    if is_mcf_url(apply_url):
+        return "mycareersfuture"
+    if source == "demo":
+        return "demo"
+    u = urlparse(apply_url or "")
+    host = (u.hostname or "").lower()
+    if not host:
+        return source if source in APPLIED_ON else "company"
+    if u.path.startswith("/applystart"):  # Indeed's redirect to the company's own page
+        return "company"
+    return next((key for key, d in _BOARD_DOMAINS.items() if host == d or host.endswith("." + d)), "company")
+
+
 def _fill_from_listing(p: Posting, listing: Listing) -> Posting:
     p.title = p.title or listing.title
     p.company = p.company or listing.company
