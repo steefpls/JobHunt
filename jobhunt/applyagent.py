@@ -329,6 +329,8 @@ class ApplyAgent:
         self.clicked_since_fill = False
         self.texts_before_clicks: list[str] = []  # page text just before each button click
         self.allowed_sites: set[str] = set()  # where goto may go: the start site + sites clicks led to
+        self._undo: list = []  # takes this run's network rule and listeners off the browser again
+        self.scanned_page = None
 
     # ── page view ──────────────────────────────────────────────────────
     def _page(self):
@@ -338,8 +340,9 @@ class ApplyAgent:
             return [p for p in context.pages if not p.is_closed() and not any(p is t for t in other_tabs)]
         current = getattr(self.browser, "_page", None)
         if current is not None and current.is_closed() and open_pages(current.context):
-            # a popup (a "sign in with..." window) closed itself: carry on in the page before it, not a blank one
-            self.browser._page = open_pages(current.context)[-1]
+            # a popup (a "sign in with..." window) closed itself: carry on in the page that opened it, not a blank one
+            opener, left = current.opener(), open_pages(current.context)
+            self.browser._page = opener if any(opener is p for p in left) else left[-1]
         page = self.browser.page
         pages = open_pages(page.context)
         if pages and pages[-1] is not page:  # a click opened a new tab: follow it
@@ -359,6 +362,7 @@ class ApplyAgent:
 
     def scan(self) -> str:
         page = self._page()
+        self.scanned_page = page  # the page the element ids belong to
         self.refs = {}
         elements, texts, alerts, n = [], [], [], 0
         for frame in page.frames:
@@ -616,9 +620,9 @@ class ApplyAgent:
         def ended(req):
             self._open_requests.pop(req, None)
             self._last_request = time.monotonic()
-        ctx.on("request", started)
-        ctx.on("requestfinished", ended)
-        ctx.on("requestfailed", ended)
+        for event, handler in (("request", started), ("requestfinished", ended), ("requestfailed", ended)):
+            ctx.on(event, handler)
+            self._undo.append(lambda event=event, handler=handler: ctx.remove_listener(event, handler))
         ctx.add_init_script(DOM_CHANGES_JS)
 
     def _wait_quiet(self) -> None:
@@ -711,6 +715,22 @@ class ApplyAgent:
 
     # ── main loop ──────────────────────────────────────────────────────
     def run(self, start_url: str) -> ApplyResult:
+        try:
+            return self._run(start_url)
+        finally:
+            self._release()
+
+    def _release(self) -> None:
+        """Take this run's network rule and listeners off the browser: a window left open for you to finish
+        (or the hunt's next job) carries nothing of this run's."""
+        for undo in reversed(self._undo):
+            try:
+                undo()
+            except Exception:  # the window may be gone already
+                pass
+        self._undo = []
+
+    def _run(self, start_url: str) -> ApplyResult:
         max_steps = int(self.settings.get("apply", {}).get("max_steps", 30))
         system = prompts.apply_system_prompt(bool(self.settings.get("apply", {}).get("allow_register")))
         files = [n for n in ("resume", "cover_letter") if (self.folder / f"{n}.pdf").is_file()]
@@ -784,6 +804,7 @@ class ApplyAgent:
             for call in resp.tool_calls[:12]:
                 if call.name == "finish":
                     return self._finish(call.args, step)
+                page_before = self.scanned_page  # it may have closed while the model was thinking
                 url_before = self._page().url
                 clicked = call.name == "click" and self.refs.get(str(call.args.get("element", "")), (None, {}))[1] \
                     .get("kind") not in ("radio", "checkbox")
@@ -801,11 +822,22 @@ class ApplyAgent:
                 except PlaywrightError as e:
                     if self.browser.is_closed_error(e):
                         raise
-                    line = f"step {step}: {call.name} {call.args.get('element', '')} -> FAILED: {_failure(e)}"
+                    if page_before.is_closed():  # the site closed that window itself (a popup handing back)
+                        line = f"step {step}: {call.name} {call.args.get('element', '')} -> that window closed itself"
+                    else:
+                        line = f"step {step}: {call.name} {call.args.get('element', '')} -> FAILED: {_failure(e)}"
                 line = self.redact(line)
                 self.action_log.append(line)
                 self.log(line)
                 self._settle(busy=clicked or call.name == "goto")
+                now = self._page()
+                if now is not page_before:  # say so: the model only sees one page at a time
+                    moved = (f"step {step}: that window closed; back in the one before it: {now.url[:150]}"
+                             if page_before.is_closed() else f"step {step}: it opened a new tab: {now.url[:150]}")
+                    self.action_log.append(self.redact(moved))
+                    self.log(self.redact(moved))
+                    self.allowed_sites.add(site_of(urlparse(now.url).hostname or ""))
+                    break  # another page: look at it before doing anything else
                 if self._page().url != url_before:
                     # a click or redirect led here (goto can't reach new sites), so goto may come back to it
                     self.allowed_sites.add(site_of(urlparse(self._page().url).hostname or ""))
@@ -833,7 +865,9 @@ class ApplyAgent:
                 route.continue_()
             else:
                 route.abort("blockedbyclient")
-        self._page().context.route(GUARDED_URL, handler)
+        ctx = self._page().context
+        ctx.route(GUARDED_URL, handler)
+        self._undo.append(lambda: ctx.unroute(GUARDED_URL, handler))
 
 
 def _best_match(wanted: str, choices: list[str]) -> str | None:

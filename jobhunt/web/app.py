@@ -25,6 +25,7 @@ from markupsafe import Markup, escape
 from .. import (achievements, adcheck, company, db, demo_board, hunt, llm, login_check, marketpay, paths, profile,
                refresh, render, secrets_store, tuning, updates)
 from .. import ask as ask_mod
+from .. import browser as browser_mod
 from .. import settings as settings_mod
 from .. import sites, statuscheck, workmode
 from ..extract import salary_range_monthly
@@ -250,10 +251,20 @@ def profile_busy_reason() -> str:
     return ""
 
 
+def left_open_reason(doing: str) -> str:
+    """Why `doing` has to wait: a window an apply left open for you holds the browser profile ('' = it doesn't)."""
+    held = browser_mod.held_by_left_open(paths.browser_profile_dir())
+    if not held:
+        return ""
+    job = db.get_job(held["job_id"]) if held.get("job_id") else None
+    return (f"Finish the application in the window JobHunt left open{' for ' + job['company'] if job else ''} "
+            f"and close that window first: {doing}.")
+
+
 def start_pending_login_check() -> None:
     """Checks the logins once the browser profile is free (the login window closed, nothing running)."""
     global _check_proc, _check_pending
-    if not _check_pending or hunt.runner.busy or profile_busy_reason():
+    if not _check_pending or hunt.runner.busy or profile_busy_reason() or left_open_reason("checking"):
         return
     _check_pending = False
     _check_proc = subprocess.Popen([sys.executable, "-m", "jobhunt.login_check", *LOGIN_SITES],
@@ -321,6 +332,7 @@ def create_app(port: int = 8765) -> FastAPI:
     db.init()
     if not hunt.runner.busy:
         db.recover_interrupted()
+        browser_mod.clean_standins()
     s = settings_mod.load()
     if s["provider"] in settings_mod.SUBSCRIPTION_PROVIDERS:  # older flat-plan runs were recorded at $0
         db.backfill_costs(lambda model, tin, tout: llm.cost_of(model, tin, tout, s))
@@ -949,6 +961,8 @@ def create_app(port: int = 8765) -> FastAPI:
             return back("/accounts", err="The login browser is already open.")
         if login_check_running():
             return back("/accounts", err=profile_busy_reason())
+        if reason := left_open_reason("logging in uses the same browser"):
+            return back("/accounts", err=reason)
         urls = ([LOGIN_SITES[site][1], *LOGIN_EXTRA_TABS.get(site, [])] if site in LOGIN_SITES
                 else [u for _, u in LOGIN_SITES.values()])
         _login_proc = subprocess.Popen([sys.executable, "-m", "jobhunt.login_browser", *urls], cwd=str(paths.APP_DIR))
@@ -962,6 +976,8 @@ def create_app(port: int = 8765) -> FastAPI:
             return back("/accounts", err=profile_busy_reason())
         if hunt.runner.busy:
             return back("/accounts", err="Wait for the current task to finish (or stop it), then check again.")
+        if reason := left_open_reason("checking your logins uses the same browser"):
+            return back("/accounts", err=reason)
         _check_pending = True
         start_pending_login_check()
         return back("/accounts")
@@ -1018,6 +1034,8 @@ def create_app(port: int = 8765) -> FastAPI:
             return back(local_path(next, "/"), err="Wait for the current task to finish (or stop it), then restart.")
         if profile_busy_reason():
             return back(local_path(next, "/"), err=profile_busy_reason())
+        if reason := left_open_reason("restarting would close it"):
+            return back(local_path(next, "/"), err=reason)
         try:
             updates.restart(app.state.port)
         except OSError as e:

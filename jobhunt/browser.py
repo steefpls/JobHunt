@@ -2,11 +2,18 @@
 plus a separate throwaway headless Chromium that only turns HTML into PDFs.
 
 Uses Playwright's sync API, so a BrowserSession must stay on the thread that
-created it (the hunt worker thread).
+created it (the hunt worker thread). An apply that stops for you can leave its
+window open where it stopped (BrowserSession.leave_open, below).
 """
 import base64
 import html as htmlmod
 import json
+import os
+import shutil
+import signal
+import sys
+import tempfile
+import threading
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
@@ -52,6 +59,126 @@ def prepare_profile(profile_dir: Path) -> None:
     prefs_path.write_text(json.dumps(merge(prefs, NO_SAVING_PREFS)), encoding="utf-8")
 
 
+# ── windows left open for you ─────────────────────────────────────────
+# An apply that stops as Needs you in a visible window leaves that window where it stopped, so you can finish the
+# form by hand (BrowserSession.leave_open). JobHunt lets go of it: none of its rules stay on the window, and the
+# session carries on in a fresh browser. While such a window still holds the browser profile (where your logins
+# live), later browsers start on a stand-in profile with a copy of its cookies and site storage. A window left open
+# closes when you close it, or when JobHunt quits (the Playwright driver that started it ends with JobHunt).
+
+STANDIN_PREFIX = "jobhunt-browser-"
+_left_open: list[dict] = []  # {"job_id", "profile", "pw", "ctx", "pid", "watch", "state", "own_dir"}
+_active_pws: list = []  # the Playwright instances BrowserSessions are using right now
+_standins_in_use: set = set()  # stand-in profiles sessions are on right now
+_lock = threading.Lock()
+
+
+def profile_in_use(profile_dir) -> bool:
+    """Is a Chromium running on this profile? (On Windows it keeps <profile>/lockfile open while it runs.)"""
+    d = Path(profile_dir)
+    if sys.platform != "win32":
+        return os.path.lexists(d / "SingletonLock")
+    try:
+        fd = os.open(d / "lockfile", os.O_WRONLY)
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    os.close(fd)
+    return False
+
+
+def _watch(pid: int | None):
+    """Something that tells whether process `pid` still runs: on Windows a handle, which a reused PID can't fool."""
+    if not pid:
+        return None
+    if sys.platform != "win32":
+        return pid
+    import ctypes
+    return ctypes.windll.kernel32.OpenProcess(0x00100000 | 0x1000, False, pid) or None  # SYNCHRONIZE | QUERY_LIMITED
+
+
+def _running(watch) -> bool:
+    if sys.platform != "win32":
+        try:
+            os.kill(watch, 0)
+            return True
+        except OSError:
+            return False
+    import ctypes
+    return ctypes.windll.kernel32.WaitForSingleObject(watch, 0) == 0x102  # WAIT_TIMEOUT: not ended yet
+
+
+def _unwatch(watch) -> None:
+    if watch and sys.platform == "win32":
+        import ctypes
+        ctypes.windll.kernel32.CloseHandle(watch)
+
+
+def _still_open(w: dict) -> bool:
+    return _running(w["watch"]) if w["watch"] else profile_in_use(w["profile"])
+
+
+def _same_dir(a, b) -> bool:
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def _driver_pid(pw) -> int | None:
+    try:
+        return pw._impl_obj._connection._transport._proc.pid  # Playwright's driver process (not public API)
+    except AttributeError:
+        return None
+
+
+def _reap_locked() -> None:
+    """Forget the windows you have closed; end the Playwright driver behind them once nothing else uses it."""
+    dead = [w for w in _left_open if not _still_open(w)]
+    for w in dead:
+        _left_open.remove(w)
+        _unwatch(w["watch"])
+    ended = set()
+    for w in dead:
+        pw = w["pw"]
+        if (w["pid"] and w["pid"] not in ended and not any(o["pw"] is pw for o in _left_open)
+                and not any(a is pw for a in _active_pws)):
+            ended.add(w["pid"])
+            try:
+                os.kill(w["pid"], signal.SIGTERM)
+            except OSError:
+                pass
+        if w["own_dir"]:
+            shutil.rmtree(w["profile"], ignore_errors=True)
+
+
+def windows_left_open() -> list[dict]:
+    """The windows an apply left open that are still open: [{"job_id": ...}]."""
+    with _lock:
+        _reap_locked()
+        return [{"job_id": w["job_id"]} for w in _left_open]
+
+
+def held_by_left_open(profile_dir) -> dict | None:
+    """The window left open that is running on this profile, if one is."""
+    with _lock:
+        _reap_locked()
+        return next((w for w in _left_open if _same_dir(w["profile"], profile_dir)), None)
+
+
+def clean_standins() -> None:
+    """Delete stand-in profiles that an earlier JobHunt left behind."""
+    for d in Path(tempfile.gettempdir()).glob(STANDIN_PREFIX + "*"):
+        if (d.is_dir() and not profile_in_use(d) and not held_by_left_open(d)
+                and not any(_same_dir(d, u) for u in _standins_in_use)):
+            shutil.rmtree(d, ignore_errors=True)
+
+
+# Copies a profile's site storage into a stand-in profile, where the stand-in has nothing of its own yet.
+SEED_STORAGE_JS = """(() => { try { const items = (STORAGE)[location.origin]; if (!items) return;
+  for (const [k, v] of Object.entries(items)) if (localStorage.getItem(k) === null) localStorage.setItem(k, v);
+} catch (e) {} })();"""
+SEED_STORAGE_MAX = 2_000_000  # characters: more than any login needs
+
+
 class BrowserSession:
     def __init__(self, headless: bool = True, profile_dir: Path | None = None, minimized: bool = False):
         self.headless = headless
@@ -63,18 +190,63 @@ class BrowserSession:
         self._tabs = {}  # name -> page: a site that keeps its search page open between steps (Indeed)
         self._gone = None  # a profile browser context that has closed
         self._pdf_browser = None
+        self._launched_on = None  # the profile the open browser runs on: yours, or a stand-in
+        self._standin = None  # this session's stand-in profile, while a window left open holds yours
+        self._seed = None  # what the stand-in starts with: the held profile's cookies and site storage
         self.last_url = ""  # where the last load_html ended up (after redirects)
         self.last_status = 0  # its HTTP status (0 = unknown)
 
     # profile browser ---------------------------------------------------
-    def _ensure(self):
+    def _playwright(self):
         if self._pw is None:
             self._pw = sync_playwright().start()
-        if self._ctx is None:
+            with _lock:
+                _active_pws.append(self._pw)
+        return self._pw
+
+    def _profile_to_launch(self) -> tuple[Path, bool]:
+        """Your profile, or a stand-in while a window left open holds yours: (the profile, is a new stand-in)."""
+        held = held_by_left_open(self.profile_dir)
+        if not held:
+            self._drop_standin()  # yours is free again
+            return self.profile_dir, False
+        if self._standin is not None:
+            return self._standin, False
+        self._standin, self._seed = Path(tempfile.mkdtemp(prefix=STANDIN_PREFIX)), held["state"] or {}
+        with _lock:
+            _standins_in_use.add(self._standin)
+        return self._standin, True
+
+    def _drop_standin(self, delete: bool = True) -> None:
+        if self._standin is not None:
+            with _lock:
+                _standins_in_use.discard(self._standin)
+            if delete:
+                shutil.rmtree(self._standin, ignore_errors=True)
+            self._standin = self._seed = None
+
+    def _seed_standin(self, ctx, new: bool) -> None:
+        """A stand-in starts with your profile's logins: its cookies once, its site storage where it has none."""
+        seed = self._seed or {}
+        if new and seed.get("cookies"):
             try:
-                prepare_profile(self.profile_dir)
+                ctx.add_cookies(seed["cookies"])
+            except PlaywrightError:
+                pass
+        storage = {o["origin"]: {i["name"]: i["value"] for i in o["localStorage"]}
+                   for o in seed.get("origins") or [] if o.get("localStorage")}
+        script = json.dumps(storage)
+        if storage and len(script) <= SEED_STORAGE_MAX:
+            ctx.add_init_script(SEED_STORAGE_JS.replace("STORAGE", script))
+
+    def _ensure(self):
+        self._playwright()
+        if self._ctx is None:
+            profile, new_standin = self._profile_to_launch()
+            try:
+                prepare_profile(profile)
                 self._ctx = self._pw.chromium.launch_persistent_context(
-                    str(self.profile_dir), headless=self.headless, user_agent=USER_AGENT,
+                    str(profile), headless=self.headless, user_agent=USER_AGENT,
                     viewport={"width": 1280, "height": 900}, accept_downloads=False,
                     service_workers="block",  # so the apply agent's network rules see every request
                     args=["--disable-blink-features=AutomationControlled",
@@ -84,8 +256,11 @@ class BrowserSession:
                 if "user data directory is already in use" in str(e).lower() or "lock" in str(e).lower():
                     raise BrowserBusy("The job-site browser is already open (close the login window first).") from None
                 raise
+            self._launched_on = profile
             self._ctx.on("close", self._on_close)
             self._ctx.set_default_timeout(15000)
+            if profile != self.profile_dir:
+                self._seed_standin(self._ctx, new_standin)
             self._page = self._ctx.pages[0] if self._ctx.pages else self._ctx.new_page()
 
     def _on_close(self, ctx) -> None:
@@ -115,8 +290,49 @@ class BrowserSession:
                 self._ctx.close()
             except Exception:
                 pass
-        self._ctx = self._page = None
+        self._ctx = self._page = self._launched_on = None
         self._tabs = {}
+
+    def leave_open(self, job_id: int | None = None) -> bool:
+        """Let go of the browser with its window as it is, for you to finish what is on screen yourself. The
+        session's next page use starts a fresh browser. False (nothing changes) if there's no browser to leave,
+        e.g. you closed its window."""
+        if self._ctx is None or self.gone():
+            return False
+        ctx, profile = self._ctx, self._launched_on
+        try:
+            ctx.unroute_all(behavior="ignoreErrors")  # no request in that window waits for JobHunt to answer it
+            for t in self._tabs.values():  # the hunt's own tabs (Indeed's search page) aren't part of it
+                if not t.is_closed():
+                    t.close()
+            if self._page is not None and not self._page.is_closed():
+                self._page.bring_to_front()
+            # while it holds your profile, later browsers start with a copy of its logins
+            state = ctx.storage_state() if _same_dir(profile, self.profile_dir) else None
+        except PlaywrightError:
+            return False
+        try:  # its browser process: when that has ended, you have closed the window
+            cdp = ctx.browser.new_browser_cdp_session()
+            pid = next((p["id"] for p in cdp.send("SystemInfo.getProcessInfo")["processInfo"] if p["type"] == "browser"),
+                       None)
+            cdp.detach()
+        except (PlaywrightError, AttributeError, KeyError, TypeError):
+            pid = None  # then the profile's lock file tells
+        if self._pdf_browser is not None:  # it would stay behind with the window's Playwright
+            try:
+                self._pdf_browser.close()
+            except Exception:
+                pass
+            self._pdf_browser = None
+        with _lock:
+            _left_open.append({"job_id": job_id, "profile": profile, "pw": self._pw, "ctx": ctx,
+                               "pid": _driver_pid(self._pw), "watch": _watch(pid), "state": state,
+                               "own_dir": not _same_dir(profile, self.profile_dir)})
+        if self._standin is not None and _same_dir(profile, self._standin):
+            self._drop_standin(delete=False)  # the window has that stand-in now: it goes when the window does
+        self._ctx = self._page = self._launched_on = None
+        self._tabs = {}
+        return True
 
     def gone(self) -> bool:
         """The profile browser was started and has since closed (e.g. you closed its window)."""
@@ -184,10 +400,8 @@ class BrowserSession:
         your job-site logins, no downloads. Sets last_url and last_status like load_html.
         `allow(url) -> bool`: every request the page makes, and every redirect, must pass it (so a website
         can't send JobHunt to this PC or the home network); anything else raises PermissionError."""
-        if self._pw is None:
-            self._pw = sync_playwright().start()
         if self._pdf_browser is None:
-            self._pdf_browser = self._pw.chromium.launch(headless=True)
+            self._pdf_browser = self._playwright().chromium.launch(headless=True)
         ctx = self._pdf_browser.new_context(user_agent=USER_AGENT, accept_downloads=False, service_workers="block",
                                             viewport={"width": 1280, "height": 900})
         refused = []
@@ -246,10 +460,8 @@ class BrowserSession:
 
     # PDFs ----------------------------------------------------------------
     def render_pdf(self, html: str, out_path: Path) -> Path:
-        if self._pw is None:
-            self._pw = sync_playwright().start()
         if self._pdf_browser is None:
-            self._pdf_browser = self._pw.chromium.launch(headless=True)
+            self._pdf_browser = self._playwright().chromium.launch(headless=True)
         page = self._pdf_browser.new_page()
         try:
             page.set_content(html, wait_until="load")
@@ -280,14 +492,20 @@ class BrowserSession:
                     thing.close()
             except Exception:
                 pass
-        self._ctx = self._page = self._pdf_browser = None
+        self._ctx = self._page = self._pdf_browser = self._launched_on = None
         self._tabs = {}
+        self._drop_standin()
         if self._pw is not None:
-            try:
-                self._pw.stop()
-            except Exception:
-                pass
-            self._pw = None
+            pw, self._pw = self._pw, None
+            with _lock:
+                _active_pws[:] = [a for a in _active_pws if a is not pw]
+                _reap_locked()
+                kept = any(w["pw"] is pw for w in _left_open)  # a window left open still runs on it
+            if not kept:
+                try:
+                    pw.stop()
+                except Exception:
+                    pass
 
 
 def render_pdfs(pairs: list[tuple[str, Path]]) -> None:

@@ -32,6 +32,8 @@ from .sites import SiteBlocked, SiteContext, apply_site, get_site
 HUMAN_APPLY_SITES = {"mycareersfuture"}
 # The apply agent only starts on a job in one of these states (never on one already Applied or Applying).
 APPLY_FROM_STATES = {"Ready", "Needs you"}
+# Added to a Needs-you reason when the apply's window stays open where it stopped (BrowserSession.leave_open).
+LEFT_OPEN = "The window is left open where it stopped: finish it there, then press I applied."
 
 # Starting guesses for the estimate; replaced by your own averages once you have history.
 DEFAULT_TOKENS = {"filter": (2600, 160), "tailor": (7500, 2600), "apply": (5200, 260), "company": (4800, 550)}
@@ -222,14 +224,20 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
     task.meter.seed_job(job_id, job["cost_usd"] or 0.0, (job["tokens_in"] or 0) + (job["tokens_out"] or 0))
     hunt_mode = (browser.headless, browser.minimized)
     needs_window = job["source"] in settings_mod.SITES and getattr(get_site(job["source"], task.settings), "needs_window", False)
-    browser.set_headless(not (task.settings["apply"].get("show_browser", True) or needs_window))
+    visible = bool(task.settings["apply"].get("show_browser", True) or needs_window)
+    browser.set_headless(not visible)
     date_letter_today(task, browser, folder, job_id)
     agent = ApplyAgent(browser=browser, llm=task.get_llm(), settings=task.settings, contact=profile.load_contact(),
                        profile_text=profile.load_profile(), screening=profile.load_screening(), job=job,
                        folder=folder, redactor=task.redact,
                        stop_event=task.stop_event, log=lambda m: task.log(m, job_id=job_id))
+    left_open = False
     try:
         result = agent.run(job["apply_url"] or job["url"])
+        # stopped for you in a window you can see: it stays open where it stopped, so you can finish the
+        # form there instead of starting over (not for Singpass: that is never done in JobHunt's browser)
+        if visible and result.status == "needs_you" and result.kind != "singpass":
+            left_open = browser.leave_open(job_id)
     except Exception as e:  # browser trouble etc. — hand it to the person, never guess
         if browser.is_closed_error(e):  # you closed the window: it may or may not have been sent
             browser.reset()  # the next job (or the rest of the hunt) gets a fresh browser
@@ -244,8 +252,11 @@ def apply_job(task: Task, browser: BrowserSession, job_id: int) -> str:
         browser.set_headless(*hunt_mode)  # never raises, even with the window already closed
     state = {"submitted": "Applied", "failed": "Error", "stopped": "Ready"}.get(result.status, "Needs you")
     if state == "Needs you":
-        db.needs_you(job_id, result.kind or needs_you_kind(result.summary), result.summary)
-        db.add_history(job_id, f"Stopped at {result.url}")
+        summary = result.summary + (f" {LEFT_OPEN}" if left_open else "")
+        db.needs_you(job_id, result.kind or needs_you_kind(result.summary), summary)
+        db.add_history(job_id, f"Stopped at {result.url}" + (" (window left open)" if left_open else ""))
+        if left_open:
+            task.log("The browser window is left open where it stopped, for you to finish.", job_id=job_id)
     else:
         db.update_job(job_id, state=state)
         db.add_history(job_id, f"Applied: {result.summary}" if state == "Applied" else f"{result.summary} (at {result.url})")
