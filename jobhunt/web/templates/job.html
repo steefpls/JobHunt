@@ -68,7 +68,7 @@
       <a class="btn" href="{{ apply_href }}" target="_blank" rel="noopener noreferrer">{{ icon("external-link") }}Open apply page ↗</a>
       <form method="post" action="/jobs/{{ job.id }}/apply" class="inline" data-confirm="JobHunt fills in the application for {{ job.role }} at {{ job.company }} and submits it, with the resume and cover letter below. It stops and hands it to you if anything needs a person."
             data-confirm-title="Send this application?" data-confirm-ok="Submit application">
-        <button class="btn primary" {{ 'disabled title="Waiting for the current task to finish"' if status.busy }}>{{ icon("send") }}Approve &amp; apply</button>
+        <button class="btn primary" data-wait-busy{% if status.busy %} disabled title="{{ busy_text(status) }}. You can approve this when it finishes."{% endif %}>{{ icon("send") }}Approve &amp; apply</button>
       </form>
     {% elif job.state == "Offer" %}{# how the offer ended: each one's toast has an Undo #}
       <form method="post" action="/jobs/{{ job.id }}/state" class="inline"><input type="hidden" name="next" value="/jobs/{{ job.id }}">

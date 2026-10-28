@@ -719,6 +719,9 @@ details.pastask summary .hint { margin: 0; flex-shrink: 0; }
 .headacts form { margin: 0; }
 .replynote { display: flex; gap: 8px; align-items: flex-start; margin: calc(-1 * var(--sp-2)) 0 var(--sp-3); }
 .replynote .i { flex: none; margin-top: 2px; }
+.busynote { display: flex; gap: 8px; align-items: center; margin: 0 0 var(--sp-3); }
+.busynote[hidden] { display: none; }
+.busynote .i { flex: none; }
 .replies .cardhead form { margin: 0; }
 .replylist { list-style: none; margin: 0; padding: 0; }
 .replylist li { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0; border-top: 1px solid var(--line); }

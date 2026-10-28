@@ -159,6 +159,20 @@ STATE_ICONS = {"Ready": "circle-dot", "Needs you": "hand", "Applied": "send", "I
                "Not for me": "circle-pause", "Error": "triangle-alert", "Applying": "loader-circle", "Found": "search"}
 
 
+# What's running, in words: why Approve & apply has to wait (status["kind"] is the runner's task kind)
+BUSY_TEXT = {"hunt": "A hunt is running", "apply": "JobHunt is sending an application",
+             "profile": "Your profile is being built", "scope": "Your search scope is being drafted",
+             "rebuild": "PDFs are being rebuilt", "company": "A company is being looked up",
+             "replies": "Indeed and JobStreet are being checked for replies"}
+
+
+def busy_text(status: dict) -> str:
+    """'A hunt is running' while a task runs ('' when nothing does)."""
+    if not status.get("busy"):
+        return ""
+    return BUSY_TEXT.get(status.get("kind") or "", "Another task is running")
+
+
 def state_label(state: str) -> str:
     return STATE_LABELS.get(state, state)
 
@@ -181,6 +195,7 @@ templates.env.filters["web_url"] = web_url
 templates.env.globals["static_url"] = static_url
 templates.env.globals["icon"] = icon
 templates.env.globals["state_label"] = state_label
+templates.env.globals["busy_text"] = busy_text
 templates.env.globals["state_badge"] = state_badge
 templates.env.globals["state_icons"] = STATE_ICONS
 templates.env.globals["initials"] = initials
@@ -1066,6 +1081,7 @@ def create_app(port: int = 8765) -> FastAPI:
             j = db.get_job(st["current_job"])
             st["job"] = {k: j[k] for k in ("id", "company", "role", "state", "cost_usd", "tokens_in", "tokens_out")} if j else None
         st["counts"] = db.state_counts()
+        st["busy_text"] = busy_text(st)
         return JSONResponse(st)
 
     @app.get("/api/estimate")

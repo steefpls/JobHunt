@@ -23,6 +23,16 @@ const jhCalm = () => window.matchMedia('(prefers-reduced-motion: reduce)').match
       document.title = (n ? '(' + n + ') ' : '') + document.title.replace(/^\(\d+\) /, '');
       const c = document.getElementById('navCount'), total = n + ((s.counts && s.counts['Needs you']) || 0);
       if (c && String(total) !== c.textContent) { if (total) c.textContent = total; else c.remove(); }
+      // Approve & apply waits while a task runs, saying what is running
+      document.querySelectorAll('[data-wait-busy]').forEach(function (b) {
+        if (b.getAttribute('aria-busy') === 'true') return;  // being sent right now
+        b.disabled = !!s.busy;
+        if (s.busy) b.title = s.busy_text + '. You can approve this when it finishes.'; else b.removeAttribute('title');
+      });
+      document.querySelectorAll('[data-busy-note]').forEach(function (p) {
+        p.hidden = !s.busy;
+        if (s.busy) p.querySelector('span').textContent = s.busy_text + '. You can approve these when it finishes.';
+      });
     } catch (e) { /* ignore */ }
   }
   setInterval(tick, 4000);

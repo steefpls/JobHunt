@@ -1,4 +1,6 @@
 {# The packages waiting for your approval (Hunt page and the To review page). Needs: ready, status, human_apply_sites. #}
+{# While a task runs, Approve & apply waits: this says what is running (app.js keeps it and the buttons current) #}
+<p class="hint busynote" data-busy-note {{ 'hidden' if not status.busy }}>{{ icon("loader-circle", "sm spin") }}<span>{{ busy_text(status) }}. You can approve these when it finishes.</span></p>
 <div class="queue rise approve">
   {% for j in ready %}{% set human = apply_site(j.source, j.apply_url) in human_apply_sites %}
   <div class="qcard" data-row>
@@ -15,7 +17,7 @@
       {% else %}<a class="btn small" href="/jobs/{{ j.id }}">{{ icon("eye") }}Review</a>
       <form method="post" action="/jobs/{{ j.id }}/apply" class="inline" data-confirm="JobHunt fills in the application for {{ j.role }} at {{ j.company }} and submits it, with the resume and cover letter in its package. It stops and hands it to you if anything needs a person."
             data-confirm-title="Send this application?" data-confirm-ok="Submit application" data-confirm-icon="send">
-        <button class="btn small primary" {{ 'disabled title="Waiting for the current task to finish"' if status.busy }}>{{ icon("send") }}Approve &amp; apply</button></form>{% endif %}
+        <button class="btn small primary" data-wait-busy{% if status.busy %} disabled title="{{ busy_text(status) }}. You can approve this when it finishes."{% endif %}>{{ icon("send") }}Approve &amp; apply</button></form>{% endif %}
       {% with next = request.url.path %}{% include "_reject.html" %}{% endwith %}
     </div>
   </div>
